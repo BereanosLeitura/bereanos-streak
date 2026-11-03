@@ -1,0 +1,334 @@
+import { lazy, Suspense, useEffect, useRef, useState } from 'react'
+import { supabase, buscarPerfilAtual, type Perfil as TPerfil } from './lib/supabase'
+import { sincronizarTudo } from './lib/sync'
+import { aplicarTema, temaSalvoLocal, type TemaPreferido } from './lib/tema'
+import { ProvedorAvisos, useAviso } from './components/Toast'
+import Icone, { type NomeIcone } from './components/Icone'
+import Login from './pages/Login'
+import CompletarPerfil from './pages/CompletarPerfil'
+import Inicio, { type LivroAtivo, type Destino } from './pages/Inicio'
+import RegistrarLeitura from './pages/RegistrarLeitura'
+import EstadoConexao from './components/EstadoConexao'
+import type { PreCarga } from './pages/Compartilhar'
+import type { FiltroInicialNotas } from './pages/Notas'
+
+// Telas carregadas sob demanda: o app abre mais rápido no celular.
+const Pomodoro = lazy(() => import('./pages/Pomodoro'))
+const Metas = lazy(() => import('./pages/Metas'))
+const Notas = lazy(() => import('./pages/Notas'))
+const Perfil = lazy(() => import('./pages/Perfil'))
+const AdminPainel = lazy(() => import('./pages/AdminPainel'))
+const Compartilhar = lazy(() => import('./pages/Compartilhar'))
+const LivroDetalhe = lazy(() => import('./pages/LivroDetalhe'))
+const Panorama = lazy(() => import('./pages/Panorama'))
+
+// Cópia local do perfil e do livro: o app abre mesmo sem internet.
+const CACHE_PERFIL = 'bereanos-streak-cache-perfil'
+const CACHE_LIVRO = 'bereanos-streak-cache-livro'
+function lerCache<T>(chave: string): T | null {
+  try { const v = localStorage.getItem(chave); return v ? JSON.parse(v) as T : null } catch { return null }
+}
+function gravarCache(chave: string, valor: unknown) {
+  try { if (valor == null) localStorage.removeItem(chave); else localStorage.setItem(chave, JSON.stringify(valor)) } catch { /* ok */ }
+}
+
+type Aba = 'inicio' | 'foco' | 'registrar' | 'notas' | 'compartilhar' | 'metas' | 'perfil' | 'admin' | 'livro' | 'panorama'
+
+export default function App() {
+  return (
+    <ProvedorAvisos>
+      <Aplicativo />
+    </ProvedorAvisos>
+  )
+}
+
+function Aplicativo() {
+  const [sessaoChecada, setSessaoChecada] = useState(false)
+  const [userId, setUserId] = useState<string | null>(null)
+  const [perfil, setPerfil] = useState<TPerfil | null>(null)
+  const [livro, setLivro] = useState<LivroAtivo | null | undefined>(undefined) // undefined = ainda não checou
+  const [aba, setAba] = useState<Aba>('inicio')
+  const [tema, setTema] = useState<TemaPreferido>(() => temaSalvoLocal())
+  const [versao, setVersao] = useState(0) // força recarregar o Início depois de um registro
+  const [preCarga, setPreCarga] = useState<PreCarga | null>(null)
+  const [focoAtivo, setFocoAtivo] = useState(false) // esconde a navegação durante a sessão de foco
+  const [notasInicial, setNotasInicial] = useState<FiltroInicialNotas | null>(null)
+  const [livroDetalhe, setLivroDetalhe] = useState<string | null>(null)
+  const [livroCompartilhar, setLivroCompartilhar] = useState<LivroAtivo | null>(null) // livro da Estante, quando a imagem é de um ciclo passado
+  const ultimaAtualizacao = useRef(Date.now())
+  const avisar = useAviso()
+
+  // Ao voltar para o app (depois de um tempo fora), sincroniza e atualiza o Início.
+  useEffect(() => {
+    const aoVoltar = async () => {
+      if (document.visibilityState !== 'visible') return
+      if (Date.now() - ultimaAtualizacao.current < 60_000) return
+      ultimaAtualizacao.current = Date.now()
+      await sincronizarTudo()
+      setVersao((v) => v + 1)
+    }
+    document.addEventListener('visibilitychange', aoVoltar)
+    return () => document.removeEventListener('visibilitychange', aoVoltar)
+  }, [])
+
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setUserId(session?.user.id ?? null)
+      setSessaoChecada(true)
+    })
+    const { data: listener } = supabase.auth.onAuthStateChange((evento, session) => {
+      if (evento === 'SIGNED_OUT') {
+        gravarCache(CACHE_PERFIL, null)
+        gravarCache(CACHE_LIVRO, null)
+      }
+      setUserId(session?.user.id ?? null)
+    })
+
+    sincronizarTudo()
+    aplicarTema(temaSalvoLocal())
+
+    const media = window.matchMedia('(prefers-color-scheme: dark)')
+    const aoMudarSistema = () => {
+      if (temaSalvoLocal() === 'sistema') aplicarTema('sistema')
+    }
+    media.addEventListener('change', aoMudarSistema)
+
+    return () => {
+      listener.subscription.unsubscribe()
+      media.removeEventListener('change', aoMudarSistema)
+    }
+  }, [])
+
+  useEffect(() => {
+    if (!userId) {
+      setPerfil(null)
+      setLivro(undefined)
+      setAba('inicio')
+      return
+    }
+    buscarPerfilAtual().then((p) => {
+      // sem internet, usa a última cópia do perfil desta mesma conta
+      const cache = lerCache<TPerfil>(CACHE_PERFIL)
+      const final = p ?? (cache?.id === userId ? cache : null)
+      setPerfil(final)
+      if (p) gravarCache(CACHE_PERFIL, p)
+      if (final) {
+        aplicarTema(final.tema_preferido)
+        setTema(final.tema_preferido)
+      }
+    })
+  }, [userId])
+
+  useEffect(() => {
+    if (!perfil || perfil.senha_temporaria) return
+    carregarLivroAtivo()
+  }, [perfil?.id, perfil?.senha_temporaria])
+
+  useEffect(() => {
+    window.scrollTo({ top: 0 })
+  }, [aba])
+
+  async function carregarLivroAtivo() {
+    const { data, error } = await supabase
+      .from('livros')
+      .select('id, titulo, autor, capa_url, paginas_totais, ciclo_inicio, ciclo_fim, encontro_em, encontro_local')
+      .eq('status', 'ativo')
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+    if (error) {
+      // falha de rede: mantém o último livro conhecido
+      setLivro(lerCache<LivroAtivo>(CACHE_LIVRO) ?? null)
+      return
+    }
+    gravarCache(CACHE_LIVRO, data ?? null)
+    setLivro(data ?? null)
+  }
+
+  async function mudarTema(novo: TemaPreferido) {
+    aplicarTema(novo)
+    setTema(novo)
+    if (perfil) {
+      await supabase.from('perfis').update({ tema_preferido: novo }).eq('id', perfil.id)
+      setPerfil({ ...perfil, tema_preferido: novo })
+    }
+  }
+
+  if (!sessaoChecada) return <TelaCarregando />
+  if (!userId) return <Login />
+  if (!perfil) return <TelaCarregando texto="Carregando seu perfil" />
+  if (perfil.senha_temporaria) {
+    return <CompletarPerfil userId={userId} onConcluido={() => buscarPerfilAtual().then(setPerfil)} />
+  }
+  if (livro === undefined) return <TelaCarregando texto="Abrindo o livro do ciclo" />
+
+  if (!livro) {
+    if (perfil.role === 'admin') {
+      return (
+        <div className="min-h-screen pb-6">
+          <Suspense fallback={<TelaCarregando />}>
+            <AdminPainel adminId={perfil.id} livro={null} onLivroMudou={carregarLivroAtivo} />
+          </Suspense>
+        </div>
+      )
+    }
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center p-8 text-center">
+        <Icone nome="livro" className="w-10 h-10 text-dourado" />
+        <h1 className="font-serif text-2xl text-marinho dark:text-bege mt-4">Entre um livro e outro</h1>
+        <p className="legenda mt-2 max-w-xs">O próximo livro do ciclo aparece aqui assim que o admin cadastrar.</p>
+        <button onClick={() => supabase.auth.signOut()} className="botao-texto mt-8">Sair da conta</button>
+      </div>
+    )
+  }
+
+  function ir(destino: Destino | Aba, carga: PreCarga | null = null) {
+    if (destino === 'perguntas-encontro') {
+      setNotasInicial({ vista: 'mural', filtro: 'pergunta' })
+      setAba('notas')
+      return
+    }
+    setNotasInicial(null)
+    setLivroCompartilhar(null)
+    setPreCarga(carga)
+    setAba(destino as Aba)
+  }
+
+  const itens: { aba: Aba; rotulo: string; icone: NomeIcone }[] = [
+    { aba: 'inicio', rotulo: 'Início', icone: 'casa' },
+    { aba: 'foco', rotulo: 'Foco', icone: 'relogio' },
+    { aba: 'registrar', rotulo: 'Registrar', icone: 'mais' },
+    { aba: 'notas', rotulo: 'Anotações', icone: 'nota' },
+    { aba: 'compartilhar', rotulo: 'Compartilhar', icone: 'compartilhar' }
+  ]
+
+  return (
+    <div className="min-h-screen">
+      <EstadoConexao />
+      <Suspense fallback={<TelaCarregando />}>
+      <div key={aba} className="animate-subir-suave">
+        {aba === 'inicio' && <Inicio key={versao} perfil={perfil} livro={livro} onIr={ir} onPerfilAtualizado={setPerfil} />}
+        {aba === 'foco' && <Pomodoro perfil={perfil} livro={livro} onFocoAtivo={setFocoAtivo} />}
+        {aba === 'registrar' && (
+          <RegistrarLeitura
+            perfil={perfil}
+            livro={livro}
+            onRegistrado={(terminou) => {
+              setVersao((v) => v + 1)
+              if (terminou) {
+                avisar(`Você terminou ${livro.titulo}. Que tal compartilhar?`)
+                ir('compartilhar', { modo: 'leitura', modeloLeitura: 'terminei' })
+              } else setAba('inicio')
+            }}
+            onAnotar={() => setAba('notas')}
+          />
+        )}
+        {aba === 'notas' && (
+          <Notas key={JSON.stringify(notasInicial)} perfil={perfil} livro={livro} inicial={notasInicial} onCompartilhar={(n) => ir('compartilhar', { modo: 'texto', tipo: n.tipo, texto: n.texto, pagina: n.pagina, autor: n.autor })} />
+        )}
+        {aba === 'compartilhar' && (
+          <Compartilhar key={JSON.stringify(preCarga) + (livroCompartilhar?.id ?? '')} perfil={perfil} livro={livroCompartilhar ?? livro} preCarga={preCarga} />
+        )}
+        {aba === 'panorama' && (
+          <Panorama
+            livro={livro}
+            onVoltar={() => setAba('inicio')}
+            onCompartilhar={() => ir('compartilhar', { modo: 'leitura', modeloLeitura: 'grupo' })}
+            onMural={() => { setNotasInicial({ vista: 'mural', filtro: 'todas' }); setAba('notas') }}
+          />
+        )}
+        {aba === 'metas' && <Metas perfil={perfil} livro={livro} onVoltar={() => setAba('inicio')} />}
+        {aba === 'perfil' && (
+          <Perfil
+            perfil={perfil}
+            livro={livro}
+            tema={tema}
+            onMudarTema={mudarTema}
+            onPerfilAtualizado={setPerfil}
+            onVoltar={() => setAba('inicio')}
+            onAbrirAdmin={() => setAba('admin')}
+            onAbrirMetas={() => setAba('metas')}
+            onAbrirLivro={(id) => { setLivroDetalhe(id); setAba('livro') }}
+          />
+        )}
+        {aba === 'livro' && livroDetalhe && (
+          <LivroDetalhe
+            perfil={perfil}
+            livroId={livroDetalhe}
+            onVoltar={() => setAba('perfil')}
+            onCompartilhar={(l, n) => {
+              setPreCarga({ modo: 'texto', tipo: n.tipo, texto: n.texto, pagina: n.pagina, autor: n.autor })
+              setLivroCompartilhar(l.id === livro.id ? null : l)
+              setAba('compartilhar')
+            }}
+            onCompartilharRetrospectiva={(l) => {
+              setPreCarga({ modo: 'leitura', modeloLeitura: 'retrospectiva' })
+              setLivroCompartilhar(l.id === livro.id ? null : l)
+              setAba('compartilhar')
+            }}
+          />
+        )}
+        {aba === 'admin' && perfil.role === 'admin' && (
+          <AdminPainel
+            adminId={perfil.id}
+            livro={livro}
+            onVoltar={() => setAba('perfil')}
+            onLivroMudou={() => { carregarLivroAtivo(); setAba('inicio') }}
+          />
+        )}
+      </div>
+      </Suspense>
+
+      {!(focoAtivo && aba === 'foco') && <nav
+        className="fixed bottom-0 inset-x-0 z-30 bg-folha/95 dark:bg-noite/95 backdrop-blur border-t border-marinho/10 dark:border-bege/10"
+        style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
+        aria-label="Navegação principal"
+      >
+        <ul className="max-w-md mx-auto grid grid-cols-5 items-end px-2 pt-1.5 pb-2">
+          {itens.map((item) => {
+            const ativo = aba === item.aba
+            if (item.aba === 'registrar') {
+              return (
+                <li key={item.aba} className="flex justify-center">
+                  <button
+                    onClick={() => setAba('registrar')}
+                    aria-label="Registrar leitura"
+                    aria-current={ativo ? 'page' : undefined}
+                    className={`-mt-6 w-14 h-14 rounded-full flex items-center justify-center shadow-lg shadow-marinho/20 transition-transform active:scale-95
+                                focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dourado focus-visible:ring-offset-2 focus-visible:ring-offset-folha
+                                ${ativo ? 'bg-dourado text-marinho' : 'bg-marinho text-bege dark:bg-dourado dark:text-noite'}`}
+                  >
+                    <Icone nome="mais" className="w-6 h-6" traco={2} />
+                  </button>
+                </li>
+              )
+            }
+            return (
+              <li key={item.aba}>
+                <button
+                  onClick={() => ir(item.aba)}
+                  aria-current={ativo ? 'page' : undefined}
+                  className={`w-full flex flex-col items-center gap-1 py-1.5 rounded-lg transition-colors
+                              focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dourado
+                              ${ativo ? 'text-marinho dark:text-dourado' : 'text-texto/45 dark:text-bege/45 hover:text-texto/70 dark:hover:text-bege/70'}`}
+                >
+                  <Icone nome={item.icone} className="w-[22px] h-[22px]" traco={ativo ? 2 : 1.6} />
+                  <span className={`text-[11px] ${ativo ? 'font-semibold' : ''}`}>{item.rotulo}</span>
+                </button>
+              </li>
+            )
+          })}
+        </ul>
+      </nav>}
+    </div>
+  )
+}
+
+function TelaCarregando({ texto }: { texto?: string }) {
+  return (
+    <div className="min-h-screen flex flex-col items-center justify-center gap-4">
+      <span className="w-10 h-10 rounded-full border-2 border-dourado/25 border-t-dourado animate-spin" />
+      {texto && <p className="legenda">{texto}…</p>}
+    </div>
+  )
+}

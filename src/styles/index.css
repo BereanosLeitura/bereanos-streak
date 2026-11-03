@@ -1,0 +1,165 @@
+@import url('https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500&family=Source+Sans+3:wght@400;500;600;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: light;
+  /* modo escuro: preto quente das faixas do Caderno de Leitura */
+  --c-noite: 20 20 20;
+  --c-noite-cartao: 32 31 29;
+}
+:root.dark {
+  color-scheme: dark;
+}
+/* modo azul: azul-marinho do clube */
+:root.tema-azul {
+  --c-noite: 22 34 61;
+  --c-noite-cartao: 31 46 82;
+}
+
+html, body, #root {
+  min-height: 100%;
+}
+
+body {
+  @apply font-sans bg-bege text-texto dark:bg-noite dark:text-bege;
+  -webkit-font-smoothing: antialiased;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Algarismos de texto (estilo livro) nos números grandes em Garamond */
+.font-serif,
+.font-serif-marca {
+  font-family: 'EB Garamond', Garamond, 'Times New Roman', serif;
+  font-feature-settings: 'onum' 1, 'kern' 1;
+}
+.tabular {
+  font-feature-settings: 'lnum' 1, 'tnum' 1;
+}
+
+@layer components {
+  .marca {
+    @apply font-serif tracking-normal;
+  }
+
+  .fio-dourado {
+    @apply h-px bg-gradient-to-r from-transparent via-dourado/60 to-transparent;
+  }
+
+  /* Ornamento do clube: fio + losango dourado centralizado */
+  .ornamento {
+    @apply relative h-px bg-dourado/40;
+  }
+  .ornamento::after {
+    content: '';
+    @apply absolute left-1/2 top-1/2 w-2 h-2 bg-dourado rotate-45 -translate-x-1/2 -translate-y-1/2;
+  }
+
+  .cartao {
+    @apply bg-folha dark:bg-noite-cartao border border-dourado/15 dark:border-dourado/10 rounded-2xl;
+  }
+
+  .campo {
+    @apply w-full rounded-xl border border-marinho/15 dark:border-bege/15 bg-white dark:bg-noite
+           px-3.5 py-2.5 text-[16px] text-texto dark:text-bege
+           placeholder:text-texto/35 dark:placeholder:text-bege/35
+           focus:outline-none focus:ring-2 focus:ring-dourado/40 focus:border-dourado
+           transition-colors;
+  }
+
+  .rotulo {
+    @apply block text-sm font-medium text-marinho/80 dark:text-bege/75 mb-1.5;
+  }
+
+  .titulo-secao {
+    @apply font-serif text-xl text-marinho dark:text-bege;
+  }
+
+  .legenda {
+    @apply text-sm text-texto/55 dark:text-bege/55;
+  }
+
+  .botao-primario {
+    @apply w-full rounded-xl bg-marinho dark:bg-dourado text-bege dark:text-noite py-3 font-semibold
+           hover:bg-marinho/90 dark:hover:bg-dourado/90 active:scale-[0.985]
+           disabled:opacity-50 disabled:cursor-not-allowed
+           focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dourado focus-visible:ring-offset-2
+           focus-visible:ring-offset-bege dark:focus-visible:ring-offset-noite
+           transition-all;
+  }
+
+  .botao-secundario {
+    @apply w-full rounded-xl border border-marinho/20 dark:border-bege/20 py-3 font-semibold
+           text-marinho dark:text-bege hover:bg-marinho/5 dark:hover:bg-bege/5 active:scale-[0.985]
+           disabled:opacity-50
+           focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dourado
+           transition-all;
+  }
+
+  .botao-texto {
+    @apply text-sm font-medium text-dourado-escuro dark:text-dourado hover:underline underline-offset-4
+           focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dourado rounded;
+  }
+
+  .chip {
+    @apply rounded-full border border-marinho/15 dark:border-bege/15 px-3.5 py-1.5 text-sm font-medium
+           text-marinho dark:text-bege hover:border-dourado hover:text-dourado-escuro dark:hover:text-dourado
+           transition-colors;
+  }
+  .chip-ativo {
+    @apply border-dourado bg-dourado/10 text-dourado-escuro dark:text-dourado;
+  }
+
+  .selo {
+    @apply inline-flex items-center gap-1.5 rounded-full border border-dourado/40
+           bg-dourado/10 px-3 py-1 text-xs font-medium text-dourado-escuro dark:text-dourado;
+  }
+
+  .esqueleto {
+    @apply rounded-lg bg-marinho/[0.06] dark:bg-bege/[0.06] animate-pulse;
+  }
+}
+
+.barra-progresso {
+  background-image: linear-gradient(90deg, #8A6D2B, #B8912F);
+}
+
+/* Fita marcadora do livro: o elemento de assinatura do app */
+.fita {
+  background: linear-gradient(90deg, #8A6D2B 0%, #C9A243 45%, #8A6D2B 100%);
+  transform-origin: top;
+  clip-path: polygon(0 0, 100% 0, 100% 100%, 50% calc(100% - 10px), 0 100%);
+}
+
+/* Sem setinhas nos campos numéricos: o teclado numérico do celular basta */
+input[type='number']::-webkit-inner-spin-button,
+input[type='number']::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+input[type='number'] {
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+
+/* rolagem horizontal sem barra visível (fileiras de chips e modelos) */
+.sem-barra {
+  scrollbar-width: none;
+}
+.sem-barra::-webkit-scrollbar {
+  display: none;
+}
+
+::selection {
+  background-color: rgba(184, 145, 47, 0.25);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
