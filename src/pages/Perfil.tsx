@@ -21,12 +21,13 @@ interface Props {
   onAbrirAdmin: () => void
   onAbrirMetas: () => void
   onAbrirLivro: (id: string) => void
+  onAbrirGuia: () => void
 }
 
 interface Conquista { id: string; chave: string; nome: string; descricao: string | null; icone: string | null }
 interface Registro { id: string; livro_id: string; origem: 'manual' | 'pomodoro'; paginas_lidas: number | null; minutos_lidos: number | null; registrado_em: string }
 
-export default function Perfil({ perfil, tema, onMudarTema, onPerfilAtualizado, onVoltar, onAbrirAdmin, onAbrirMetas, onAbrirLivro }: Props) {
+export default function Perfil({ perfil, tema, onMudarTema, onPerfilAtualizado, onVoltar, onAbrirAdmin, onAbrirMetas, onAbrirLivro, onAbrirGuia }: Props) {
   const [registros, setRegistros] = useState<Registro[] | null>(null)
   const [sessoes, setSessoes] = useState(0)
   const [minutosFoco, setMinutosFoco] = useState(0)
@@ -329,6 +330,10 @@ export default function Perfil({ perfil, tema, onMudarTema, onPerfilAtualizado, 
           <button onClick={onAbrirMetas} className="botao-secundario flex items-center justify-center gap-2">
             <Icone nome="alvo" className="w-4 h-4" /> Minhas metas
           </button>
+          <TrocarSenha />
+          <button onClick={onAbrirGuia} className="botao-secundario flex items-center justify-center gap-2">
+            <Icone nome="lampada" className="w-4 h-4" /> Como usar o app
+          </button>
           {perfil.role === 'admin' && (
             <button onClick={onAbrirAdmin} className="botao-secundario flex items-center justify-center gap-2">
               <Icone nome="engrenagem" className="w-4 h-4" /> Painel do admin
@@ -362,5 +367,44 @@ function CabecalhoRecolhivel({ titulo, detalhe, aberto, onAlternar, semMargem = 
         <Icone nome="seta-direita" className={`w-4 h-4 text-dourado-escuro dark:text-dourado transition-transform ${aberto ? '-rotate-90' : 'rotate-90'}`} />
       </span>
     </button>
+  )
+}
+
+function TrocarSenha() {
+  const [aberto, setAberto] = useState(false)
+  const [nova, setNova] = useState('')
+  const [repetir, setRepetir] = useState('')
+  const [salvando, setSalvando] = useState(false)
+  const avisar = useAviso()
+
+  async function salvar() {
+    if (nova.length < 8) return avisar('A senha precisa de pelo menos 8 caracteres', 'erro')
+    if (nova !== repetir) return avisar('As duas senhas não são iguais', 'erro')
+    setSalvando(true)
+    const { error } = await supabase.auth.updateUser({ password: nova })
+    setSalvando(false)
+    if (error) return avisar(error.message.includes('different') ? 'Escolha uma senha diferente da atual' : 'Não foi possível trocar a senha', 'erro')
+    setNova(''); setRepetir(''); setAberto(false)
+    avisar('Senha trocada')
+  }
+
+  if (!aberto) {
+    return (
+      <button onClick={() => setAberto(true)} className="botao-secundario flex items-center justify-center gap-2">
+        <Icone nome="cadeado" className="w-4 h-4" /> Trocar senha
+      </button>
+    )
+  }
+  return (
+    <div className="cartao p-4">
+      <label className="rotulo" htmlFor="nova-senha">Nova senha</label>
+      <input id="nova-senha" type="password" autoComplete="new-password" value={nova} onChange={(e) => setNova(e.target.value)} className="campo" />
+      <label className="rotulo mt-3" htmlFor="repetir-senha">Repita a nova senha</label>
+      <input id="repetir-senha" type="password" autoComplete="new-password" value={repetir} onChange={(e) => setRepetir(e.target.value)} className="campo" />
+      <div className="flex gap-2 mt-4">
+        <button onClick={salvar} disabled={salvando || !nova} className="botao-primario">{salvando ? 'Salvando…' : 'Salvar senha'}</button>
+        <button onClick={() => { setAberto(false); setNova(''); setRepetir('') }} className="botao-secundario">Cancelar</button>
+      </div>
+    </div>
   )
 }

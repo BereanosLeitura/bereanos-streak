@@ -123,7 +123,7 @@ export default function Notas({ perfil, livro, inicial, onCompartilhar }: Props)
     setConfirmando(null)
     const { error } = await supabase.from('anotacoes').delete().eq('id', n.id)
     if (error) return avisar('Não foi possível apagar', 'erro')
-    avisar('Anotação apagada')
+    avisar(n.membro_id === perfil.id ? 'Anotação apagada' : 'Anotação retirada do mural')
     carregar()
   }
 
@@ -308,12 +308,17 @@ export default function Notas({ perfil, livro, inicial, onCompartilhar }: Props)
                         <BotaoIcone icone="grupo" rotulo={n.compartilhada ? 'Tirar do mural' : 'Pôr no mural'} ativo={n.compartilhada}
                           onClick={() => atualizar(n, { compartilhada: !n.compartilhada }, n.compartilhada ? 'Agora só você vê' : 'Posta no mural')} />
                         {confirmando === n.id ? (
-                          <button onClick={() => excluir(n)} className="text-xs font-semibold text-red-700 dark:text-red-400 px-2 py-1">Confirmar</button>
+                          <button onClick={() => excluir(n)} className="text-xs font-semibold text-red-700 dark:text-red-400 px-2 py-1">Apagar</button>
                         ) : (
                           <BotaoIcone icone="lixeira" rotulo="Apagar anotação" perigo onClick={() => setConfirmando(n.id)} />
                         )}
                       </>
                     )}
+                    {!minha && perfil.role === 'admin' && (confirmando === n.id ? (
+                      <button onClick={() => excluir(n)} className="text-xs font-semibold text-red-700 dark:text-red-400 px-2 py-1">Retirar do mural</button>
+                    ) : (
+                      <BotaoIcone icone="lixeira" rotulo="Retirar do mural (admin)" perigo onClick={() => setConfirmando(n.id)} />
+                    ))}
                   </div>
                 </div>
               </li>

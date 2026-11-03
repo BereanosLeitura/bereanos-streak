@@ -373,6 +373,11 @@ export default function Inicio({ perfil, livro, onIr, onPerfilAtualizado }: Prop
                 <button onClick={desfazer} className="botao-texto">Desfazer</button>
               </p>
             )}
+            {!ultimoRapido && leitura.doLivro.length > 0 && (
+              <button onClick={() => onIr('registrar')} className="text-xs text-texto/50 dark:text-bege/50 underline underline-offset-2 mt-3">
+                Lançou algo errado? Corrigir registros
+              </button>
+            )}
           </div>
         </section>
 

@@ -226,7 +226,7 @@ export default function RegistrarLeitura({ perfil, livro, onRegistrado, onAnotar
                     </p>
                   </div>
                   {confirmando === r.id ? (
-                    <button type="button" onClick={() => apagar(r.id)} className="text-xs font-semibold text-red-700 dark:text-red-400 px-2 py-1">Confirmar</button>
+                    <button type="button" onClick={() => apagar(r.id)} className="text-xs font-semibold text-red-700 dark:text-red-400 px-2 py-1">Apagar</button>
                   ) : (
                     <button type="button" onClick={() => setConfirmando(r.id)} aria-label="Apagar registro" className="p-2 text-texto/35 dark:text-bege/35 hover:text-red-700 dark:hover:text-red-400">
                       <Icone nome="lixeira" className="w-4 h-4" />

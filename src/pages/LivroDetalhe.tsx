@@ -4,6 +4,7 @@ import { useAviso } from '../components/Toast'
 import Icone, { type NomeIcone } from '../components/Icone'
 import Avatar from '../components/Avatar'
 import { chaveDia, formatarData, paginasEquivalentes, tempoRelativo } from '../lib/estatisticas'
+import { apagarRegistroLeitura } from '../lib/sync'
 import { calcularRetrospectiva, type Retrospectiva } from '../lib/infograficos'
 
 // Memória de um livro da Estante: o que você leu, quando, suas anotações,
@@ -58,7 +59,7 @@ export default function LivroDetalhe({ perfil, livroId, onVoltar, onCompartilhar
         supabase.from('membro_conquistas').select('conquistas(nome)').eq('membro_id', perfil.id).eq('livro_id', livroId)
       ])
       setLivro(l.data as Livro)
-      if (l.data) calcularRetrospectiva(perfil.id, perfil.ritmo_leitura_min_por_pagina || 2, l.data as Livro).then(setRetro).catch(() => setRetro(null))
+      if (l.data) atualizarRetro(l.data as Livro)
       setRegistros((r.data ?? []) as unknown as Registro[])
       setNotas((n.data ?? []) as unknown as Nota[])
       setSessoes(s.data ?? [])
@@ -90,6 +91,29 @@ export default function LivroDetalhe({ perfil, livroId, onVoltar, onCompartilhar
   const minhas = notas.filter((n) => n.membro_id === perfil.id)
   const mural = notas.filter((n) => n.compartilhada)
   const minutos = sessoes.reduce((a, s) => a + (s.duracao_minutos ?? 0), 0)
+
+  const [confirmandoReg, setConfirmandoReg] = useState<string | null>(null)
+
+  function atualizarRetro(l: Livro | null = livro) {
+    if (l) calcularRetrospectiva(perfil.id, perfil.ritmo_leitura_min_por_pagina || 2, l).then(setRetro).catch(() => setRetro(null))
+  }
+
+  async function apagarNota(n: Nota) {
+    const { error } = await supabase.from('anotacoes').delete().eq('id', n.id)
+    if (error) return avisar('Não foi possível apagar', 'erro')
+    setNotas((l) => l.filter((x) => x.id !== n.id))
+    atualizarRetro()
+    avisar(n.membro_id === perfil.id ? 'Anotação apagada' : 'Anotação retirada do mural')
+  }
+
+  async function apagarRegistro(id: string) {
+    setConfirmandoReg(null)
+    const ok = await apagarRegistroLeitura(id)
+    if (!ok) return avisar('Não foi possível apagar', 'erro')
+    setRegistros((l) => (l ?? []).filter((x) => x.id !== id))
+    atualizarRetro()
+    avisar('Registro apagado')
+  }
 
   async function copiarMinhas() {
     if (!livro || minhas.length === 0) return
@@ -184,11 +208,11 @@ export default function LivroDetalhe({ perfil, livroId, onVoltar, onCompartilhar
               {retro.horarioPreferido && <Destaque icone="relogio" texto={`Você leu mais ${retro.horarioPreferido}.`} />}
               {retro.minutos > 0 && <Destaque icone="relogio" texto={`${retro.sessoes} ${retro.sessoes === 1 ? 'sessão' : 'sessões'} de foco, somando ${retro.minutos >= 60 ? `${String(Math.round(retro.minutos / 6) / 10).replace('.', ',')} horas` : `${retro.minutos} minutos`}.`} />}
               {retro.anotacoes.trecho + retro.anotacoes.reflexao + retro.anotacoes.pergunta > 0 && (
-                <Destaque icone="nota" texto={[
+                <Destaque icone="nota" texto={'Você anotou ' + [
                   retro.anotacoes.trecho && `${retro.anotacoes.trecho} ${retro.anotacoes.trecho === 1 ? 'trecho' : 'trechos'}`,
                   retro.anotacoes.reflexao && `${retro.anotacoes.reflexao} ${retro.anotacoes.reflexao === 1 ? 'reflexão' : 'reflexões'}`,
                   retro.anotacoes.pergunta && `${retro.anotacoes.pergunta} ${retro.anotacoes.pergunta === 1 ? 'pergunta' : 'perguntas'}`
-                ].filter(Boolean).join(', ').replace(/, ([^,]*)$/, ' e $1') + ' anotados.'} />
+                ].filter(Boolean).join(', ').replace(/, ([^,]*)$/, ' e $1') + '.'} />
               )}
             </ul>
             {retro.trechoFavorito && (
@@ -218,16 +242,18 @@ export default function LivroDetalhe({ perfil, livroId, onVoltar, onCompartilhar
             {minhas.length > 0 && (
               <button onClick={copiarMinhas} className="botao-texto mt-4 flex items-center gap-1.5"><Icone nome="copiar" className="w-4 h-4" /> Copiar todas</button>
             )}
-            <ListaNotas notas={minhas} vazio="Você não fez anotações neste livro."
+            <ListaNotas notas={minhas} vazio="Você não fez anotações neste livro." podeApagar={() => true} onApagar={apagarNota}
               onImagem={(n) => onCompartilhar(livro, { tipo: n.tipo, texto: n.texto, pagina: n.pagina, autor: perfil.nome_exibicao })} />
           </>
         )}
         {aba === 'mural' && (
           <ListaNotas notas={mural} comAutor vazio="Ninguém pôs anotações deste livro no mural."
+            podeApagar={(n) => n.membro_id === perfil.id || perfil.role === 'admin'} onApagar={apagarNota}
             onImagem={(n) => onCompartilhar(livro, { tipo: n.tipo, texto: n.texto, pagina: n.pagina, autor: n.perfis?.nome_exibicao ?? 'Membro' })} />
         )}
         {aba === 'historico' && (
           <section className="cartao p-5 mt-4">
+            {dados.meus.length > 0 && <p className="legenda mb-2">Lançou algo errado? Apague o registro aqui e registre de novo. O progresso se ajusta sozinho.</p>}
             {dados.meus.length === 0 ? <p className="legenda">Nenhum registro seu neste livro.</p> : (
               <ul className="divide-y divide-marinho/[0.07] dark:divide-bege/[0.07]">
                 {dados.meus.map((r) => (
@@ -241,6 +267,16 @@ export default function LivroDetalhe({ perfil, livroId, onVoltar, onCompartilhar
                         {new Date(r.registrado_em).toLocaleString('pt-BR', { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
                       </p>
                     </div>
+                    {confirmandoReg === r.id ? (
+                      <span className="flex items-center gap-1">
+                        <button onClick={() => apagarRegistro(r.id)} className="text-xs font-semibold text-red-700 dark:text-red-400 px-2 py-1">Apagar</button>
+                        <button onClick={() => setConfirmandoReg(null)} className="text-xs text-texto/55 dark:text-bege/55 px-2 py-1">Cancelar</button>
+                      </span>
+                    ) : (
+                      <button onClick={() => setConfirmandoReg(r.id)} aria-label="Apagar registro" className="p-2 text-texto/35 dark:text-bege/35 hover:text-red-700 dark:hover:text-red-400">
+                        <Icone nome="lixeira" className="w-4 h-4" />
+                      </button>
+                    )}
                   </li>
                 ))}
               </ul>
@@ -270,7 +306,11 @@ function Num({ v, r }: { v: number; r: string }) {
   )
 }
 
-function ListaNotas({ notas, comAutor = false, vazio, onImagem }: { notas: Nota[]; comAutor?: boolean; vazio: string; onImagem: (n: Nota) => void }) {
+function ListaNotas({ notas, comAutor = false, vazio, onImagem, podeApagar, onApagar }: {
+  notas: Nota[]; comAutor?: boolean; vazio: string; onImagem: (n: Nota) => void
+  podeApagar?: (n: Nota) => boolean; onApagar?: (n: Nota) => void
+}) {
+  const [confirmando, setConfirmando] = useState<string | null>(null)
   if (notas.length === 0) return <p className="legenda text-center py-10">{vazio}</p>
   return (
     <ul className="space-y-3 mt-4">
@@ -288,10 +328,24 @@ function ListaNotas({ notas, comAutor = false, vazio, onImagem }: { notas: Nota[
           <div className="flex items-center gap-2 mt-3">
             {comAutor && <Avatar nome={n.perfis?.nome_exibicao ?? 'Membro'} tamanho={22} />}
             <span className="text-xs text-texto/45 dark:text-bege/45">{comAutor ? `${n.perfis?.nome_exibicao ?? 'Membro'}, ` : ''}{tempoRelativo(n.created_at)}</span>
-            <button onClick={() => onImagem(n)} aria-label="Criar imagem para compartilhar" title="Criar imagem para compartilhar"
-              className="ml-auto flex items-center gap-1 text-xs font-semibold text-dourado-escuro dark:text-dourado p-1">
-              <Icone nome="imagem" className="w-4 h-4" /> Imagem
-            </button>
+            {confirmando === n.id ? (
+              <span className="ml-auto flex items-center gap-1">
+                <button onClick={() => { setConfirmando(null); onApagar?.(n) }} className="text-xs font-semibold text-red-700 dark:text-red-400 px-2 py-1">Apagar</button>
+                <button onClick={() => setConfirmando(null)} className="text-xs text-texto/55 dark:text-bege/55 px-2 py-1">Cancelar</button>
+              </span>
+            ) : (
+              <>
+                <button onClick={() => onImagem(n)} aria-label="Criar imagem para compartilhar" title="Criar imagem para compartilhar"
+                  className="ml-auto flex items-center gap-1 text-xs font-semibold text-dourado-escuro dark:text-dourado p-1">
+                  <Icone nome="imagem" className="w-4 h-4" /> Imagem
+                </button>
+                {podeApagar?.(n) && onApagar && (
+                  <button onClick={() => setConfirmando(n.id)} aria-label="Apagar anotação" className="p-1 text-texto/35 dark:text-bege/35 hover:text-red-700 dark:hover:text-red-400">
+                    <Icone nome="lixeira" className="w-4 h-4" />
+                  </button>
+                )}
+              </>
+            )}
           </div>
         </li>
       ))}

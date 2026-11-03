@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useRef, useState } from 'react'
+import { lazy, Suspense, useEffect, useRef, useState, type ComponentType } from 'react'
 import { supabase, buscarPerfilAtual, type Perfil as TPerfil } from './lib/supabase'
 import { sincronizarTudo } from './lib/sync'
 import { aplicarTema, temaSalvoLocal, type TemaPreferido } from './lib/tema'
@@ -9,18 +9,36 @@ import CompletarPerfil from './pages/CompletarPerfil'
 import Inicio, { type LivroAtivo, type Destino } from './pages/Inicio'
 import RegistrarLeitura from './pages/RegistrarLeitura'
 import EstadoConexao from './components/EstadoConexao'
+import GuiaBoasVindas from './components/GuiaBoasVindas'
 import type { PreCarga } from './pages/Compartilhar'
 import type { FiltroInicialNotas } from './pages/Notas'
 
 // Telas carregadas sob demanda: o app abre mais rápido no celular.
-const Pomodoro = lazy(() => import('./pages/Pomodoro'))
-const Metas = lazy(() => import('./pages/Metas'))
-const Notas = lazy(() => import('./pages/Notas'))
-const Perfil = lazy(() => import('./pages/Perfil'))
-const AdminPainel = lazy(() => import('./pages/AdminPainel'))
-const Compartilhar = lazy(() => import('./pages/Compartilhar'))
-const LivroDetalhe = lazy(() => import('./pages/LivroDetalhe'))
-const Panorama = lazy(() => import('./pages/Panorama'))
+// Depois de uma versão nova no ar, o arquivo antigo de uma tela pode não existir
+// mais: nesse caso o app recarrega uma vez e já abre a versão nova.
+function sobDemanda<T extends ComponentType<any>>(carregar: () => Promise<{ default: T }>) {
+  return lazy(() => carregar().then((m) => {
+    try { sessionStorage.removeItem('bereanos-streak-recarregou') } catch { /* ok */ }
+    return m
+  }).catch((erro) => {
+    let jaRecarregou = true
+    try { jaRecarregou = sessionStorage.getItem('bereanos-streak-recarregou') === '1' } catch { /* ok */ }
+    if (!jaRecarregou && navigator.onLine) {
+      try { sessionStorage.setItem('bereanos-streak-recarregou', '1') } catch { /* ok */ }
+      location.reload()
+      return new Promise<{ default: T }>(() => {})
+    }
+    throw erro
+  }))
+}
+const Pomodoro = sobDemanda(() => import('./pages/Pomodoro'))
+const Metas = sobDemanda(() => import('./pages/Metas'))
+const Notas = sobDemanda(() => import('./pages/Notas'))
+const Perfil = sobDemanda(() => import('./pages/Perfil'))
+const AdminPainel = sobDemanda(() => import('./pages/AdminPainel'))
+const Compartilhar = sobDemanda(() => import('./pages/Compartilhar'))
+const LivroDetalhe = sobDemanda(() => import('./pages/LivroDetalhe'))
+const Panorama = sobDemanda(() => import('./pages/Panorama'))
 
 // Cópia local do perfil e do livro: o app abre mesmo sem internet.
 const CACHE_PERFIL = 'bereanos-streak-cache-perfil'
@@ -55,7 +73,22 @@ function Aplicativo() {
   const [notasInicial, setNotasInicial] = useState<FiltroInicialNotas | null>(null)
   const [livroDetalhe, setLivroDetalhe] = useState<string | null>(null)
   const [livroCompartilhar, setLivroCompartilhar] = useState<LivroAtivo | null>(null) // livro da Estante, quando a imagem é de um ciclo passado
+  const [verGuia, setVerGuia] = useState(false)
   const ultimaAtualizacao = useRef(Date.now())
+  const chaveGuia = perfil ? `bereanos-streak-guia-visto-${perfil.id}` : null
+
+  // primeira vez neste aparelho: abre o guia curto de boas-vindas
+  useEffect(() => {
+    if (!chaveGuia || !livro || perfil?.senha_temporaria) return
+    let visto = true
+    try { visto = localStorage.getItem(chaveGuia) === '1' } catch { /* ok */ }
+    if (!visto) setVerGuia(true)
+  }, [chaveGuia, !!livro])
+
+  function fecharGuia() {
+    setVerGuia(false)
+    try { if (chaveGuia) localStorage.setItem(chaveGuia, '1') } catch { /* ok */ }
+  }
   const avisar = useAviso()
 
   // Ao voltar para o app (depois de um tempo fora), sincroniza e atualiza o Início.
@@ -205,6 +238,7 @@ function Aplicativo() {
   return (
     <div className="min-h-screen">
       <EstadoConexao />
+      {verGuia && <GuiaBoasVindas nome={perfil.nome_exibicao} onFechar={fecharGuia} />}
       <Suspense fallback={<TelaCarregando />}>
       <div key={aba} className="animate-subir-suave">
         {aba === 'inicio' && <Inicio key={versao} perfil={perfil} livro={livro} onIr={ir} onPerfilAtualizado={setPerfil} />}
@@ -249,6 +283,7 @@ function Aplicativo() {
             onAbrirAdmin={() => setAba('admin')}
             onAbrirMetas={() => setAba('metas')}
             onAbrirLivro={(id) => { setLivroDetalhe(id); setAba('livro') }}
+            onAbrirGuia={() => setVerGuia(true)}
           />
         )}
         {aba === 'livro' && livroDetalhe && (

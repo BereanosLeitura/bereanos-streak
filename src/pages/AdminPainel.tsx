@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { supabase } from '../lib/supabase'
 import { useAviso } from '../components/Toast'
 import Icone from '../components/Icone'
@@ -47,7 +48,12 @@ export default function AdminPainel({ adminId, livro, onLivroMudou, onVoltar }: 
         </div>
       </div>
 
-      {aba === 'ciclo' && (livro ? <CicloAtual livro={livro} onMudou={onLivroMudou} /> : <CadastrarLivro adminId={adminId} onCriado={onLivroMudou} />)}
+      {aba === 'ciclo' && (
+        <>
+          {livro ? <CicloAtual livro={livro} onMudou={onLivroMudou} /> : <CadastrarLivro adminId={adminId} onCriado={onLivroMudou} />}
+          <GerenciarCiclos ativoId={livro?.id ?? null} onMudou={onLivroMudou} />
+        </>
+      )}
       {aba === 'acesso' && <CriarAcesso />}
       {aba === 'membros' && <Membros livroId={livro?.id ?? null} />}
     </div>
@@ -308,5 +314,118 @@ function Membros({ livroId }: { livroId: string | null }) {
       </ul>
       {membros && <p className="legenda text-center mt-3">{membros.length} {membros.length === 1 ? 'pessoa' : 'pessoas'} com acesso</p>}
     </div>
+  )
+}
+
+interface LivroCiclo { id: string; titulo: string; autor: string | null; capa_url: string | null; status: 'ativo' | 'concluido'; created_at: string }
+
+/**
+ * Todos os ciclos já cadastrados. Permite reabrir um ciclo concluído por engano
+ * (quando não há livro ativo) e excluir de vez um ciclo lançado errado.
+ */
+function GerenciarCiclos({ ativoId, onMudou }: { ativoId: string | null; onMudou: () => void }) {
+  const [livros, setLivros] = useState<LivroCiclo[] | null>(null)
+  const [excluindo, setExcluindo] = useState<LivroCiclo | null>(null)
+  const avisar = useAviso()
+
+  async function carregar() {
+    const { data } = await supabase.from('livros').select('id, titulo, autor, capa_url, status, created_at').order('created_at', { ascending: false })
+    setLivros((data ?? []) as LivroCiclo[])
+  }
+  useEffect(() => { carregar() }, [ativoId])
+
+  async function reabrir(l: LivroCiclo) {
+    const { error } = await supabase.from('livros').update({ status: 'ativo' }).eq('id', l.id)
+    if (error) return avisar('Não foi possível reabrir', 'erro')
+    avisar(`${l.titulo} voltou a ser a leitura atual`)
+    onMudou()
+  }
+
+  if (!livros || livros.length === 0) return null
+
+  return (
+    <div className="max-w-md mx-auto px-5 mt-4">
+      <div className="cartao p-5">
+        <h2 className="titulo-secao">Todos os ciclos</h2>
+        <p className="legenda mt-1 mb-3">Reabra um ciclo concluído por engano ou exclua um livro cadastrado errado.</p>
+        <ul className="divide-y divide-marinho/[0.07] dark:divide-bege/[0.08]">
+          {livros.map((l) => (
+            <li key={l.id} className="py-3 flex items-center gap-3">
+              <div className="flex-1 min-w-0">
+                <p className="text-[15px] font-semibold text-marinho dark:text-bege truncate">{l.titulo}</p>
+                <p className="text-xs text-texto/50 dark:text-bege/50">{l.status === 'ativo' ? 'leitura atual' : 'concluído'}, cadastrado em {formatarData(l.created_at)}</p>
+              </div>
+              {l.status === 'concluido' && !ativoId && (
+                <button onClick={() => reabrir(l)} className="text-xs font-semibold text-dourado-escuro dark:text-dourado px-2 py-1">Reabrir</button>
+              )}
+              <button onClick={() => setExcluindo(l)} aria-label={`Excluir ${l.titulo}`} className="p-2 text-texto/35 dark:text-bege/35 hover:text-red-700 dark:hover:text-red-400">
+                <Icone nome="lixeira" className="w-4 h-4" />
+              </button>
+            </li>
+          ))}
+        </ul>
+      </div>
+      {excluindo && <ExcluirCiclo livro={excluindo} onFechar={() => setExcluindo(null)} onExcluido={() => { setExcluindo(null); carregar(); onMudou() }} />}
+    </div>
+  )
+}
+
+function ExcluirCiclo({ livro, onFechar, onExcluido }: { livro: LivroCiclo; onFechar: () => void; onExcluido: () => void }) {
+  const [contagem, setContagem] = useState<{ registros: number; leitores: number } | null>(null)
+  const [texto, setTexto] = useState('')
+  const [apagando, setApagando] = useState(false)
+  const avisar = useAviso()
+
+  useEffect(() => {
+    ;(async () => {
+      const r = await supabase.from('registros_leitura').select('membro_id').eq('livro_id', livro.id)
+      setContagem({ registros: r.data?.length ?? 0, leitores: new Set((r.data ?? []).map((x) => x.membro_id)).size })
+    })()
+  }, [livro.id])
+
+  async function excluir() {
+    setApagando(true)
+    const { error } = await supabase.from('livros').delete().eq('id', livro.id)
+    if (error) {
+      setApagando(false)
+      return avisar('Não foi possível excluir o ciclo', 'erro')
+    }
+    // capa enviada pelo app: apaga o arquivo também
+    const marca = '/capas-livros/'
+    if (livro.capa_url?.includes(marca)) {
+      const caminho = decodeURIComponent(livro.capa_url.split(marca)[1].split('?')[0])
+      await supabase.storage.from('capas-livros').remove([caminho])
+    }
+    avisar('Ciclo excluído')
+    onExcluido()
+  }
+
+  const confirmado = texto.trim().toUpperCase() === 'EXCLUIR'
+  return createPortal(
+    <div className="fixed inset-0 z-50 bg-black/50 flex items-end sm:items-center justify-center p-4" onClick={onFechar}>
+      <div className="cartao w-full max-w-md p-5" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-labelledby="titulo-excluir">
+        <h2 id="titulo-excluir" className="font-serif text-xl text-marinho dark:text-bege">Excluir {livro.titulo}?</h2>
+        <p className="text-[15px] text-texto/80 dark:text-bege/80 mt-2">
+          Isso apaga o livro e tudo o que foi feito nele, para todos os membros, e não tem volta.
+        </p>
+        {contagem ? (
+          <p className="text-sm text-red-800 dark:text-red-300 mt-3">
+            Serão apagados {contagem.registros} {contagem.registros === 1 ? 'registro' : 'registros'} de leitura
+            {contagem.leitores ? ` de ${contagem.leitores} ${contagem.leitores === 1 ? 'pessoa' : 'pessoas'}` : ''},
+            {' '}todas as anotações (inclusive as privadas de cada membro), as sessões de foco, as metas e as conquistas deste livro.
+          </p>
+        ) : <div className="esqueleto h-10 mt-3" />}
+        <p className="legenda mt-3">Se o livro só terminou, use “Concluir ciclo”: assim nada se perde e ele fica na Estante.</p>
+        <label className="rotulo mt-4" htmlFor="confirmar-exclusao">Digite EXCLUIR para confirmar</label>
+        <input id="confirmar-exclusao" value={texto} onChange={(e) => setTexto(e.target.value)} className="campo" autoComplete="off" autoCapitalize="characters" />
+        <div className="flex gap-2 mt-4">
+          <button onClick={excluir} disabled={!confirmado || apagando} className="w-full rounded-xl bg-red-800 text-white py-3 font-semibold disabled:opacity-40">
+            {apagando ? 'Excluindo…' : 'Excluir de vez'}
+          </button>
+          <button onClick={onFechar} className="botao-secundario">Cancelar</button>
+        </div>
+      </div>
+    </div>,
+    document.body
   )
 }
