@@ -706,6 +706,7 @@ function MapaAtividade({ porDia }: { porDia: Map<string, number> }) {
 
 function saudacao(): string {
   const hora = new Date().getHours()
+  if (hora < 5) return 'Boa noite'
   if (hora < 12) return 'Bom dia'
   if (hora < 18) return 'Boa tarde'
   return 'Boa noite'
