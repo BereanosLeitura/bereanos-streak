@@ -26,7 +26,7 @@ Protótipo pessoal de Felipe para acompanhar a leitura coletiva do Clube do Livr
 
 ## Banco de dados (Supabase)
 
-As migrações ficam em `supabase/migrations`, de `0001` a `0013`, e devem ser rodadas em ordem no SQL Editor.
+As migrações ficam em `supabase/migrations`, de `0001` a `0014`, e devem ser rodadas em ordem no SQL Editor.
 
 A função `supabase/functions/admin-membros` roda no servidor do Supabase (Edge Functions). Para publicar ou atualizar: painel do Supabase, Edge Functions, abrir `admin-membros` (ou criar com esse nome), colar o conteúdo de `index.ts` e clicar em Deploy. Ela usa a `service_role key` do próprio servidor, que nunca vai para o app.
 
@@ -46,6 +46,7 @@ A função `supabase/functions/admin-membros` roda no servidor do Supabase (Edge
 
 ## Segurança
 
+- Cadastro público desligado no Supabase (Authentication, Sign In / Providers, "Allow new users to sign up" desmarcado). Contas novas só pelo Painel do admin
 - RLS ativo em todas as tabelas
 - A `service_role key` nunca aparece no código do app
 - A `anon key` é pública por natureza; quem protege os dados é o RLS

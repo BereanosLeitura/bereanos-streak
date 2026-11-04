@@ -37,7 +37,9 @@ async function sincronizarRegistros() {
         minutos_lidos: r.minutos_lidos,
         ...(r.tempo_minutos ? { tempo_minutos: r.tempo_minutos } : {}),
         registrado_em: r.registrado_em
-      })
+      // se o registro já chegou ao servidor (a conexão caiu antes da resposta),
+      // não tenta atualizar: registro não se edita, só se apaga
+      }, { onConflict: 'id', ignoreDuplicates: true })
       if (error) throw error
       await db.registros.update(r.id, { sync_status: 'sincronizado' })
     } catch {

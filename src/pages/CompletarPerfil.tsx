@@ -70,7 +70,7 @@ export default function CompletarPerfil({ userId, onConcluido }: Props) {
 
   return (
     <PaginaCentralizada>
-      <Marca subtitulo="Primeiro acesso — complete seus dados" />
+      <Marca subtitulo="Primeiro acesso: complete seus dados" />
 
       <form onSubmit={salvar} className="cartao p-6 space-y-4">
         <div>
