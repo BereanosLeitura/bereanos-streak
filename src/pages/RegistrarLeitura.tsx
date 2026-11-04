@@ -2,9 +2,10 @@ import { useState, type FormEvent } from 'react'
 import { apagarRegistroLeitura, criarRegistroLeitura } from '../lib/sync'
 import { supabase, type Perfil } from '../lib/supabase'
 import { useMinhaLeitura } from '../lib/leitura'
-import { useAviso } from '../components/Toast'
+import { apagarComDesfazer, useAviso } from '../components/Toast'
 import Icone from '../components/Icone'
 import { chaveDia, diasAte, formatarData } from '../lib/estatisticas'
+import { formatarTempo } from '../lib/tempo'
 import type { LivroAtivo } from './Inicio'
 
 interface Props {
@@ -14,18 +15,20 @@ interface Props {
   onAnotar: () => void
 }
 
-type Modo = 'pagina' | 'quantidade'
+type Modo = 'pagina' | 'quantidade' | 'tempo'
 type Quando = 0 | 1 | 2 // hoje, ontem, anteontem
-type TipoNota = 'trecho' | 'reflexao' | 'pergunta'
+type TipoNota = 'trecho' | 'reflexao' | 'pergunta' | 'aplicacao'
 
-// Dois jeitos de lançar: "parei na página 64" (o app calcula a diferença) ou
-// "li 12 páginas". Dá para lançar uma leitura de ontem ou anteontem e, no
-// mesmo envio, guardar uma anotação.
+// Uma tela só: "parei na página 64" (o app calcula a diferença) e, se quiser,
+// quanto tempo durou. Quem não sabe a página abre "Não sei a página" e informa
+// quantas leu ou só o tempo. Dá para lançar
+// uma leitura de ontem ou anteontem e, no mesmo envio, guardar uma anotação.
 
 export default function RegistrarLeitura({ perfil, livro, onRegistrado, onAnotar }: Props) {
   const leitura = useMinhaLeitura(perfil, livro)
   const [modo, setModo] = useState<Modo>('pagina')
   const [valor, setValor] = useState('')
+  const [tempo, setTempo] = useState('') // minutos, opcional nos modos de página
   const [quando, setQuando] = useState<Quando>(0)
   const [comNota, setComNota] = useState(false)
   const [tipoNota, setTipoNota] = useState<TipoNota>('reflexao')
@@ -39,8 +42,15 @@ export default function RegistrarLeitura({ perfil, livro, onRegistrado, onAnotar
 
   const jaLidas = leitura.paginasLivro
   const numero = parseInt(valor, 10)
-  const paginasDoRegistro = !numero || numero <= 0 ? 0 : modo === 'quantidade' ? numero : numero - jaLidas
-  const pctDepois = Math.min(100, Math.round(((jaLidas + Math.max(0, paginasDoRegistro)) / livro.paginas_totais) * 100))
+  const ritmo = perfil.ritmo_leitura_min_por_pagina || 2
+  const soTempo = modo === 'tempo'
+  const minutosInformados = soTempo ? (numero > 0 ? numero : 0) : (parseInt(tempo, 10) > 0 ? parseInt(tempo, 10) : 0)
+  const paginasDoRegistro = soTempo || !numero || numero <= 0 ? 0 : modo === 'quantidade' ? numero : numero - jaLidas
+  // no modo "Só o tempo" o avanço no livro é estimado pelo seu ritmo
+  const paginasEstimadas = soTempo ? Math.round(minutosInformados / ritmo) : paginasDoRegistro
+  const minPorPagina = !soTempo && minutosInformados > 0 && paginasDoRegistro > 0 ? minutosInformados / paginasDoRegistro : null
+  const podeSalvar = soTempo ? minutosInformados > 0 : paginasDoRegistro > 0
+  const pctDepois = Math.min(100, Math.round(((jaLidas + Math.max(0, paginasEstimadas)) / livro.paginas_totais) * 100))
   const restantes = diasAte(livro.ciclo_fim)
   const faltam = livro.paginas_totais - jaLidas
   const porDiaNecessario = restantes && restantes > 0 && faltam > 0 ? Math.ceil(faltam / restantes) : null
@@ -53,47 +63,71 @@ export default function RegistrarLeitura({ perfil, livro, onRegistrado, onAnotar
     return d.toISOString()
   }
 
+  function trocarModo(m: Modo) {
+    setModo(m)
+    setValor('')
+    setErro(null)
+  }
+
   async function salvar(e: FormEvent) {
     e.preventDefault()
     setErro(null)
-    if (modo === 'pagina' && numero > livro.paginas_totais) return setErro(`O livro tem ${livro.paginas_totais} páginas.`)
-    if (paginasDoRegistro <= 0) {
-      return setErro(modo === 'pagina' ? `Seu registro já está na página ${jaLidas}. Informe uma página depois dessa.` : 'Informe quantas páginas você leu.')
+    if (minutosInformados > 1440) return setErro('O tempo vai até 1.440 minutos (24 horas).')
+    if (soTempo) {
+      if (minutosInformados <= 0) return setErro('Informe quantos minutos você leu.')
+    } else {
+      if (modo === 'pagina' && numero > livro.paginas_totais) return setErro(`O livro tem ${livro.paginas_totais} páginas.`)
+      if (paginasDoRegistro <= 0) {
+        return setErro(modo === 'pagina' ? `Seu registro já está na página ${jaLidas}. Informe uma página depois dessa.` : 'Informe quantas páginas você leu.')
+      }
     }
     setSalvando(true)
     await criarRegistroLeitura({
       membro_id: perfil.id, livro_id: livro.id, origem: 'manual',
-      paginas_lidas: paginasDoRegistro, minutos_lidos: null, registrado_em: dataDoRegistro()
+      // só o tempo: entra como minutos (o app converte em páginas pelo seu ritmo)
+      paginas_lidas: soTempo ? null : paginasDoRegistro,
+      minutos_lidos: soTempo ? minutosInformados : null,
+      tempo_minutos: minutosInformados || null,
+      registrado_em: dataDoRegistro()
     })
     if (comNota && textoNota.trim()) {
       const { error } = await supabase.from('anotacoes').insert({
         membro_id: perfil.id, livro_id: livro.id, tipo: tipoNota, texto: textoNota.trim(),
-        pagina: Math.min(livro.paginas_totais, jaLidas + paginasDoRegistro), compartilhada: notaNoMural
+        pagina: Math.max(1, Math.min(livro.paginas_totais, jaLidas + paginasEstimadas)), compartilhada: notaNoMural
       })
       if (error) avisar('Leitura salva, mas a anotação não', 'erro')
     }
     setSalvando(false)
     setValor('')
+    setTempo('')
     setTextoNota('')
-    const terminou = jaLidas < livro.paginas_totais && jaLidas + paginasDoRegistro >= livro.paginas_totais
+    const terminou = jaLidas < livro.paginas_totais && jaLidas + paginasEstimadas >= livro.paginas_totais
     if (!terminou) {
       const meta = perfil.meta_diaria_paginas ?? 10
-      const bateuMeta = quando === 0 && leitura.paginasHoje < meta && leitura.paginasHoje + paginasDoRegistro >= meta
+      const bateuMeta = quando === 0 && leitura.paginasHoje < meta && leitura.paginasHoje + paginasEstimadas >= meta
+      const comAnotacao = comNota && textoNota.trim() ? ' com anotação' : ''
       avisar(bateuMeta
-        ? `Meta do dia cumprida: ${leitura.paginasHoje + paginasDoRegistro} páginas hoje`
-        : `${paginasDoRegistro} ${paginasDoRegistro === 1 ? 'página registrada' : 'páginas registradas'}${comNota && textoNota.trim() ? ' com anotação' : ''}`)
+        ? `Meta do dia cumprida: ${Math.round(leitura.paginasHoje + paginasEstimadas)} páginas hoje`
+        : soTempo
+          ? `${formatarTempo(minutosInformados)} de leitura registrados${comAnotacao}`
+          : `${paginasDoRegistro} ${paginasDoRegistro === 1 ? 'página registrada' : 'páginas registradas'}${minutosInformados ? ` em ${formatarTempo(minutosInformados)}` : ''}${comAnotacao}`)
     }
     onRegistrado(terminou)
   }
 
-  async function apagar(id: string) {
+  const [ocultos, setOcultos] = useState<Set<string>>(new Set())
+  function apagar(id: string) {
     setConfirmando(null)
-    const ok = await apagarRegistroLeitura(id)
-    avisar(ok ? 'Registro apagado' : 'Não foi possível apagar', ok ? 'ok' : 'erro')
-    leitura.recarregar()
+    apagarComDesfazer({
+      avisar, texto: 'Registro apagado',
+      esconder: () => setOcultos((s) => new Set(s).add(id)),
+      restaurar: () => setOcultos((s) => { const n = new Set(s); n.delete(id); return n }),
+      apagar: async () => { const ok = await apagarRegistroLeitura(id); leitura.recarregar(); return ok }
+    })
   }
 
-  const ultimos = verTodos ? leitura.doLivro : leitura.doLivro.slice(0, 5)
+  const doLivroVisivel = leitura.doLivro.filter((r) => !ocultos.has(r.id))
+  const ultimos = verTodos ? doLivroVisivel : doLivroVisivel.slice(0, 5)
 
   return (
     <div className="min-h-screen px-5 pt-8 pb-28">
@@ -105,43 +139,95 @@ export default function RegistrarLeitura({ perfil, livro, onRegistrado, onAnotar
             : `Você está na página ${jaLidas} de ${livro.paginas_totais}${leitura.paginasHoje > 0 ? `, com ${leitura.paginasHoje} lidas hoje` : ''}.`}
         </p>
 
-        <div role="tablist" className="grid grid-cols-2 p-1 rounded-xl bg-marinho/[0.06] dark:bg-bege/[0.06] mb-4">
-          {([['pagina', 'Onde parei'], ['quantidade', 'Quantas li']] as [Modo, string][]).map(([m, rotulo]) => (
-            <button key={m} type="button" role="tab" aria-selected={modo === m}
-              onClick={() => { setModo(m); setValor(''); setErro(null) }}
-              className={`rounded-lg py-2 text-sm font-semibold transition-colors ${modo === m ? 'bg-folha dark:bg-noite-cartao text-marinho dark:text-bege shadow-sm' : 'text-texto/55 dark:text-bege/55'}`}>
-              {rotulo}
-            </button>
-          ))}
-        </div>
-
         <div className="cartao p-6">
-          <label htmlFor="valor" className="rotulo text-center">{modo === 'quantidade' ? 'Páginas lidas' : 'Parei na página'}</label>
+          <label htmlFor="valor" className="rotulo text-center">{soTempo ? 'Minutos de leitura' : modo === 'quantidade' ? 'Páginas lidas' : 'Parei na página'}</label>
           <input
-            id="valor" type="number" inputMode="numeric" min={1} value={valor}
+            id="valor" type="number" inputMode="numeric" min={1} max={soTempo ? 1440 : undefined} value={valor}
             onChange={(e) => { setValor(e.target.value); setErro(null) }}
             className="w-full bg-transparent text-center font-serif tabular text-[64px] leading-none text-marinho dark:text-bege placeholder:text-texto/15 dark:placeholder:text-bege/15 focus:outline-none py-2"
-            placeholder={modo === 'quantidade' ? '0' : String(jaLidas + 1)}
+            placeholder={modo === 'pagina' ? String(jaLidas + 1) : '0'}
           />
+          {soTempo && minutosInformados >= 60 && (
+            <p className="text-center text-sm text-texto/55 dark:text-bege/55 -mt-1">{formatarTempo(minutosInformados)}</p>
+          )}
 
           {/* barra mostrando de onde para onde */}
           <div className="relative h-2 rounded-full bg-marinho/[0.07] dark:bg-bege/10 overflow-hidden mt-3">
             <div className="absolute inset-y-0 left-0 barra-progresso" style={{ width: `${(jaLidas / livro.paginas_totais) * 100}%` }} />
-            {paginasDoRegistro > 0 && (
-              <div className="absolute inset-y-0 bg-dourado/40 transition-all" style={{ left: `${(jaLidas / livro.paginas_totais) * 100}%`, width: `${(Math.min(paginasDoRegistro, faltam) / livro.paginas_totais) * 100}%` }} />
+            {paginasEstimadas > 0 && (
+              <div className="absolute inset-y-0 bg-dourado/40 transition-all" style={{ left: `${(jaLidas / livro.paginas_totais) * 100}%`, width: `${(Math.min(paginasEstimadas, faltam) / livro.paginas_totais) * 100}%` }} />
             )}
           </div>
           <div className="flex justify-between text-xs text-texto/45 dark:text-bege/45 mt-1.5">
             <span>p. {jaLidas}</span>
-            <span>{paginasDoRegistro > 0 ? `${pctDepois}% depois deste registro` : `${leitura.pct}%`}</span>
+            <span>{paginasEstimadas > 0 ? `${soTempo ? 'cerca de ' : ''}${pctDepois}% depois deste registro` : `${leitura.pct}%`}</span>
             <span>p. {livro.paginas_totais}</span>
           </div>
 
-          {modo === 'quantidade' && (
+          {modo !== 'pagina' && (
             <div className="flex justify-center gap-2 flex-wrap mt-4">
-              {[5, 10, 20, 30].map((n) => (
-                <button key={n} type="button" onClick={() => setValor(String((numero || 0) + n))} className="chip">+{n}</button>
+              {(soTempo ? [15, 30, 60] : [5, 10, 20, 30]).map((n) => (
+                <button key={n} type="button" onClick={() => setValor(String((numero || 0) + n))} className="chip">+{n}{soTempo ? ' min' : ''}</button>
               ))}
+            </div>
+          )}
+          {soTempo && (
+            <p className="text-xs text-center text-texto/50 dark:text-bege/50 mt-3">
+              {minutosInformados > 0
+                ? `Pelo seu ritmo (${String(ritmo).replace('.', ',')} min por página), isso conta como cerca de ${paginasEstimadas} ${paginasEstimadas === 1 ? 'página' : 'páginas'}. Se souber a página, prefira "Onde parei".`
+                : 'Para quando você não lembra a página. O avanço no livro é estimado pelo seu ritmo.'}
+            </p>
+          )}
+
+          {/* caminho principal é a página; as outras formas ficam escondidas */}
+          <div className="mt-3 text-center">
+            {modo === 'pagina' ? (
+              <button type="button" onClick={() => trocarModo('quantidade')} className="text-sm text-texto/55 dark:text-bege/55 underline underline-offset-2">
+                Não sei a página
+              </button>
+            ) : (
+              <div className="space-y-2">
+                <div className="inline-grid grid-cols-2 gap-2">
+                  {([['quantidade', 'Sei quantas li'], ['tempo', 'Só sei o tempo']] as [Modo, string][]).map(([m, rotulo]) => (
+                    <button key={m} type="button" onClick={() => trocarModo(m)} aria-pressed={modo === m}
+                      className={`chip whitespace-nowrap ${modo === m ? 'chip-ativo' : ''}`}>{rotulo}</button>
+                  ))}
+                </div>
+                <button type="button" onClick={() => trocarModo('pagina')} className="block mx-auto text-sm text-texto/55 dark:text-bege/55 underline underline-offset-2">
+                  Voltar para a página
+                </button>
+              </div>
+            )}
+          </div>
+
+          {/* tempo junto com as páginas, para quem leu sem o Foco */}
+          {!soTempo && (
+            <div className="mt-5">
+              <div className="flex items-baseline justify-between mb-2">
+                <label htmlFor="tempo" className="text-sm text-texto/60 dark:text-bege/60">Quanto tempo você leu? <span className="text-texto/40 dark:text-bege/40">(opcional)</span></label>
+                {minutosInformados > 0 && (
+                  <button type="button" onClick={() => setTempo('')} className="text-xs text-texto/50 dark:text-bege/50 underline underline-offset-2">limpar</button>
+                )}
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="grid grid-cols-4 gap-2 flex-1">
+                  {[15, 30, 45, 60].map((n) => (
+                    <button key={n} type="button" onClick={() => { setTempo(String(n)); setErro(null) }}
+                      className={`chip !px-1 whitespace-nowrap ${minutosInformados === n ? 'chip-ativo' : ''}`}>{n === 60 ? '1h' : `${n} min`}</button>
+                  ))}
+                </div>
+                <div className="relative w-[5.5rem] shrink-0">
+                  <input id="tempo" type="number" inputMode="numeric" min={1} max={1440} value={tempo}
+                    onChange={(e) => { setTempo(e.target.value); setErro(null) }}
+                    className="campo pr-9 text-center tabular" placeholder="outro" aria-label="Minutos de leitura" />
+                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-texto/45 dark:text-bege/45 pointer-events-none">min</span>
+                </div>
+              </div>
+              {minPorPagina && (
+                <p className="text-xs text-texto/50 dark:text-bege/50 mt-2">
+                  {formatarTempo(minutosInformados)} para {paginasDoRegistro} {paginasDoRegistro === 1 ? 'página' : 'páginas'}: cerca de {String(Math.round(minPorPagina * 10) / 10).replace('.', ',')} min por página.
+                </p>
+              )}
             </div>
           )}
 
@@ -162,14 +248,14 @@ export default function RegistrarLeitura({ perfil, livro, onRegistrado, onAnotar
             </button>
             {comNota && (
               <div className="mt-3 space-y-3 animate-subir-suave">
-                <div className="flex gap-2">
-                  {([['trecho', 'Trecho'], ['reflexao', 'Reflexão'], ['pergunta', 'Pergunta']] as [TipoNota, string][]).map(([t, r]) => (
+                <div className="flex flex-wrap gap-2">
+                  {([['trecho', 'Trecho'], ['reflexao', 'Reflexão'], ['pergunta', 'Pergunta'], ['aplicacao', 'Aplicação']] as [TipoNota, string][]).map(([t, r]) => (
                     <button key={t} type="button" onClick={() => setTipoNota(t)} className={`chip ${tipoNota === t ? 'chip-ativo' : ''}`}>{r}</button>
                   ))}
                 </div>
                 <textarea rows={3} value={textoNota} onChange={(e) => setTextoNota(e.target.value)} maxLength={2000}
                   className={`campo resize-none ${tipoNota === 'trecho' ? 'font-serif italic text-[18px]' : ''}`}
-                  placeholder={tipoNota === 'trecho' ? 'A frase que marcou.' : tipoNota === 'reflexao' ? 'O que ficou dessa leitura?' : 'Uma dúvida para o encontro.'} />
+                  placeholder={tipoNota === 'trecho' ? 'A frase que marcou.' : tipoNota === 'reflexao' ? 'O que ficou dessa leitura?' : tipoNota === 'aplicacao' ? 'O que você quer praticar?' : 'Uma dúvida para o encontro.'} />
                 <label className="flex items-center gap-2 text-sm text-texto/70 dark:text-bege/70">
                   <input type="checkbox" checked={notaNoMural} onChange={(e) => setNotaNoMural(e.target.checked)} className="w-4 h-4 accent-[#B8912F]" />
                   Pôr no mural do grupo
@@ -180,8 +266,10 @@ export default function RegistrarLeitura({ perfil, livro, onRegistrado, onAnotar
 
           {erro && <p className="text-sm text-center text-red-700 dark:text-red-400 mt-4">{erro}</p>}
 
-          <button type="submit" disabled={salvando || paginasDoRegistro <= 0} className="botao-primario mt-5">
-            {salvando ? 'Salvando…' : paginasDoRegistro > 0 ? `Registrar ${paginasDoRegistro} ${paginasDoRegistro === 1 ? 'página' : 'páginas'}` : 'Registrar'}
+          <button type="submit" disabled={salvando || !podeSalvar} className="botao-primario mt-5">
+            {salvando ? 'Salvando…'
+              : soTempo ? (minutosInformados > 0 ? `Registrar ${formatarTempo(minutosInformados)}` : 'Registrar')
+              : paginasDoRegistro > 0 ? `Registrar ${paginasDoRegistro} ${paginasDoRegistro === 1 ? 'página' : 'páginas'}${minutosInformados ? ` em ${formatarTempo(minutosInformados)}` : ''}` : 'Registrar'}
           </button>
         </div>
 
@@ -215,23 +303,21 @@ export default function RegistrarLeitura({ perfil, livro, onRegistrado, onAnotar
               {ultimos.map((r) => (
                 <li key={r.id} className="flex items-center gap-3 py-2.5">
                   <span className="w-8 h-8 rounded-full bg-marinho/[0.06] dark:bg-bege/[0.07] text-marinho/70 dark:text-bege/70 flex items-center justify-center shrink-0">
-                    <Icone nome={r.origem === 'pomodoro' ? 'relogio' : 'pena'} className="w-4 h-4" />
+                    <Icone nome={r.origem === 'pomodoro' || !r.paginas_lidas ? 'relogio' : 'pena'} className="w-4 h-4" />
                   </span>
                   <div className="flex-1 min-w-0">
                     <p className="text-[15px] text-marinho dark:text-bege">
-                      {r.paginas_lidas ? `${r.paginas_lidas} páginas` : `${r.minutos_lidos} min de foco`}
+                      {r.paginas_lidas
+                        ? `${r.paginas_lidas} ${r.paginas_lidas === 1 ? 'página' : 'páginas'}${r.tempo_minutos ? ` em ${formatarTempo(r.tempo_minutos)}` : ''}`
+                        : `${formatarTempo(r.minutos_lidos ?? 0)} de ${r.origem === 'pomodoro' ? 'foco' : 'leitura'}`}
                     </p>
                     <p className="text-xs text-texto/45 dark:text-bege/45">
                       {new Date(r.registrado_em).toLocaleString('pt-BR', { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
                     </p>
                   </div>
-                  {confirmando === r.id ? (
-                    <button type="button" onClick={() => apagar(r.id)} className="text-xs font-semibold text-red-700 dark:text-red-400 px-2 py-1">Apagar</button>
-                  ) : (
-                    <button type="button" onClick={() => setConfirmando(r.id)} aria-label="Apagar registro" className="p-2 text-texto/35 dark:text-bege/35 hover:text-red-700 dark:hover:text-red-400">
-                      <Icone nome="lixeira" className="w-4 h-4" />
-                    </button>
-                  )}
+                  <button type="button" onClick={() => apagar(r.id)} aria-label="Apagar registro" className="p-3 -mr-2 text-texto/40 dark:text-bege/45 hover:text-red-700 dark:hover:text-red-400">
+                    <Icone nome="lixeira" className="w-4 h-4" />
+                  </button>
                 </li>
               ))}
             </ul>

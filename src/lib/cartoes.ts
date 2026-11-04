@@ -4,7 +4,7 @@
 // recolorida ou esticada.
 
 export type Formato = 'story' | 'post' | 'quadrado'
-export type TipoTexto = 'trecho' | 'reflexao' | 'pergunta'
+export type TipoTexto = 'trecho' | 'reflexao' | 'pergunta' | 'aplicacao'
 export type ModeloTexto = 'pergaminho' | 'marinho' | 'caderno' | 'noturno' | 'debate' | 'polaroid' | 'foto' | 'minimal'
 export type ModeloLeitura = 'lendo' | 'progresso' | 'anel' | 'semana' | 'constancia' | 'terminei' | 'foto-leitura' | 'retrospectiva' | 'grupo'
 
@@ -41,6 +41,7 @@ export const MODELOS_LEITURA: { id: ModeloLeitura; nome: string; cores: [string,
 export const SO_COM_FUNDO: ModeloLeitura[] = ['foto-leitura', 'retrospectiva', 'grupo']
 
 export interface DadosTexto {
+  fonteCartao?: FonteCartao
   tipo: TipoTexto
   texto: string
   fonte: string // ex.: "C. S. Lewis, Cartas de um Diabo a Seu Aprendiz, p. 12"
@@ -50,6 +51,7 @@ export interface DadosTexto {
 }
 
 export interface DadosLeitura {
+  fonteCartao?: FonteCartao
   titulo: string
   autor: string | null
   capa: HTMLImageElement | null
@@ -62,6 +64,7 @@ export interface DadosLeitura {
   semana?: { rotulo: string; paginas: number }[]
   retro?: {
     paginas: number; dias: number; maiorSequencia: number; minutos: number; anotacoes: number
+    sessoes?: number; semContagem?: boolean
     melhorDia: { rotulo: string; paginas: number } | null
     periodo: string | null
     trecho: string | null
@@ -82,13 +85,58 @@ const C = {
   texto: '#222222',
   preto: '#1A1A1A'
 }
-const SERIFA = '"EB Garamond", Garamond, "Times New Roman", serif'
+// Fontes que a pessoa pode escolher para o texto dos cartões. A primeira é a
+// do clube; as outras são carregadas do Google Fonts só quando escolhidas.
+export type FonteCartao = 'garamond' | 'cormorant' | 'baskerville' | 'playfair' | 'lora' | 'sans'
+export const FONTES_CARTAO: { id: FonteCartao; nome: string; css: string; google?: string }[] = [
+  { id: 'garamond', nome: 'Garamond', css: '"EB Garamond", Garamond, "Times New Roman", serif' },
+  { id: 'cormorant', nome: 'Cormorant', css: '"Cormorant Garamond", Garamond, serif', google: 'Cormorant+Garamond:ital,wght@0,500;0,600;0,700;1,500;1,600' },
+  { id: 'baskerville', nome: 'Baskerville', css: '"Libre Baskerville", Baskerville, serif', google: 'Libre+Baskerville:ital,wght@0,400;0,700;1,400' },
+  { id: 'playfair', nome: 'Playfair', css: '"Playfair Display", serif', google: 'Playfair+Display:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500' },
+  { id: 'lora', nome: 'Lora', css: 'Lora, serif', google: 'Lora:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500' },
+  { id: 'sans', nome: 'Moderna', css: '"Source Sans 3", system-ui, sans-serif' }
+]
+let SERIFA = FONTES_CARTAO[0].css
+
+/** Só injeta os estilos das fontes extras (para as miniaturas aparecerem certas). */
+export function precarregarFontes() {
+  for (const f of FONTES_CARTAO) {
+    if (!f.google || document.querySelector(`link[data-fonte="${f.id}"]`)) continue
+    const l = document.createElement('link')
+    l.rel = 'stylesheet'
+    l.href = `https://fonts.googleapis.com/css2?family=${f.google}&display=swap`
+    l.dataset.fonte = f.id
+    document.head.appendChild(l)
+  }
+}
+
+const fontesCarregadas = new Map<FonteCartao, Promise<unknown>>()
+/** Carrega (uma vez) a fonte escolhida e passa a usá-la nos desenhos seguintes. */
+export function usarFonte(id: FonteCartao = 'garamond'): Promise<unknown> {
+  const f = FONTES_CARTAO.find((x) => x.id === id) ?? FONTES_CARTAO[0]
+  SERIFA = f.css
+  if (!fontesCarregadas.has(f.id)) {
+    if (f.google && !document.querySelector(`link[data-fonte="${f.id}"]`)) {
+      const l = document.createElement('link')
+      l.rel = 'stylesheet'
+      l.href = `https://fonts.googleapis.com/css2?family=${f.google}&display=swap`
+      l.dataset.fonte = f.id
+      document.head.appendChild(l)
+    }
+    const espera = f.google ? new Promise((r) => setTimeout(r, 60)) : Promise.resolve()
+    fontesCarregadas.set(f.id, espera.then(() => Promise.all(
+      ['400', '500', '600', '700', 'italic 400', 'italic 500'].map((p) => document.fonts.load(`${p} 40px ${f.css}`))
+    )).catch(() => {}))
+  }
+  return fontesCarregadas.get(f.id)!
+}
 const SANS = '"Source Sans 3", system-ui, sans-serif'
 
 const ROTULO_TIPO: Record<TipoTexto, string> = {
   trecho: 'Trecho',
   reflexao: 'Reflexão',
-  pergunta: 'Pergunta para o encontro'
+  pergunta: 'Pergunta para o encontro',
+  aplicacao: 'Para aplicar'
 }
 
 // ---------- carregamento ----------
@@ -123,8 +171,8 @@ function garantirFontes() {
   if (!fontesProntas) {
     fontesProntas = Promise.all(
       [
-        `400 40px ${SERIFA}`, `italic 400 40px ${SERIFA}`, `500 40px ${SERIFA}`,
-        `600 40px ${SERIFA}`, `700 40px ${SERIFA}`, `italic 500 40px ${SERIFA}`,
+        `400 40px ${FONTES_CARTAO[0].css}`, `italic 400 40px ${FONTES_CARTAO[0].css}`, `500 40px ${FONTES_CARTAO[0].css}`,
+        `600 40px ${FONTES_CARTAO[0].css}`, `700 40px ${FONTES_CARTAO[0].css}`, `italic 500 40px ${FONTES_CARTAO[0].css}`,
         `400 40px ${SANS}`, `600 40px ${SANS}`, `700 40px ${SANS}`
       ].map((f) => document.fonts.load(f))
     ).catch(() => {})
@@ -325,6 +373,7 @@ function aspas(t: TipoTexto, texto: string) {
 // ======================================================================
 
 export async function desenharTexto(canvas: HTMLCanvasElement, modelo: ModeloTexto, formato: Formato, d: DadosTexto) {
+  await usarFonte(d.fonteCartao)
   await desenharTextoModelo(canvas, modelo, formato, d)
   if (d.parte && d.parte.n > 1) {
     // selo "1/3" no canto, legível sobre qualquer fundo
@@ -516,9 +565,9 @@ async function desenharTextoModelo(canvas: HTMLCanvasElement, modelo: ModeloText
     ctx.fillStyle = C.marinho
     ctx.fillRect(0, 0, W, H)
     const tamQ = formato === 'quadrado' ? 300 : 420
-    texto1(ctx, '?', W / 2, z.topo + tamQ * 0.82, `600 ${tamQ}px ${SERIFA}`, C.dourado)
+    texto1(ctx, d.tipo === 'pergunta' ? '?' : '“', W / 2, z.topo + tamQ * 0.82, `600 ${tamQ}px ${SERIFA}`, C.dourado)
     let y = z.topo + tamQ * 0.82 + 70
-    texto1(ctx, d.tipo === 'pergunta' ? 'Pergunta para o encontro' : `Para pensar: ${ROTULO_TIPO[d.tipo].toLowerCase()}`, W / 2, y, `600 32px ${SANS}`, C.dourado)
+    texto1(ctx, d.tipo === 'pergunta' ? 'Pergunta para o encontro' : d.tipo === 'aplicacao' ? 'Para aplicar' : `Para pensar: ${ROTULO_TIPO[d.tipo].toLowerCase()}`, W / 2, y, `600 32px ${SANS}`, C.dourado)
     y += 50
     const yFim = z.base - 260
     const a = ajustar(ctx, corpo, W - 200, yFim - y, (t) => `${italico ? 'italic ' : ''}500 ${t}px ${SERIFA}`, formato === 'story' ? 78 : 64, 30, 1.3)
@@ -527,7 +576,7 @@ async function desenharTextoModelo(canvas: HTMLCanvasElement, modelo: ModeloText
     ctx.font = `${italico ? 'italic ' : ''}500 ${a.tam}px ${SERIFA}`
     escrever(ctx, a.linhas, W / 2, yTexto, a.alturaLinha, a.tam)
     texto1(ctx, d.fonte, W / 2, yFim + 50, `600 28px ${SANS}`, 'rgba(246,241,227,0.7)', 'center', W - 200)
-    texto1(ctx, 'O que você acha?', W / 2, yFim + 110, `italic 500 40px ${SERIFA}`, C.dourado)
+    texto1(ctx, d.tipo === 'aplicacao' ? 'E você, o que vai aplicar?' : 'O que você acha?', W / 2, yFim + 110, `italic 500 40px ${SERIFA}`, C.dourado)
     const txt = await logo('texto', 'branco')
     desenharLogo(ctx, txt, W / 2, Math.min(z.base - 40, H - 120), 240)
     return
@@ -630,6 +679,7 @@ async function desenharTextoModelo(canvas: HTMLCanvasElement, modelo: ModeloText
 
 export async function desenharLeitura(canvas: HTMLCanvasElement, modelo: ModeloLeitura, formato: Formato, d: DadosLeitura) {
   await garantirFontes()
+  await usarFonte(d.fonteCartao)
   const { w: W, h: H } = FORMATOS[formato]
   canvas.width = W
   canvas.height = H
@@ -649,13 +699,15 @@ export async function desenharLeitura(canvas: HTMLCanvasElement, modelo: ModeloL
     ctx.fillRect(0, 0, W, H)
     // sem capa, o emblema do clube ocupa o lugar dela (arquivo oficial, sem alteração)
     const simb = d.capa ? null : await logo('simbolo', 'branco')
-    const hVisual = formato === 'quadrado' ? 340 : formato === 'post' ? 460 : 620
     const visual = d.capa ?? simb!
-    const wVisual = hVisual * (visual.width / visual.height)
     const a = ajustar(ctx, d.titulo, W - 200, formato === 'quadrado' ? 150 : 220, fonteTitulo, formato === 'quadrado' ? 64 : 76, 38, 1.15)
-    const bloco = 50 + hVisual + 70 + a.alturaTotal + 20 + (d.autor ? 70 : 0) + 120
     const areaTopo = z.topo
-    const areaFim = z.base - 150
+    const areaFim = z.base - (formato === 'quadrado' ? 170 : 150)
+    const resto = 50 + 70 + a.alturaTotal + 20 + (d.autor ? 70 : 0) + 120
+    // a capa (ou o emblema) encolhe se o título for longo, para nada encostar no logo
+    const hVisual = Math.max(180, Math.min(formato === 'quadrado' ? 340 : formato === 'post' ? 460 : 620, areaFim - areaTopo - resto))
+    const wVisual = hVisual * (visual.width / visual.height)
+    const bloco = resto + hVisual
     let y = areaTopo + Math.max(0, (areaFim - areaTopo - bloco) / 2)
     texto1(ctx, 'Estou lendo', W / 2, y + 30, `600 34px ${SANS}`, C.dourado)
     y += 50
@@ -721,11 +773,24 @@ export async function desenharLeitura(canvas: HTMLCanvasElement, modelo: ModeloL
   if (modelo === 'anel') {
     ctx.fillStyle = C.marinho
     ctx.fillRect(0, 0, W, H)
+    // logo fixo embaixo; anel, título e autor centralizados no espaço que sobra
+    const hor = await logo('horizontal', 'branco')
+    const hLogo = formato === 'quadrado' ? 76 : 90
+    const yLogo = z.base - hLogo - (formato === 'story' ? 30 : 10)
+    const areaTopo = z.topo
+    const areaFim = yLogo - (formato === 'quadrado' ? 54 : 66)
+    const a = ajustar(ctx, d.titulo, W - 200, formato === 'quadrado' ? 120 : 170, fonteTitulo, formato === 'quadrado' ? 56 : 64, 34, 1.15)
+    const hTitulo = d.titulo ? a.alturaTotal : 0
+    const hAutor = d.titulo && d.autor ? 58 : 0
+    const gap = d.titulo ? (formato === 'quadrado' ? 44 : 70) : 0
+    const espacoAnel = areaFim - areaTopo - gap - hTitulo - hAutor
+    const raio = Math.max(150, Math.min(320, (espacoAnel - 40) / 2))
+    const altura = raio * 2 + 40 + gap + hTitulo + hAutor
+    const y0 = areaTopo + Math.max(0, (areaFim - areaTopo - altura) / 2)
     const cx = W / 2
-    const raio = formato === 'quadrado' ? 250 : 320
-    const cy = formato === 'quadrado' ? H * 0.42 : H * 0.42
+    const cy = y0 + 20 + raio
     ctx.lineCap = 'round'
-    ctx.lineWidth = 34
+    ctx.lineWidth = Math.round(raio * 0.105)
     ctx.strokeStyle = 'rgba(246,241,227,0.1)'
     ctx.beginPath()
     ctx.arc(cx, cy, raio, 0, Math.PI * 2)
@@ -736,23 +801,24 @@ export async function desenharLeitura(canvas: HTMLCanvasElement, modelo: ModeloL
       ctx.arc(cx, cy, raio, -Math.PI / 2, -Math.PI / 2 + (Math.PI * 2 * pct) / 100)
       ctx.stroke()
     }
-    const tam = formato === 'quadrado' ? 190 : 240
+    const tam = Math.round(raio * 0.75)
     ctx.fillStyle = C.bege
     ctx.font = `600 ${tam}px ${SERIFA}`
     ctx.textAlign = 'center'
-    ctx.fillText(String(pct), cx - tam * 0.1, cy + tam * 0.32)
+    ctx.fillText(String(pct), cx - tam * 0.1, cy + tam * 0.3)
     const lw = ctx.measureText(String(pct)).width
-    texto1(ctx, '%', cx - tam * 0.1 + lw / 2 + 6, cy - tam * 0.1, `500 ${tam * 0.38}px ${SERIFA}`, C.dourado, 'left')
-    texto1(ctx, `página ${Math.round(d.paginas)} de ${d.total}`, cx, cy + tam * 0.32 + 70, `600 30px ${SANS}`, 'rgba(246,241,227,0.7)')
-    let y = cy + raio + 110
-    const a = ajustar(ctx, d.titulo, W - 200, 170, fonteTitulo, 64, 36, 1.15)
-    ctx.fillStyle = C.bege
-    ctx.font = fonteTitulo(a.tam)
-    escrever(ctx, a.linhas, W / 2, y, a.alturaLinha, a.tam)
-    y += a.alturaTotal
-    if (d.autor) texto1(ctx, d.autor, W / 2, y + 44, `400 32px ${SANS}`, 'rgba(246,241,227,0.7)')
-    const hor = await logo('horizontal', 'branco')
-    desenharLogoAltura(ctx, hor, W / 2, Math.min(z.base - 100, H - 150), 90)
+    texto1(ctx, '%', cx - tam * 0.1 + lw / 2 + 6, cy - tam * 0.12, `500 ${tam * 0.38}px ${SERIFA}`, C.dourado, 'left')
+    texto1(ctx, `página ${Math.round(d.paginas)} de ${d.total}`, cx, cy + tam * 0.3 + Math.max(44, raio * 0.2), `600 ${Math.max(24, Math.round(raio * 0.094))}px ${SANS}`, 'rgba(246,241,227,0.7)')
+    let y = cy + raio + 20 + gap
+    if (d.titulo) {
+      ctx.fillStyle = C.bege
+      ctx.font = fonteTitulo(a.tam)
+      escrever(ctx, a.linhas, W / 2, y, a.alturaLinha, a.tam)
+      y += a.alturaTotal
+      if (d.autor) texto1(ctx, d.autor, W / 2, y + 44, `400 32px ${SANS}`, 'rgba(246,241,227,0.7)')
+    }
+    if (d.nome) texto1(ctx, d.nome, W / 2, yLogo - 18, `400 26px ${SANS}`, 'rgba(246,241,227,0.5)')
+    desenharLogoAltura(ctx, hor, W / 2, yLogo, hLogo)
     return
   }
 
@@ -878,8 +944,10 @@ export async function desenharLeitura(canvas: HTMLCanvasElement, modelo: ModeloL
     const itens: [string, string][] = r ? [
       [String(r.paginas), r.paginas === 1 ? 'página' : 'páginas'],
       [String(r.dias), r.dias === 1 ? 'dia de leitura' : 'dias de leitura'],
-      [String(r.maiorSequencia), r.maiorSequencia === 1 ? 'dia seguido, no máximo' : 'dias seguidos, no máximo'],
-      [r.minutos >= 60 ? `${Math.round(r.minutos / 6) / 10}`.replace('.', ',') : String(r.minutos), r.minutos >= 60 ? 'horas de foco' : 'minutos de foco'],
+      r.semContagem
+        ? [String(r.sessoes ?? 0), (r.sessoes ?? 0) === 1 ? 'sessão de foco' : 'sessões de foco']
+        : [String(r.maiorSequencia), r.maiorSequencia === 1 ? 'dia seguido, no máximo' : 'dias seguidos, no máximo'],
+      [r.minutos >= 60 ? `${Math.round(r.minutos / 6) / 10}`.replace('.', ',') : String(r.minutos), r.minutos >= 60 ? 'horas de leitura' : 'min de leitura'],
       [String(r.anotacoes), r.anotacoes === 1 ? 'anotação' : 'anotações'],
       [r.melhorDia ? String(r.melhorDia.paginas) : '0', r.melhorDia ? `páginas em ${r.melhorDia.rotulo}` : 'melhor dia']
     ] : []
@@ -1018,6 +1086,7 @@ export type CorAdesivo = 'claro' | 'escuro'
 
 export async function desenharAdesivo(canvas: HTMLCanvasElement, modelo: ModeloLeitura, d: DadosLeitura, cor: CorAdesivo) {
   await garantirFontes()
+  await usarFonte(d.fonteCartao)
   const W = 1080
   const rascunho = document.createElement('canvas')
   rascunho.width = W

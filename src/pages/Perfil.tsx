@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { tempoManual } from '../lib/tempo'
 import { supabase, type Perfil as TPerfil } from '../lib/supabase'
 import { useAviso } from '../components/Toast'
 import Avatar from '../components/Avatar'
@@ -6,6 +7,8 @@ import InstalarApp from '../components/InstalarApp'
 import { GRUPOS_CONQUISTA, ICONE_CONQUISTA } from '../lib/conquistas'
 import Icone, { type NomeIcone } from '../components/Icone'
 import type { TemaPreferido } from '../lib/tema'
+import { useContagem, aplicarTamanhoLetra, tamanhoLetraSalvo, aplicarFonteNotas, fonteNotasSalva, FONTES_NOTAS, type FonteNotas, type TamanhoLetra } from '../lib/preferencias'
+import { baixarIcs, linkGoogleAgenda, proximoHorario } from '../lib/agenda'
 import { formatarData, maiorSequencia, paginasEquivalentes, paginasPorDia, sequenciaAtual } from '../lib/estatisticas'
 import type { LivroAtivo } from './Inicio'
 import { MapaDeHorarios } from '../components/Graficos'
@@ -22,12 +25,14 @@ interface Props {
   onAbrirMetas: () => void
   onAbrirLivro: (id: string) => void
   onAbrirGuia: () => void
+  onAbrirIndicacoes: () => void
+  onAbrirAno: () => void
 }
 
 interface Conquista { id: string; chave: string; nome: string; descricao: string | null; icone: string | null }
 interface Registro { id: string; livro_id: string; origem: 'manual' | 'pomodoro'; paginas_lidas: number | null; minutos_lidos: number | null; registrado_em: string }
 
-export default function Perfil({ perfil, tema, onMudarTema, onPerfilAtualizado, onVoltar, onAbrirAdmin, onAbrirMetas, onAbrirLivro, onAbrirGuia }: Props) {
+export default function Perfil({ perfil, tema, onMudarTema, onPerfilAtualizado, onVoltar, onAbrirAdmin, onAbrirMetas, onAbrirLivro, onAbrirGuia, onAbrirIndicacoes, onAbrirAno }: Props) {
   const [registros, setRegistros] = useState<Registro[] | null>(null)
   const [sessoes, setSessoes] = useState(0)
   const [minutosFoco, setMinutosFoco] = useState(0)
@@ -39,6 +44,10 @@ export default function Perfil({ perfil, tema, onMudarTema, onPerfilAtualizado, 
   const [ritmo, setRitmo] = useState(String(perfil.ritmo_leitura_min_por_pagina))
   const [livros, setLivros] = useState<{ id: string; titulo: string; autor: string | null; capa_url: string | null; paginas_totais: number; status: string }[]>([])
   const avisar = useAviso()
+  const contagem = useContagem()
+  const [letra, setLetra] = useState<TamanhoLetra>(() => tamanhoLetraSalvo())
+  const [fonteNotas, setFonteNotas] = useState<FonteNotas>(() => fonteNotasSalva())
+  const [horaLembrete, setHoraLembrete] = useState('21:00')
   const [abertas, setAbertas] = useState<Record<string, boolean>>(() => {
     try { return JSON.parse(localStorage.getItem('bereanos-streak-perfil-secoes') ?? '{}') } catch { return {} }
   })
@@ -71,9 +80,10 @@ export default function Perfil({ perfil, tema, onMudarTema, onPerfilAtualizado, 
       supabase.from('conquistas').select('id, chave, nome, descricao, icone'),
       supabase.from('membro_conquistas').select('conquista_id, conquistado_em').eq('membro_id', perfil.id)
     ])
+    const manual = await tempoManual(perfil.id)
     setRegistros((regs.data ?? []) as Registro[])
     setSessoes(sess.data?.length ?? 0)
-    setMinutosFoco((sess.data ?? []).reduce((a, x) => a + (x.duracao_minutos ?? 0), 0))
+    setMinutosFoco((sess.data ?? []).reduce((a, x) => a + (x.duracao_minutos ?? 0), 0) + manual)
     setCatalogo((cat.data ?? []) as Conquista[])
     const m = new Map<string, string>()
     for (const r of mc.data ?? []) if (!m.has(r.conquista_id)) m.set(r.conquista_id, r.conquistado_em)
@@ -105,6 +115,15 @@ export default function Perfil({ perfil, tema, onMudarTema, onPerfilAtualizado, 
   }
 
   const horarios = useMemo(() => mapaHorarios(registros ?? [], ritmoNum), [registros, ritmoNum])
+  const livrosTerminados = livros.filter((l) => (registros ?? []).filter((r) => r.livro_id === l.id)
+    .reduce((a, r) => a + paginasEquivalentes(r, ritmoNum), 0) >= l.paginas_totais).length
+
+  async function mudarContagem(v: boolean | null) {
+    const { error } = await supabase.from('perfis').update({ mostrar_contagem: v }).eq('id', perfil.id)
+    if (error) return avisar('Não foi possível salvar', 'erro')
+    onPerfilAtualizado({ ...perfil, mostrar_contagem: v })
+  }
+
   const conquistadas = catalogo.filter((c) => minhas.has(c.id)).length
   const recentes = catalogo.filter((c) => minhas.has(c.id))
     .sort((a, b) => minhas.get(b.id)!.localeCompare(minhas.get(a.id)!)).slice(0, 3)
@@ -130,11 +149,12 @@ export default function Perfil({ perfil, tema, onMudarTema, onPerfilAtualizado, 
         <section className="grid grid-cols-3 gap-px rounded-2xl overflow-hidden bg-dourado/15 mt-6 border border-dourado/15">
           {[
             [estat.paginas, 'páginas lidas'],
-            [minutosFoco >= 60 ? Math.round(minutosFoco / 6) / 10 : minutosFoco, minutosFoco >= 60 ? 'horas de foco' : 'minutos de foco'],
+            [minutosFoco >= 60 ? Math.round(minutosFoco / 6) / 10 : minutosFoco, minutosFoco >= 60 ? 'horas de leitura' : 'min de leitura'],
             [sessoes, 'sessões'],
             [estat.diasLidos, 'dias com leitura'],
-            [estat.atual, 'sequência atual'],
-            [estat.maior, 'maior sequência']
+            ...(contagem
+              ? [[estat.atual, 'sequência atual'], [estat.maior, 'maior sequência']]
+              : [[livrosTerminados, livrosTerminados === 1 ? 'livro terminado' : 'livros terminados'], [livros.length, livros.length === 1 ? 'livro no clube' : 'livros no clube']])
           ].map(([v, rotulo]) => (
             <div key={rotulo as string} className="bg-folha dark:bg-noite-cartao py-4 text-center">
               {registros === null
@@ -165,7 +185,7 @@ export default function Perfil({ perfil, tema, onMudarTema, onPerfilAtualizado, 
         )}
 
         {/* Conquistas */}
-        <section className="mt-8">
+        {contagem && <section className="mt-8">
           <CabecalhoRecolhivel titulo="Conquistas" detalhe={`${conquistadas} de ${catalogo.length}`} aberto={!!abertas.conquistas} onAlternar={() => alternar('conquistas')} />
           <div className="h-2 rounded-full bg-marinho/[0.07] dark:bg-bege/10 overflow-hidden mb-4">
             <div className="h-full barra-progresso rounded-full transition-all duration-700" style={{ width: `${catalogo.length ? (conquistadas / catalogo.length) * 100 : 0}%` }} />
@@ -227,7 +247,7 @@ export default function Perfil({ perfil, tema, onMudarTema, onPerfilAtualizado, 
             )
           })}
           {abertas.conquistas && <button onClick={() => alternar('conquistas')} className="botao-texto">Recolher conquistas</button>}
-        </section>
+        </section>}
 
         {/* Estante */}
         <section className="mt-8">
@@ -301,9 +321,11 @@ export default function Perfil({ perfil, tema, onMudarTema, onPerfilAtualizado, 
           )}
         </section>
 
-        {/* Aparência */}
+        {/* Ajustes do app */}
         <section className="cartao p-5 mt-4">
-          <h2 className="titulo-secao">Aparência</h2>
+          <CabecalhoRecolhivel titulo="Ajustes do app" detalhe="tema, letra, fonte, lembrete" aberto={!!abertas.ajustes} onAlternar={() => alternar('ajustes')} semMargem />
+          {abertas.ajustes && <div className="mt-5 animate-subir-suave">
+          <h3 className="titulo-secao">Aparência</h3>
           <p className="legenda mt-0.5 mb-3">Auto segue o claro ou escuro do seu celular.</p>
           <div className="grid grid-cols-4 gap-2">
             {([['claro', 'Claro', 'sol'], ['escuro', 'Escuro', 'lua'], ['azul', 'Azul', 'gota'], ['sistema', 'Auto', 'meia-lua']] as [TemaPreferido, string, NomeIcone][]).map(([t, rotulo, icone]) => (
@@ -322,27 +344,74 @@ export default function Perfil({ perfil, tema, onMudarTema, onPerfilAtualizado, 
               </button>
             ))}
           </div>
+
+          <h3 className="titulo-secao mt-6">Sequência e conquistas</h3>
+          <p className="legenda mt-0.5 mb-3">
+            Mostra ou esconde a contagem de dias seguidos e as conquistas. {perfil.mostrar_contagem == null ? `Hoje você segue o padrão do clube (${contagem ? 'mostrar' : 'esconder'}).` : ''}
+          </p>
+          <div className="grid grid-cols-3 gap-2">
+            {([[null, 'Padrão do clube'], [true, 'Mostrar'], [false, 'Esconder']] as [boolean | null, string][]).map(([v, rotulo]) => (
+              <button key={rotulo} onClick={() => mudarContagem(v)} aria-pressed={(perfil.mostrar_contagem ?? null) === v}
+                className={`rounded-xl border py-2.5 text-sm font-medium ${(perfil.mostrar_contagem ?? null) === v ? 'border-dourado bg-dourado/10 text-dourado-escuro dark:text-dourado' : 'border-marinho/15 dark:border-bege/15 text-texto/60 dark:text-bege/60'}`}>
+                {rotulo}
+              </button>
+            ))}
+          </div>
+
+          <h3 className="titulo-secao mt-6">Tamanho da letra</h3>
+          <div className="grid grid-cols-3 gap-2 mt-3">
+            {([['normal', 'Normal', 'text-sm'], ['grande', 'Grande', 'text-base'], ['maior', 'Maior', 'text-lg']] as [TamanhoLetra, string, string][]).map(([t, rotulo, cls]) => (
+              <button key={t} onClick={() => { setLetra(t); aplicarTamanhoLetra(t) }} aria-pressed={letra === t}
+                className={`rounded-xl border py-2.5 font-medium ${cls} ${letra === t ? 'border-dourado bg-dourado/10 text-dourado-escuro dark:text-dourado' : 'border-marinho/15 dark:border-bege/15 text-texto/60 dark:text-bege/60'}`}>
+                {rotulo}
+              </button>
+            ))}
+          </div>
+
+          <h3 className="titulo-secao mt-6">Fonte das anotações</h3>
+          <p className="legenda mt-0.5 mb-3">Como suas anotações e o mural aparecem para você neste aparelho.</p>
+          <div className="grid grid-cols-4 gap-2">
+            {FONTES_NOTAS.map((f) => (
+              <button key={f.id} onClick={() => { setFonteNotas(f.id); aplicarFonteNotas(f.id) }} aria-pressed={fonteNotas === f.id}
+                className={`rounded-xl border py-2 ${fonteNotas === f.id ? 'border-dourado bg-dourado/10 text-dourado-escuro dark:text-dourado' : 'border-marinho/15 dark:border-bege/15 text-texto/60 dark:text-bege/60'}`}>
+                <span className="block text-lg leading-tight" style={f.css ? { fontFamily: f.css } : undefined}>Aa</span>
+                <span className="block text-[11px] font-medium">{f.nome}</span>
+              </button>
+            ))}
+          </div>
+
+          <h3 className="titulo-secao mt-6">Lembrete diário de leitura</h3>
+          <p className="legenda mt-0.5 mb-3">O próprio calendário do celular avisa todo dia no horário escolhido.</p>
+          <div className="flex items-center gap-2">
+            <input type="time" value={horaLembrete} onChange={(e) => setHoraLembrete(e.target.value)} className="campo !w-32" aria-label="Horário do lembrete" />
+          </div>
+          {(() => {
+            const evento = { titulo: 'Hora da leitura', descricao: 'Algumas páginas hoje. Depois registre no app Bereanos.', inicio: proximoHorario(horaLembrete || '21:00'), duracaoMin: 20, diario: true }
+            return (
+              <div className="grid grid-cols-2 gap-2 mt-3">
+                <a href={linkGoogleAgenda(evento)} target="_blank" rel="noopener" className="botao-secundario text-center text-sm">Google Agenda</a>
+                <button onClick={() => baixarIcs(evento, 'lembrete-leitura.ics')} className="botao-secundario text-sm">iPhone / outro</button>
+              </div>
+            )
+          })()}
+
+
+          </div>}
         </section>
 
         <InstalarApp />
 
-        <div className="mt-6 space-y-2">
-          <button onClick={onAbrirMetas} className="botao-secundario flex items-center justify-center gap-2">
-            <Icone nome="alvo" className="w-4 h-4" /> Minhas metas
-          </button>
-          <TrocarSenha />
-          <button onClick={onAbrirGuia} className="botao-secundario flex items-center justify-center gap-2">
-            <Icone nome="lampada" className="w-4 h-4" /> Como usar o app
-          </button>
-          {perfil.role === 'admin' && (
-            <button onClick={onAbrirAdmin} className="botao-secundario flex items-center justify-center gap-2">
-              <Icone nome="engrenagem" className="w-4 h-4" /> Painel do admin
-            </button>
-          )}
-          <button onClick={sair} className="w-full py-3 text-sm font-semibold text-red-700 dark:text-red-400 flex items-center justify-center gap-2 rounded-xl hover:bg-red-50 dark:hover:bg-red-950/30">
-            <Icone nome="sair" className="w-4 h-4" /> Sair da conta
-          </button>
-        </div>
+        <nav className="cartao mt-4 divide-y divide-marinho/[0.07] dark:divide-bege/[0.08]" aria-label="Mais opções">
+          <ItemMenu icone="calendario" rotulo={`Seu ano de leitura, ${new Date().getFullYear()}`} detalhe="retrospectiva com imagem para compartilhar" onClick={onAbrirAno} />
+          <ItemMenu icone="alvo" rotulo="Minhas metas" onClick={onAbrirMetas} />
+          <ItemMenu icone="estante" rotulo="Próximas leituras" detalhe="indicar livros e ver o sorteio" onClick={onAbrirIndicacoes} />
+          <ItemMenu icone="lampada" rotulo="Como usar o app" onClick={onAbrirGuia} />
+          {perfil.role === 'admin' && <ItemMenu icone="engrenagem" rotulo="Painel do admin" detalhe="ciclo, membros e clube" onClick={onAbrirAdmin} />}
+        </nav>
+        <div className="mt-3"><TrocarSenha /></div>
+        <button onClick={sair} className="mt-3 w-full py-3 text-sm font-semibold text-red-700 dark:text-red-400 flex items-center justify-center gap-2 rounded-xl hover:bg-red-50 dark:hover:bg-red-950/30">
+          <Icone nome="sair" className="w-4 h-4" /> Sair da conta
+        </button>
       </div>
     </div>
   )
@@ -406,5 +475,18 @@ function TrocarSenha() {
         <button onClick={() => { setAberto(false); setNova(''); setRepetir('') }} className="botao-secundario">Cancelar</button>
       </div>
     </div>
+  )
+}
+
+function ItemMenu({ icone, rotulo, detalhe, onClick }: { icone: NomeIcone; rotulo: string; detalhe?: string; onClick: () => void }) {
+  return (
+    <button onClick={onClick} className="w-full flex items-center gap-3 px-4 py-3.5 text-left hover:bg-marinho/[0.03] dark:hover:bg-bege/[0.04] first:rounded-t-2xl last:rounded-b-2xl">
+      <span className="w-9 h-9 rounded-full bg-dourado/10 text-dourado-escuro dark:text-dourado flex items-center justify-center shrink-0"><Icone nome={icone} className="w-[18px] h-[18px]" /></span>
+      <span className="flex-1 min-w-0">
+        <span className="block text-[15px] font-semibold text-marinho dark:text-bege">{rotulo}</span>
+        {detalhe && <span className="block text-xs text-texto/50 dark:text-bege/50">{detalhe}</span>}
+      </span>
+      <Icone nome="seta-direita" className="w-4 h-4 text-texto/30 dark:text-bege/30" />
+    </button>
   )
 }

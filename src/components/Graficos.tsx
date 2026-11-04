@@ -83,3 +83,48 @@ export function BarrasDias({ valores, destaqueHoje = true }: { valores: { chave:
     </div>
   )
 }
+
+const COR_TIPO: Record<string, string> = { trecho: '#B8912F', reflexao: '#8A6D2B', pergunta: '#5B79A8', aplicacao: '#6F8F6A' }
+const ROTULO_TIPO: Record<string, string> = { trecho: 'trechos', reflexao: 'reflexões', pergunta: 'perguntas', aplicacao: 'aplicações' }
+
+/**
+ * Mapa do livro: em que partes do livro as anotações se concentram.
+ * Cada coluna é um trecho de páginas; a altura é quantas marcações caíram ali.
+ */
+export function MapaDoLivro({ marcas, total }: { marcas: { pagina: number | null; tipo: string }[]; total: number }) {
+  const comPagina = marcas.filter((m) => m.pagina && m.pagina > 0 && m.pagina <= total) as { pagina: number; tipo: string }[]
+  if (comPagina.length === 0) return <p className="legenda">As anotações com página aparecem aqui, mostrando onde o livro mais marcou.</p>
+  const n = Math.min(20, Math.max(6, Math.ceil(total / 10)))
+  const tam = total / n
+  const faixas = Array.from({ length: n }, (_, i) => ({ de: Math.floor(i * tam) + 1, ate: Math.round((i + 1) * tam), porTipo: {} as Record<string, number>, qtd: 0 }))
+  for (const m of comPagina) {
+    const f = faixas[Math.min(n - 1, Math.floor((m.pagina - 1) / tam))]
+    f.porTipo[m.tipo] = (f.porTipo[m.tipo] ?? 0) + 1
+    f.qtd++
+  }
+  const max = Math.max(1, ...faixas.map((f) => f.qtd))
+  const topo = [...faixas].sort((a, b) => b.qtd - a.qtd)[0]
+  const tipos = Object.keys(COR_TIPO).filter((t) => comPagina.some((m) => m.tipo === t))
+  return (
+    <div>
+      <p className="text-[15px] text-texto/80 dark:text-bege/80 mb-3">
+        O trecho mais marcado vai da página <strong className="text-marinho dark:text-bege">{topo.de}</strong> à <strong className="text-marinho dark:text-bege">{topo.ate}</strong>, com {topo.qtd} {topo.qtd === 1 ? 'marcação' : 'marcações'}.
+      </p>
+      <div className="flex items-end gap-[3px] h-24" role="img" aria-label="Quantidade de anotações ao longo das páginas do livro">
+        {faixas.map((f) => (
+          <div key={f.de} className="flex-1 h-full flex flex-col justify-end rounded-[3px] overflow-hidden bg-marinho/[0.04] dark:bg-bege/[0.05]" title={`p. ${f.de} a ${f.ate}: ${f.qtd}`}>
+            {tipos.map((t) => f.porTipo[t] ? <div key={t} style={{ height: `${(f.porTipo[t] / max) * 100}%`, background: COR_TIPO[t] }} className="dark:opacity-90" /> : null)}
+          </div>
+        ))}
+      </div>
+      <div className="flex justify-between text-[10px] text-texto/45 dark:text-bege/45 mt-1"><span>p. 1</span><span>p. {Math.round(total / 2)}</span><span>p. {total}</span></div>
+      <div className="flex flex-wrap gap-x-3 gap-y-1 mt-2">
+        {tipos.map((t) => (
+          <span key={t} className="flex items-center gap-1.5 text-xs text-texto/60 dark:text-bege/60">
+            <span className="w-2.5 h-2.5 rounded-sm dark:ring-1 dark:ring-bege/30" style={{ background: COR_TIPO[t] }} />{ROTULO_TIPO[t]}
+          </span>
+        ))}
+      </div>
+    </div>
+  )
+}

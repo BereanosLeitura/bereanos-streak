@@ -163,3 +163,12 @@ input[type='number'] {
     transition-duration: 0.01ms !important;
   }
 }
+
+/* Fonte de leitura das anotações, escolhida no Perfil */
+[data-fonte-notas="garamond"] .texto-nota { font-family: 'EB Garamond', Garamond, serif; font-size: 1.1em; line-height: 1.55; }
+[data-fonte-notas="lora"] .texto-nota { font-family: Lora, serif; line-height: 1.6; }
+[data-fonte-notas="sans"] .texto-nota { font-family: 'Source Sans 3', system-ui, sans-serif; font-style: normal; font-size: 1em; }
+
+/* Legibilidade: textos pequenos esmaecidos ficam um pouco mais fortes (contraste) */
+.text-texto\/35, .text-texto\/40, .text-texto\/45 { color: rgb(34 34 34 / 0.6); }
+.dark .dark\:text-bege\/35, .dark .dark\:text-bege\/40, .dark .dark\:text-bege\/45 { color: rgb(246 241 227 / 0.62); }

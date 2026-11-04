@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react'
+import { useEffect, useState, type FormEvent } from 'react'
 import { supabase } from '../lib/supabase'
 import PaginaCentralizada from '../components/PaginaCentralizada'
 import Marca from '../components/Marca'
@@ -18,6 +18,17 @@ export default function CompletarPerfil({ userId, onConcluido }: Props) {
   const [novaSenha, setNovaSenha] = useState('')
   const [erro, setErro] = useState<string | null>(null)
   const [carregando, setCarregando] = useState(false)
+
+  // já preenche com o que existe (nome dado pelo admin, ou dados de antes de uma senha nova)
+  useEffect(() => {
+    supabase.from('perfis').select('nome_completo, nome_exibicao, data_nascimento').eq('id', userId).maybeSingle()
+      .then(({ data }) => {
+        if (!data) return
+        if (data.nome_completo && data.nome_completo.includes(' ')) setNomeCompleto((v) => v || data.nome_completo)
+        if (data.nome_exibicao && !data.nome_exibicao.includes('@')) setNomeExibicao((v) => v || data.nome_exibicao)
+        if (data.data_nascimento) setDataNascimento((v) => v || data.data_nascimento)
+      })
+  }, [userId])
 
   async function salvar(e: FormEvent) {
     e.preventDefault()

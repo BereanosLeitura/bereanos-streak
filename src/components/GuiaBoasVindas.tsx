@@ -23,8 +23,13 @@ const PASSOS: { icone: NomeIcone; titulo: string; texto: string }[] = [
   },
   {
     icone: 'nota',
-    titulo: 'Anote e examine',
-    texto: 'Guarde trechos, reflexões e perguntas com a página. Elas são só suas até você pôr no mural do grupo. As perguntas ajudam a preparar o encontro.'
+    titulo: 'Anote, examine e aplique',
+    texto: 'Guarde trechos, reflexões, perguntas e o que você quer aplicar, com a página e, se quiser, a referência bíblica. Tudo é só seu até você pôr no mural, onde o grupo pode responder.'
+  },
+  {
+    icone: 'calendario',
+    titulo: 'Encontro e próximas leituras',
+    texto: 'No Início você vê o próximo encontro, com roteiro e perguntas do grupo. Em Próximas leituras, indique livros para o sorteio do próximo ciclo.'
   },
   {
     icone: 'compartilhar',

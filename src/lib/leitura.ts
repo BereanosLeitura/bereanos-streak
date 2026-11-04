@@ -11,6 +11,7 @@ export interface RegistroMeu {
   origem: 'manual' | 'pomodoro'
   paginas_lidas: number | null
   minutos_lidos: number | null
+  tempo_minutos?: number | null
   registrado_em: string
 }
 
@@ -35,13 +36,14 @@ export function useMinhaLeitura(perfil: Perfil, livro: LivroBasico) {
     desde.setDate(desde.getDate() - 400)
     const semanaAtras = new Date()
     semanaAtras.setDate(semanaAtras.getDate() - 7)
-    const [{ data }, { data: ss }] = await Promise.all([
-      supabase
-        .from('registros_leitura')
-        .select('id, livro_id, origem, paginas_lidas, minutos_lidos, registrado_em')
-        .eq('membro_id', perfil.id)
-        .gte('registrado_em', desde.toISOString())
-        .order('registrado_em', { ascending: false }),
+    const consulta = (campos: string) => supabase
+      .from('registros_leitura')
+      .select(campos)
+      .eq('membro_id', perfil.id)
+      .gte('registrado_em', desde.toISOString())
+      .order('registrado_em', { ascending: false })
+    const [primeira, { data: ss }] = await Promise.all([
+      consulta('id, livro_id, origem, paginas_lidas, minutos_lidos, tempo_minutos, registrado_em'),
       supabase
         .from('sessoes_pomodoro')
         .select('fim, duracao_minutos')
@@ -49,7 +51,9 @@ export function useMinhaLeitura(perfil: Perfil, livro: LivroBasico) {
         .eq('status', 'concluida')
         .gte('fim', semanaAtras.toISOString())
     ])
-    setRegistros((data ?? []) as RegistroMeu[])
+    // sem a coluna tempo_minutos (banco ainda não atualizado), busca sem ela
+    const data = primeira.error ? (await consulta('id, livro_id, origem, paginas_lidas, minutos_lidos, registrado_em')).data : primeira.data
+    setRegistros((data ?? []) as unknown as RegistroMeu[])
     setSessoes(((ss ?? []) as { fim: string | null; duracao_minutos: number | null }[])
       .filter((x) => x.fim)
       .map((x) => ({ fim: x.fim!, duracao_minutos: x.duracao_minutos ?? 0 })))
@@ -85,10 +89,12 @@ export function useMinhaLeitura(perfil: Perfil, livro: LivroBasico) {
       return { chave, rotulo, paginas: Math.round(porDia.get(chave) ?? 0), hoje: chave === hojeChave }
     })
     const paginasSemana = semana.reduce((s, d) => s + d.paginas, 0)
-    // minutos de foco vêm das sessões (o registro pode ter só as páginas)
+    // tempo de leitura: sessões de foco + tempo informado à mão nos registros
     const minutosSemana = sessoes
       .filter((x) => chaveDia(x.fim) >= semana[0].chave)
-      .reduce((s, x) => s + x.duracao_minutos, 0)
+      .reduce((s, x) => s + x.duracao_minutos, 0) +
+      lista.filter((r) => r.origem === 'manual' && r.tempo_minutos && chaveDia(r.registrado_em) >= semana[0].chave)
+        .reduce((s, r) => s + (r.tempo_minutos ?? 0), 0)
 
     // previsão: média dos últimos 14 dias (só no livro do ciclo)
     const corte = new Date()

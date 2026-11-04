@@ -10,6 +10,7 @@ import Inicio, { type LivroAtivo, type Destino } from './pages/Inicio'
 import RegistrarLeitura from './pages/RegistrarLeitura'
 import EstadoConexao from './components/EstadoConexao'
 import GuiaBoasVindas from './components/GuiaBoasVindas'
+import { ContagemContext, buscarPadraoClube, padraoClubeLocal, aplicarTamanhoLetra, tamanhoLetraSalvo, aplicarFonteNotas, fonteNotasSalva } from './lib/preferencias'
 import type { PreCarga } from './pages/Compartilhar'
 import type { FiltroInicialNotas } from './pages/Notas'
 
@@ -39,6 +40,9 @@ const AdminPainel = sobDemanda(() => import('./pages/AdminPainel'))
 const Compartilhar = sobDemanda(() => import('./pages/Compartilhar'))
 const LivroDetalhe = sobDemanda(() => import('./pages/LivroDetalhe'))
 const Panorama = sobDemanda(() => import('./pages/Panorama'))
+const Encontro = sobDemanda(() => import('./pages/Encontro'))
+const Indicacoes = sobDemanda(() => import('./pages/Indicacoes'))
+const Ano = sobDemanda(() => import('./pages/Ano'))
 
 // Cópia local do perfil e do livro: o app abre mesmo sem internet.
 const CACHE_PERFIL = 'bereanos-streak-cache-perfil'
@@ -50,7 +54,7 @@ function gravarCache(chave: string, valor: unknown) {
   try { if (valor == null) localStorage.removeItem(chave); else localStorage.setItem(chave, JSON.stringify(valor)) } catch { /* ok */ }
 }
 
-type Aba = 'inicio' | 'foco' | 'registrar' | 'notas' | 'compartilhar' | 'metas' | 'perfil' | 'admin' | 'livro' | 'panorama'
+type Aba = 'inicio' | 'foco' | 'registrar' | 'notas' | 'compartilhar' | 'metas' | 'perfil' | 'admin' | 'livro' | 'panorama' | 'encontro' | 'indicacoes' | 'ano'
 
 export default function App() {
   return (
@@ -74,6 +78,9 @@ function Aplicativo() {
   const [livroDetalhe, setLivroDetalhe] = useState<string | null>(null)
   const [livroCompartilhar, setLivroCompartilhar] = useState<LivroAtivo | null>(null) // livro da Estante, quando a imagem é de um ciclo passado
   const [verGuia, setVerGuia] = useState(false)
+  const [livroEncontro, setLivroEncontro] = useState<LivroAtivo | null>(null) // encontro de um ciclo passado
+  const [voltarDe, setVoltarDe] = useState<Aba>('inicio')
+  const [contagemPadrao, setContagemPadrao] = useState(() => padraoClubeLocal())
   const ultimaAtualizacao = useRef(Date.now())
   const chaveGuia = perfil ? `bereanos-streak-guia-visto-${perfil.id}` : null
 
@@ -155,7 +162,10 @@ function Aplicativo() {
   useEffect(() => {
     if (!perfil || perfil.senha_temporaria) return
     carregarLivroAtivo()
+    buscarPadraoClube().then(setContagemPadrao)
   }, [perfil?.id, perfil?.senha_temporaria])
+
+  useEffect(() => { aplicarTamanhoLetra(tamanhoLetraSalvo()); aplicarFonteNotas(fonteNotasSalva()) }, [])
 
   useEffect(() => {
     window.scrollTo({ top: 0 })
@@ -216,6 +226,11 @@ function Aplicativo() {
   }
 
   function ir(destino: Destino | Aba, carga: PreCarga | null = null) {
+    if (destino === 'aplicar') {
+      setNotasInicial({ vista: 'minhas', filtro: 'todas', novaTipo: 'aplicacao' })
+      setAba('notas')
+      return
+    }
     if (destino === 'perguntas-encontro') {
       setNotasInicial({ vista: 'mural', filtro: 'pergunta' })
       setAba('notas')
@@ -223,6 +238,7 @@ function Aplicativo() {
     }
     setNotasInicial(null)
     setLivroCompartilhar(null)
+    if (destino === 'encontro' || destino === 'indicacoes') { setLivroEncontro(null); setVoltarDe(aba) }
     setPreCarga(carga)
     setAba(destino as Aba)
   }
@@ -235,7 +251,10 @@ function Aplicativo() {
     { aba: 'compartilhar', rotulo: 'Compartilhar', icone: 'compartilhar' }
   ]
 
+  const contagem = perfil.mostrar_contagem ?? contagemPadrao
+
   return (
+    <ContagemContext.Provider value={contagem}>
     <div className="min-h-screen">
       <EstadoConexao />
       {verGuia && <GuiaBoasVindas nome={perfil.nome_exibicao} onFechar={fecharGuia} />}
@@ -263,6 +282,11 @@ function Aplicativo() {
         {aba === 'compartilhar' && (
           <Compartilhar key={JSON.stringify(preCarga) + (livroCompartilhar?.id ?? '')} perfil={perfil} livro={livroCompartilhar ?? livro} preCarga={preCarga} />
         )}
+        {aba === 'encontro' && (
+          <Encontro perfil={perfil} livro={livroEncontro ?? livro} onVoltar={() => setAba(voltarDe)} />
+        )}
+        {aba === 'ano' && <Ano perfil={perfil} onVoltar={() => setAba('perfil')} />}
+        {aba === 'indicacoes' && <Indicacoes perfil={perfil} onVoltar={() => setAba(voltarDe)} />}
         {aba === 'panorama' && (
           <Panorama
             livro={livro}
@@ -284,6 +308,8 @@ function Aplicativo() {
             onAbrirMetas={() => setAba('metas')}
             onAbrirLivro={(id) => { setLivroDetalhe(id); setAba('livro') }}
             onAbrirGuia={() => setVerGuia(true)}
+            onAbrirIndicacoes={() => { setVoltarDe('perfil'); setAba('indicacoes') }}
+            onAbrirAno={() => setAba('ano')}
           />
         )}
         {aba === 'livro' && livroDetalhe && (
@@ -296,6 +322,7 @@ function Aplicativo() {
               setLivroCompartilhar(l.id === livro.id ? null : l)
               setAba('compartilhar')
             }}
+            onAbrirEncontro={(l) => { setLivroEncontro(l.id === livro.id ? null : l); setVoltarDe('livro'); setAba('encontro') }}
             onCompartilharRetrospectiva={(l) => {
               setPreCarga({ modo: 'leitura', modeloLeitura: 'retrospectiva' })
               setLivroCompartilhar(l.id === livro.id ? null : l)
@@ -309,6 +336,8 @@ function Aplicativo() {
             livro={livro}
             onVoltar={() => setAba('perfil')}
             onLivroMudou={() => { carregarLivroAtivo(); setAba('inicio') }}
+            onAbrirEncontro={() => { setLivroEncontro(null); setVoltarDe('admin'); setAba('encontro') }}
+            onAbrirIndicacoes={() => { setVoltarDe('admin'); setAba('indicacoes') }}
           />
         )}
       </div>
@@ -356,6 +385,7 @@ function Aplicativo() {
         </ul>
       </nav>}
     </div>
+    </ContagemContext.Provider>
   )
 }
 

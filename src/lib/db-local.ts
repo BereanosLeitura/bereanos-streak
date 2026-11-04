@@ -11,6 +11,7 @@ export interface RegistroLeituraLocal {
   origem: 'pomodoro' | 'manual'
   paginas_lidas: number | null
   minutos_lidos: number | null
+  tempo_minutos?: number | null // tempo informado à mão (não vira páginas)
   registrado_em: string
   sync_status: 'pendente' | 'sincronizado' | 'erro'
 }

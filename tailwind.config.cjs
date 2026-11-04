@@ -33,12 +33,24 @@ module.exports = {
         'toast-entra': {
           '0%': { opacity: '0', transform: 'translate(-50%, 12px)' },
           '100%': { opacity: '1', transform: 'translate(-50%, 0)' }
+        },
+        contagem: {
+          '0%': { opacity: '0', transform: 'scale(1.6)' },
+          '25%': { opacity: '1', transform: 'scale(1)' },
+          '85%': { opacity: '1', transform: 'scale(.94)' },
+          '100%': { opacity: '0', transform: 'scale(.85)' }
+        },
+        revelar: {
+          '0%': { opacity: '0', transform: 'translateY(16px) scale(.96)', filter: 'blur(4px)' },
+          '100%': { opacity: '1', transform: 'translateY(0) scale(1)', filter: 'blur(0)' }
         }
       },
       animation: {
         'subir-suave': 'subir-suave .35s ease-out both',
         'fita-desce': 'fita-desce 1.1s cubic-bezier(.2,.8,.2,1) both',
-        'toast-entra': 'toast-entra .25s ease-out both'
+        'toast-entra': 'toast-entra .25s ease-out both',
+        contagem: 'contagem 1s ease-out both',
+        revelar: 'revelar .9s cubic-bezier(.2,.8,.2,1) both'
       }
     }
   },

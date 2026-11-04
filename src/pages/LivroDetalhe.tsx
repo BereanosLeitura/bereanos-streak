@@ -1,17 +1,22 @@
 import { useEffect, useMemo, useState } from 'react'
+import { tempoManual } from '../lib/tempo'
 import { supabase, type Perfil } from '../lib/supabase'
-import { useAviso } from '../components/Toast'
+import { apagarComDesfazer, useAviso } from '../components/Toast'
 import Icone, { type NomeIcone } from '../components/Icone'
 import Avatar from '../components/Avatar'
 import { chaveDia, formatarData, paginasEquivalentes, tempoRelativo } from '../lib/estatisticas'
 import { apagarRegistroLeitura } from '../lib/sync'
+import { useContagem } from '../lib/preferencias'
+import { abrirRelatorioCiclo } from '../lib/relatorio'
+import { MapaDoLivro } from '../components/Graficos'
+import { baixarTexto } from '../lib/exportar'
 import { calcularRetrospectiva, type Retrospectiva } from '../lib/infograficos'
 
 // Memória de um livro da Estante: o que você leu, quando, suas anotações,
 // o mural do grupo naquele ciclo e o histórico de registros. Somente leitura.
 // Nada é apagado quando o admin conclui o ciclo: tudo fica aqui.
 
-type Tipo = 'trecho' | 'reflexao' | 'pergunta'
+type Tipo = 'trecho' | 'reflexao' | 'pergunta' | 'aplicacao'
 type Aba = 'minhas' | 'mural' | 'historico'
 
 interface Livro {
@@ -19,12 +24,13 @@ interface Livro {
   ciclo_inicio: string | null; ciclo_fim: string | null; status: 'ativo' | 'concluido'
 }
 interface Registro { id: string; membro_id: string; origem: 'manual' | 'pomodoro'; paginas_lidas: number | null; minutos_lidos: number | null; registrado_em: string; perfis: { nome_exibicao: string; ritmo_leitura_min_por_pagina: number } | null }
-interface Nota { id: string; membro_id: string; tipo: Tipo; texto: string; pagina: number | null; compartilhada: boolean; favorita: boolean; created_at: string; perfis: { nome_exibicao: string } | null }
+interface Nota { id: string; membro_id: string; tipo: Tipo; texto: string; pagina: number | null; compartilhada: boolean; favorita: boolean; created_at: string; referencia: string | null; perfis: { nome_exibicao: string } | null }
 
 const TIPO: Record<Tipo, { rotulo: string; plural: string; icone: NomeIcone }> = {
   trecho: { rotulo: 'Trecho', plural: 'Trechos', icone: 'aspas' },
   reflexao: { rotulo: 'Reflexão', plural: 'Reflexões', icone: 'lampada' },
-  pergunta: { rotulo: 'Pergunta', plural: 'Perguntas', icone: 'interrogacao' }
+  pergunta: { rotulo: 'Pergunta', plural: 'Perguntas', icone: 'interrogacao' },
+  aplicacao: { rotulo: 'Aplicação', plural: 'Aplicações', icone: 'alvo' }
 }
 
 export interface LivroDaEstante extends Livro {}
@@ -35,16 +41,20 @@ interface Props {
   onVoltar: () => void
   onCompartilhar: (livro: LivroDaEstante, n: { tipo: Tipo; texto: string; pagina: number | null; autor: string }) => void
   onCompartilharRetrospectiva: (livro: LivroDaEstante) => void
+  onAbrirEncontro: (livro: LivroDaEstante) => void
 }
 
-export default function LivroDetalhe({ perfil, livroId, onVoltar, onCompartilhar, onCompartilharRetrospectiva }: Props) {
+export default function LivroDetalhe({ perfil, livroId, onVoltar, onCompartilhar, onCompartilharRetrospectiva, onAbrirEncontro }: Props) {
   const [livro, setLivro] = useState<Livro | null>(null)
   const [registros, setRegistros] = useState<Registro[] | null>(null)
   const [notas, setNotas] = useState<Nota[]>([])
   const [sessoes, setSessoes] = useState<{ duracao_minutos: number | null }[]>([])
   const [conquistas, setConquistas] = useState<{ nome: string }[]>([])
   const [aba, setAba] = useState<Aba>('minhas')
+  const contagem = useContagem()
   const [retro, setRetro] = useState<Retrospectiva | null>(null)
+  const [destaques, setDestaques] = useState<Set<string>>(new Set())
+  const [mapaDe, setMapaDe] = useState<'eu' | 'grupo'>('eu')
   const avisar = useAviso()
 
   useEffect(() => {
@@ -53,16 +63,18 @@ export default function LivroDetalhe({ perfil, livroId, onVoltar, onCompartilhar
         supabase.from('livros').select('id, titulo, autor, capa_url, paginas_totais, ciclo_inicio, ciclo_fim, status').eq('id', livroId).single(),
         supabase.from('registros_leitura').select('id, membro_id, origem, paginas_lidas, minutos_lidos, registrado_em, perfis(nome_exibicao, ritmo_leitura_min_por_pagina)')
           .eq('livro_id', livroId).order('registrado_em', { ascending: false }),
-        supabase.from('anotacoes').select('id, membro_id, tipo, texto, pagina, compartilhada, favorita, created_at, perfis(nome_exibicao)')
+        supabase.from('anotacoes').select('id, membro_id, tipo, texto, pagina, referencia, compartilhada, favorita, created_at, perfis(nome_exibicao)')
           .eq('livro_id', livroId).order('pagina', { ascending: true, nullsFirst: false }),
         supabase.from('sessoes_pomodoro').select('duracao_minutos').eq('livro_id', livroId).eq('membro_id', perfil.id).eq('status', 'concluida'),
         supabase.from('membro_conquistas').select('conquistas(nome)').eq('membro_id', perfil.id).eq('livro_id', livroId)
       ])
       setLivro(l.data as Livro)
       if (l.data) atualizarRetro(l.data as Livro)
+      supabase.from('destaques').select('anotacao_id').then(({ data }) => setDestaques(new Set((data ?? []).map((d) => d.anotacao_id))))
       setRegistros((r.data ?? []) as unknown as Registro[])
       setNotas((n.data ?? []) as unknown as Nota[])
-      setSessoes(s.data ?? [])
+      const manual = await tempoManual(perfil.id, { livroId })
+      setSessoes([...(s.data ?? []), ...(manual ? [{ duracao_minutos: manual }] : [])])
       setConquistas(((c.data ?? []) as any[]).map((x) => x.conquistas).filter(Boolean))
     })()
   }, [livroId])
@@ -98,32 +110,41 @@ export default function LivroDetalhe({ perfil, livroId, onVoltar, onCompartilhar
     if (l) calcularRetrospectiva(perfil.id, perfil.ritmo_leitura_min_por_pagina || 2, l).then(setRetro).catch(() => setRetro(null))
   }
 
-  async function apagarNota(n: Nota) {
-    const { error } = await supabase.from('anotacoes').delete().eq('id', n.id)
-    if (error) return avisar('Não foi possível apagar', 'erro')
-    setNotas((l) => l.filter((x) => x.id !== n.id))
-    atualizarRetro()
-    avisar(n.membro_id === perfil.id ? 'Anotação apagada' : 'Anotação retirada do mural')
+  function apagarNota(n: Nota) {
+    const antes = notas
+    apagarComDesfazer({
+      avisar, texto: n.membro_id === perfil.id ? 'Anotação apagada' : 'Anotação retirada do mural',
+      esconder: () => setNotas((l) => l.filter((x) => x.id !== n.id)),
+      restaurar: () => setNotas(antes),
+      apagar: async () => { const ok = !(await supabase.from('anotacoes').delete().eq('id', n.id)).error; if (ok) atualizarRetro(); return ok }
+    })
   }
 
-  async function apagarRegistro(id: string) {
+  function apagarRegistro(id: string) {
     setConfirmandoReg(null)
-    const ok = await apagarRegistroLeitura(id)
-    if (!ok) return avisar('Não foi possível apagar', 'erro')
-    setRegistros((l) => (l ?? []).filter((x) => x.id !== id))
-    atualizarRetro()
-    avisar('Registro apagado')
+    const antes = registros
+    apagarComDesfazer({
+      avisar, texto: 'Registro apagado',
+      esconder: () => setRegistros((l) => (l ?? []).filter((x) => x.id !== id)),
+      restaurar: () => setRegistros(antes),
+      apagar: async () => { const ok = await apagarRegistroLeitura(id); if (ok) atualizarRetro(); return ok }
+    })
+  }
+
+  function textoMinhas() {
+    if (!livro) return ''
+    const linhas = [`${livro.titulo}${livro.autor ? `, ${livro.autor}` : ''}`, `Anotações de ${perfil.nome_exibicao}`]
+    for (const t of ['pergunta', 'trecho', 'reflexao', 'aplicacao'] as Tipo[]) {
+      const l = minhas.filter((n) => n.tipo === t)
+      if (l.length) linhas.push('', `${TIPO[t].plural}:`, ...l.map((n) => `- ${n.pagina ? `(p. ${n.pagina}) ` : ''}${n.tipo === 'trecho' ? `“${n.texto}”` : n.texto}${n.referencia ? ` [${n.referencia}]` : ''}`))
+    }
+    return linhas.join('\n')
   }
 
   async function copiarMinhas() {
     if (!livro || minhas.length === 0) return
-    const linhas = [`${livro.titulo}${livro.autor ? `, ${livro.autor}` : ''}`, `Anotações de ${perfil.nome_exibicao}`]
-    for (const t of ['pergunta', 'trecho', 'reflexao'] as Tipo[]) {
-      const l = minhas.filter((n) => n.tipo === t)
-      if (l.length) linhas.push('', `${TIPO[t].plural}:`, ...l.map((n) => `- ${n.pagina ? `(p. ${n.pagina}) ` : ''}${n.tipo === 'trecho' ? `“${n.texto}”` : n.texto}`))
-    }
     try {
-      await navigator.clipboard.writeText(linhas.join('\n'))
+      await navigator.clipboard.writeText(textoMinhas())
       avisar('Anotações copiadas')
     } catch {
       avisar('Não foi possível copiar', 'erro')
@@ -177,7 +198,7 @@ export default function LivroDetalhe({ perfil, livroId, onVoltar, onCompartilhar
           <dl className="grid grid-cols-4 gap-2 text-center mt-4">
             <Num v={Math.min(dados.paginas, livro.paginas_totais)} r="páginas" />
             <Num v={dados.dias} r="dias" />
-            <Num v={minutos} r="min de foco" />
+            <Num v={minutos} r="min de leitura" />
             <Num v={minhas.length} r="anotações" />
           </dl>
           {dados.primeiro && (
@@ -188,7 +209,7 @@ export default function LivroDetalhe({ perfil, livroId, onVoltar, onCompartilhar
               {' '}O grupo teve {dados.leitores} {dados.leitores === 1 ? 'leitor' : 'leitores'}{dados.terminaram ? `, ${dados.terminaram} terminaram` : ''}.
             </p>
           )}
-          {conquistas.length > 0 && (
+          {contagem && conquistas.length > 0 && (
             <div className="flex flex-wrap gap-1.5 justify-center mt-3">
               {conquistas.map((c, i) => <span key={i} className="selo">{c.nome}</span>)}
             </div>
@@ -203,18 +224,27 @@ export default function LivroDetalhe({ perfil, livroId, onVoltar, onCompartilhar
               <span className="text-xs text-bege/60">{retro.inicio && retro.fim && chaveDia(retro.inicio) !== chaveDia(retro.fim) ? `${formatarData(retro.inicio)} a ${formatarData(retro.fim)}` : retro.inicio ? formatarData(retro.inicio) : ''}</span>
             </div>
             <ul className="mt-4 space-y-3 text-[15px]">
-              <Destaque icone="chama" texto={`${retro.maiorSequencia} ${retro.maiorSequencia === 1 ? 'dia seguido' : 'dias seguidos'} foi sua maior sequência neste livro.`} />
+              {contagem && <Destaque icone="chama" texto={`${retro.maiorSequencia} ${retro.maiorSequencia === 1 ? 'dia seguido' : 'dias seguidos'} foi sua maior sequência neste livro.`} />}
               {retro.melhorDia && <Destaque icone="alvo" texto={`Seu melhor dia foi ${formatarData(retro.melhorDia.data, { day: 'numeric', month: 'long' })}, com ${retro.melhorDia.paginas} ${retro.melhorDia.paginas === 1 ? 'página' : 'páginas'}.`} />}
               {retro.horarioPreferido && <Destaque icone="relogio" texto={`Você leu mais ${retro.horarioPreferido}.`} />}
-              {retro.minutos > 0 && <Destaque icone="relogio" texto={`${retro.sessoes} ${retro.sessoes === 1 ? 'sessão' : 'sessões'} de foco, somando ${retro.minutos >= 60 ? `${String(Math.round(retro.minutos / 6) / 10).replace('.', ',')} horas` : `${retro.minutos} minutos`}.`} />}
-              {retro.anotacoes.trecho + retro.anotacoes.reflexao + retro.anotacoes.pergunta > 0 && (
+              {retro.minutos > 0 && <Destaque icone="relogio" texto={`${retro.minutos >= 60 ? `${String(Math.round(retro.minutos / 6) / 10).replace('.', ',')} horas` : `${retro.minutos} minutos`} de leitura${retro.sessoes ? `, com ${retro.sessoes} ${retro.sessoes === 1 ? 'sessão' : 'sessões'} de foco` : ''}.`} />}
+              {retro.anotacoes.trecho + retro.anotacoes.reflexao + retro.anotacoes.pergunta + retro.anotacoes.aplicacao > 0 && (
                 <Destaque icone="nota" texto={'Você anotou ' + [
                   retro.anotacoes.trecho && `${retro.anotacoes.trecho} ${retro.anotacoes.trecho === 1 ? 'trecho' : 'trechos'}`,
                   retro.anotacoes.reflexao && `${retro.anotacoes.reflexao} ${retro.anotacoes.reflexao === 1 ? 'reflexão' : 'reflexões'}`,
-                  retro.anotacoes.pergunta && `${retro.anotacoes.pergunta} ${retro.anotacoes.pergunta === 1 ? 'pergunta' : 'perguntas'}`
+                  retro.anotacoes.pergunta && `${retro.anotacoes.pergunta} ${retro.anotacoes.pergunta === 1 ? 'pergunta' : 'perguntas'}`,
+                  retro.anotacoes.aplicacao && `${retro.anotacoes.aplicacao} ${retro.anotacoes.aplicacao === 1 ? 'aplicação' : 'aplicações'}`
                 ].filter(Boolean).join(', ').replace(/, ([^,]*)$/, ' e $1') + '.'} />
               )}
             </ul>
+            {retro.aplicacoes.length > 0 && (
+              <div className="mt-5 pt-4 border-t border-dourado/30">
+                <p className="text-xs font-semibold text-dourado mb-2">O que você decidiu aplicar</p>
+                <ul className="space-y-1.5">
+                  {retro.aplicacoes.map((t, i) => <li key={i} className="text-[15px] text-bege/90 flex gap-2"><Icone nome="alvo" className="w-4 h-4 text-dourado shrink-0 mt-1" />{t}</li>)}
+                </ul>
+              </div>
+            )}
             {retro.trechoFavorito && (
               <blockquote className="font-serif italic text-[17px] leading-relaxed text-bege/90 mt-5 pt-4 border-t border-dourado/30 line-clamp-5">
                 “{retro.trechoFavorito.texto.replace(/^["“”]+|["“”]+$/g, '')}”
@@ -226,6 +256,36 @@ export default function LivroDetalhe({ perfil, livroId, onVoltar, onCompartilhar
             </button>
           </section>
         )}
+
+        {/* mapa do livro */}
+        {notas.some((n) => n.pagina) && (
+          <section className="cartao p-5 mt-4">
+            <div className="flex items-center justify-between gap-2 mb-3">
+              <h2 className="titulo-secao">Mapa do livro</h2>
+              <div className="flex rounded-full bg-marinho/[0.06] dark:bg-bege/[0.08] p-0.5 text-xs" role="tablist">
+                {([['eu', 'Você'], ['grupo', 'Mural']] as const).map(([v, r]) => (
+                  <button key={v} role="tab" aria-selected={mapaDe === v} onClick={() => setMapaDe(v)}
+                    className={`px-2.5 py-1 rounded-full ${mapaDe === v ? 'bg-folha dark:bg-noite-cartao text-marinho dark:text-bege font-semibold shadow-sm' : 'text-texto/55 dark:text-bege/55'}`}>{r}</button>
+                ))}
+              </div>
+            </div>
+            <MapaDoLivro marcas={(mapaDe === 'eu' ? minhas : mural).map((n) => ({ pagina: n.pagina, tipo: n.tipo }))} total={livro.paginas_totais} />
+          </section>
+        )}
+
+        {/* ações deste ciclo */}
+        <div className="grid grid-cols-3 gap-2 mt-4">
+          <button onClick={() => onAbrirEncontro(livro)} className="cartao p-3 flex flex-col items-center gap-1.5 text-xs font-semibold text-marinho dark:text-bege">
+            <Icone nome="calendario" className="w-5 h-5 text-dourado" /> Encontro
+          </button>
+          <button onClick={async () => { if (!(await abrirRelatorioCiclo(livro))) avisar('Permita abrir uma nova janela para ver o relatório', 'erro') }} className="cartao p-3 flex flex-col items-center gap-1.5 text-xs font-semibold text-marinho dark:text-bege">
+            <Icone nome="imagem" className="w-5 h-5 text-dourado" /> Relatório (PDF)
+          </button>
+          <button disabled={minhas.length === 0} onClick={() => baixarTexto(`anotacoes-${livro.titulo.toLowerCase().normalize('NFD').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')}.txt`, textoMinhas())}
+            className="cartao p-3 flex flex-col items-center gap-1.5 text-xs font-semibold text-marinho dark:text-bege disabled:opacity-40">
+            <Icone nome="baixar" className="w-5 h-5 text-dourado" /> Baixar anotações
+          </button>
+        </div>
 
         {/* abas */}
         <div className="grid grid-cols-3 p-1 rounded-xl bg-marinho/[0.06] dark:bg-bege/[0.06] mt-5" role="tablist">
@@ -246,6 +306,19 @@ export default function LivroDetalhe({ perfil, livroId, onVoltar, onCompartilhar
               onImagem={(n) => onCompartilhar(livro, { tipo: n.tipo, texto: n.texto, pagina: n.pagina, autor: perfil.nome_exibicao })} />
           </>
         )}
+        {aba === 'mural' && mural.some((n) => destaques.has(n.id)) && (
+          <section className="cartao p-4 mt-4 border-dourado/45">
+            <p className="text-xs font-semibold text-dourado-escuro dark:text-dourado mb-2">Destaques do clube</p>
+            <ul className="space-y-2">
+              {mural.filter((n) => destaques.has(n.id)).map((n) => (
+                <li key={n.id} className="text-[15px] text-marinho dark:text-bege">
+                  {n.tipo === 'trecho' ? <em className="font-serif">“{n.texto}”</em> : n.texto}
+                  <span className="text-xs text-texto/45 dark:text-bege/45"> {n.perfis?.nome_exibicao ?? 'Membro'}{n.pagina ? `, p. ${n.pagina}` : ''}</span>
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
         {aba === 'mural' && (
           <ListaNotas notas={mural} comAutor vazio="Ninguém pôs anotações deste livro no mural."
             podeApagar={(n) => n.membro_id === perfil.id || perfil.role === 'admin'} onApagar={apagarNota}
@@ -262,21 +335,14 @@ export default function LivroDetalhe({ perfil, livroId, onVoltar, onCompartilhar
                       <Icone nome={r.origem === 'pomodoro' ? 'relogio' : 'pena'} className="w-4 h-4" />
                     </span>
                     <div className="flex-1">
-                      <p className="text-[15px] text-marinho dark:text-bege">{r.paginas_lidas ? `${r.paginas_lidas} páginas` : `${r.minutos_lidos} min de foco`}</p>
+                      <p className="text-[15px] text-marinho dark:text-bege">{r.paginas_lidas ? `${r.paginas_lidas} páginas` : `${r.minutos_lidos} min de ${r.origem === 'pomodoro' ? 'foco' : 'leitura'}`}</p>
                       <p className="text-xs text-texto/45 dark:text-bege/45">
                         {new Date(r.registrado_em).toLocaleString('pt-BR', { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
                       </p>
                     </div>
-                    {confirmandoReg === r.id ? (
-                      <span className="flex items-center gap-1">
-                        <button onClick={() => apagarRegistro(r.id)} className="text-xs font-semibold text-red-700 dark:text-red-400 px-2 py-1">Apagar</button>
-                        <button onClick={() => setConfirmandoReg(null)} className="text-xs text-texto/55 dark:text-bege/55 px-2 py-1">Cancelar</button>
-                      </span>
-                    ) : (
-                      <button onClick={() => setConfirmandoReg(r.id)} aria-label="Apagar registro" className="p-2 text-texto/35 dark:text-bege/35 hover:text-red-700 dark:hover:text-red-400">
-                        <Icone nome="lixeira" className="w-4 h-4" />
-                      </button>
-                    )}
+                    <button onClick={() => apagarRegistro(r.id)} aria-label="Apagar registro" className="p-3 -mr-2 text-texto/40 dark:text-bege/45 hover:text-red-700 dark:hover:text-red-400">
+                      <Icone nome="lixeira" className="w-4 h-4" />
+                    </button>
                   </li>
                 ))}
               </ul>
@@ -322,9 +388,10 @@ function ListaNotas({ notas, comAutor = false, vazio, onImagem, podeApagar, onAp
             {n.pagina && <span className="text-texto/45 dark:text-bege/45">p. {n.pagina}</span>}
             {n.favorita && !comAutor && <span className="ml-auto text-dourado text-xs">favorita</span>}
           </div>
-          <p className={`text-marinho dark:text-bege whitespace-pre-line ${n.tipo === 'trecho' ? 'font-serif italic text-[18px] leading-relaxed' : 'text-[15px] leading-relaxed'}`}>
+          <p className={`texto-nota text-marinho dark:text-bege whitespace-pre-line ${n.tipo === 'trecho' ? 'font-serif italic text-[18px] leading-relaxed' : 'text-[15px] leading-relaxed'}`}>
             {n.tipo === 'trecho' ? `“${n.texto}”` : n.texto}
           </p>
+          {n.referencia && <p className="text-xs font-semibold text-marinho/70 dark:text-bege/70 mt-2 flex items-center gap-1.5"><Icone nome="livro" className="w-3.5 h-3.5 text-dourado" />{n.referencia}</p>}
           <div className="flex items-center gap-2 mt-3">
             {comAutor && <Avatar nome={n.perfis?.nome_exibicao ?? 'Membro'} tamanho={22} />}
             <span className="text-xs text-texto/45 dark:text-bege/45">{comAutor ? `${n.perfis?.nome_exibicao ?? 'Membro'}, ` : ''}{tempoRelativo(n.created_at)}</span>
@@ -336,11 +403,11 @@ function ListaNotas({ notas, comAutor = false, vazio, onImagem, podeApagar, onAp
             ) : (
               <>
                 <button onClick={() => onImagem(n)} aria-label="Criar imagem para compartilhar" title="Criar imagem para compartilhar"
-                  className="ml-auto flex items-center gap-1 text-xs font-semibold text-dourado-escuro dark:text-dourado p-1">
+                  className="ml-auto flex items-center gap-1 text-xs font-semibold text-dourado-escuro dark:text-dourado px-2 py-2">
                   <Icone nome="imagem" className="w-4 h-4" /> Imagem
                 </button>
                 {podeApagar?.(n) && onApagar && (
-                  <button onClick={() => setConfirmando(n.id)} aria-label="Apagar anotação" className="p-1 text-texto/35 dark:text-bege/35 hover:text-red-700 dark:hover:text-red-400">
+                  <button onClick={() => onApagar(n)} aria-label="Apagar anotação" className="p-2.5 -mr-1 text-texto/40 dark:text-bege/45 hover:text-red-700 dark:hover:text-red-400">
                     <Icone nome="lixeira" className="w-4 h-4" />
                   </button>
                 )}

@@ -6,6 +6,10 @@ import Icone from '../components/Icone'
 import Avatar from '../components/Avatar'
 import CadastrarLivro from './CadastrarLivro'
 import CriarAcesso from './CriarAcesso'
+import { chamarAdmin, mensagemAcesso } from '../lib/adminMembros'
+import { buscarPadraoClube } from '../lib/preferencias'
+import { baixarCsv } from '../lib/exportar'
+import { ROTEIRO_PADRAO } from '../lib/roteiro'
 import { formatarData, tempoRelativo } from '../lib/estatisticas'
 import type { LivroAtivo } from './Inicio'
 
@@ -14,11 +18,13 @@ interface Props {
   livro: LivroAtivo | null
   onLivroMudou: () => void
   onVoltar?: () => void
+  onAbrirEncontro?: () => void
+  onAbrirIndicacoes?: () => void
 }
 
-type Aba = 'ciclo' | 'acesso' | 'membros'
+type Aba = 'ciclo' | 'membros' | 'clube'
 
-export default function AdminPainel({ adminId, livro, onLivroMudou, onVoltar }: Props) {
+export default function AdminPainel({ adminId, livro, onLivroMudou, onVoltar, onAbrirEncontro, onAbrirIndicacoes }: Props) {
   const [aba, setAba] = useState<Aba>('ciclo')
 
   return (
@@ -32,7 +38,7 @@ export default function AdminPainel({ adminId, livro, onLivroMudou, onVoltar }: 
         <h1 className="font-serif text-[30px] text-marinho dark:text-bege mt-3">Painel do admin</h1>
 
         <div className="grid grid-cols-3 p-1 rounded-xl bg-marinho/[0.06] dark:bg-bege/[0.06] mt-4" role="tablist">
-          {([['ciclo', 'Livro do ciclo'], ['acesso', 'Criar acesso'], ['membros', 'Membros']] as [Aba, string][]).map(([a, rotulo]) => (
+          {([['ciclo', 'Livro do ciclo'], ['membros', 'Membros'], ['clube', 'Clube']] as [Aba, string][]).map(([a, rotulo]) => (
             <button
               key={a}
               role="tab"
@@ -50,17 +56,17 @@ export default function AdminPainel({ adminId, livro, onLivroMudou, onVoltar }: 
 
       {aba === 'ciclo' && (
         <>
-          {livro ? <CicloAtual livro={livro} onMudou={onLivroMudou} /> : <CadastrarLivro adminId={adminId} onCriado={onLivroMudou} />}
+          {livro ? <CicloAtual livro={livro} onMudou={onLivroMudou} onAbrirEncontro={onAbrirEncontro} /> : <CadastrarLivro adminId={adminId} onCriado={onLivroMudou} />}
           <GerenciarCiclos ativoId={livro?.id ?? null} onMudou={onLivroMudou} />
         </>
       )}
-      {aba === 'acesso' && <CriarAcesso />}
-      {aba === 'membros' && <Membros livroId={livro?.id ?? null} />}
+      {aba === 'membros' && <Membros livroId={livro?.id ?? null} adminId={adminId} />}
+      {aba === 'clube' && <ConfigClube livro={livro} onAbrirIndicacoes={onAbrirIndicacoes} />}
     </div>
   )
 }
 
-function CicloAtual({ livro, onMudou }: { livro: LivroAtivo; onMudou: () => void }) {
+function CicloAtual({ livro, onMudou, onAbrirEncontro }: { livro: LivroAtivo; onMudou: () => void; onAbrirEncontro?: () => void }) {
   const [editando, setEditando] = useState(false)
   const [confirmando, setConfirmando] = useState(false)
   const [encontro, setEncontro] = useState(paraCampoLocal(livro.encontro_em ?? null))
@@ -73,7 +79,17 @@ function CicloAtual({ livro, onMudou }: { livro: LivroAtivo; onMudou: () => void
       : { encontro_em: encontro ? new Date(encontro).toISOString() : null, encontro_local: local.trim() || null }
     const { error } = await supabase.from('livros').update(dados).eq('id', livro.id)
     if (error) return avisar('Não foi possível salvar o encontro', 'erro')
-    if (limpar) { setEncontro(''); setLocal('') }
+    if (!limpar && dados.encontro_em) {
+      // mantém o Modo Encontro (roteiro e presença) com a mesma data e local
+      const { data: atual } = await supabase.from('encontros').select('id').eq('livro_id', livro.id).order('data', { ascending: false }).limit(1).maybeSingle()
+      if (atual) await supabase.from('encontros').update({ data: dados.encontro_em, local: dados.encontro_local, updated_at: new Date().toISOString() }).eq('id', atual.id)
+      else await supabase.from('encontros').insert({ livro_id: livro.id, data: dados.encontro_em, local: dados.encontro_local, roteiro: ROTEIRO_PADRAO })
+    }
+    if (limpar) {
+      // cancela o encontro marcado (o que já aconteceu fica no histórico)
+      await supabase.from('encontros').delete().eq('livro_id', livro.id).gt('data', new Date().toISOString())
+      setEncontro(''); setLocal('')
+    }
     avisar(limpar ? 'Encontro removido do Início' : 'Encontro salvo: aparece no Início de todos')
     onMudou()
   }
@@ -121,6 +137,11 @@ function CicloAtual({ livro, onMudou }: { livro: LivroAtivo; onMudou: () => void
           <button onClick={() => salvarEncontro()} disabled={!encontro} className="botao-primario">Salvar encontro</button>
           {livro.encontro_em && <button onClick={() => salvarEncontro(true)} className="botao-secundario">Remover</button>}
         </div>
+        {onAbrirEncontro && (
+          <button onClick={onAbrirEncontro} className="botao-texto mt-4 flex items-center gap-1.5">
+            <Icone nome="calendario" className="w-4 h-4" /> Modo Encontro: mediação, roteiro e presença
+          </button>
+        )}
       </div>
 
       <div className="cartao p-5">
@@ -276,43 +297,179 @@ function paraCampoLocal(iso: string | null) {
 }
 
 interface Membro { id: string; nome_exibicao: string; nome_completo: string; role: string; senha_temporaria: boolean }
+interface StatusAuth { id: string; email: string; ultimo_acesso: string | null; suspenso: boolean }
 
-function Membros({ livroId }: { livroId: string | null }) {
+function Membros({ livroId, adminId }: { livroId: string | null; adminId: string }) {
   const [membros, setMembros] = useState<Membro[] | null>(null)
   const [ultima, setUltima] = useState<Map<string, string>>(new Map())
+  const [auth, setAuth] = useState<Map<string, StatusAuth>>(new Map())
+  const [aberto, setAberto] = useState<string | null>(null)
+  const [mensagem, setMensagem] = useState<{ id: string; texto: string } | null>(null)
+  const [ocupado, setOcupado] = useState(false)
+  const [criando, setCriando] = useState(false)
+  const avisar = useAviso()
 
-  useEffect(() => {
-    ;(async () => {
-      const { data } = await supabase.from('perfis').select('id, nome_exibicao, nome_completo, role, senha_temporaria').order('nome_exibicao')
-      setMembros((data ?? []) as Membro[])
-      if (livroId) {
-        const { data: regs } = await supabase.from('registros_leitura').select('membro_id, registrado_em').eq('livro_id', livroId)
-        const m = new Map<string, string>()
-        for (const r of regs ?? []) if (!m.has(r.membro_id) || r.registrado_em > m.get(r.membro_id)!) m.set(r.membro_id, r.registrado_em)
-        setUltima(m)
+  async function carregar() {
+    const { data } = await supabase.from('perfis').select('id, nome_exibicao, nome_completo, role, senha_temporaria').order('nome_exibicao')
+    setMembros((data ?? []) as Membro[])
+    if (livroId) {
+      const { data: regs } = await supabase.from('registros_leitura').select('membro_id, registrado_em').eq('livro_id', livroId)
+      const m = new Map<string, string>()
+      for (const r of regs ?? []) if (!m.has(r.membro_id) || r.registrado_em > m.get(r.membro_id)!) m.set(r.membro_id, r.registrado_em)
+      setUltima(m)
+    }
+    chamarAdmin<{ membros: StatusAuth[] }>('status')
+      .then((r) => setAuth(new Map(r.membros.map((x) => [x.id, x]))))
+      .catch(() => setAuth(new Map()))
+  }
+  useEffect(() => { carregar() }, [livroId])
+
+  async function acao(m: Membro, tipo: 'nova_senha' | 'suspender' | 'reativar') {
+    setOcupado(true)
+    try {
+      const r = await chamarAdmin<{ senha?: string }>(tipo, { membro_id: m.id })
+      if (tipo === 'nova_senha' && r.senha) {
+        setMensagem({ id: m.id, texto: mensagemAcesso(m.nome_exibicao, auth.get(m.id)?.email ?? '(e-mail)', r.senha, true) })
+      } else {
+        avisar(tipo === 'suspender' ? `Acesso de ${m.nome_exibicao} suspenso` : `Acesso de ${m.nome_exibicao} reativado`)
       }
-    })()
-  }, [livroId])
+      carregar()
+    } catch (e) {
+      avisar(e instanceof Error ? e.message : 'Não foi possível concluir', 'erro')
+    } finally {
+      setOcupado(false)
+    }
+  }
 
   return (
-    <div className="max-w-md mx-auto px-5 mt-6">
-      {membros === null && <div className="space-y-2">{[0, 1, 2].map((i) => <div key={i} className="esqueleto h-14" />)}</div>}
-      <ul className="cartao divide-y divide-marinho/[0.07] dark:divide-bege/[0.07]">
-        {membros?.map((m) => (
-          <li key={m.id} className="flex items-center gap-3 px-4 py-3">
-            <Avatar nome={m.nome_exibicao} tamanho={34} />
-            <div className="flex-1 min-w-0">
-              <p className="text-[15px] text-marinho dark:text-bege truncate">
-                {m.nome_exibicao}{m.role === 'admin' && <span className="text-xs text-dourado-escuro dark:text-dourado"> admin</span>}
-              </p>
-              <p className="text-xs text-texto/45 dark:text-bege/45 truncate">
-                {m.senha_temporaria ? 'ainda não fez o primeiro acesso' : ultima.has(m.id) ? `leu ${tempoRelativo(ultima.get(m.id)!)}` : 'sem leitura neste livro'}
-              </p>
-            </div>
-          </li>
-        ))}
-      </ul>
-      {membros && <p className="legenda text-center mt-3">{membros.length} {membros.length === 1 ? 'pessoa' : 'pessoas'} com acesso</p>}
+    <div className="max-w-md mx-auto mt-6">
+      <div className="px-5">
+        <button onClick={() => setCriando((v) => !v)} className="botao-primario flex items-center justify-center gap-2">
+          <Icone nome="mais" className="w-4 h-4" /> {criando ? 'Fechar' : 'Criar acesso para um membro'}
+        </button>
+      </div>
+      {criando && <CriarAcesso onCriado={carregar} />}
+      <div className="px-5 mt-4">
+        {membros === null && <div className="space-y-2">{[0, 1, 2].map((i) => <div key={i} className="esqueleto h-14" />)}</div>}
+        <ul className="cartao divide-y divide-marinho/[0.07] dark:divide-bege/[0.07]">
+          {membros?.map((m) => {
+            const a = auth.get(m.id)
+            return (
+              <li key={m.id} className="px-4 py-3">
+                <button onClick={() => { setAberto(aberto === m.id ? null : m.id); setMensagem(null) }} className="w-full flex items-center gap-3 text-left" aria-expanded={aberto === m.id}>
+                  <Avatar nome={m.nome_exibicao} tamanho={34} />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-[15px] text-marinho dark:text-bege truncate">
+                      {m.nome_exibicao}{m.role === 'admin' && <span className="text-xs text-dourado-escuro dark:text-dourado"> admin</span>}
+                      {a?.suspenso && <span className="text-xs text-red-700 dark:text-red-400"> suspenso</span>}
+                    </p>
+                    <p className="text-xs text-texto/45 dark:text-bege/45 truncate">
+                      {m.senha_temporaria ? 'ainda não fez o primeiro acesso' : ultima.has(m.id) ? `leu ${tempoRelativo(ultima.get(m.id)!)}` : 'sem leitura neste livro'}
+                    </p>
+                  </div>
+                  <Icone nome="seta-direita" className={`w-4 h-4 text-texto/30 dark:text-bege/30 transition-transform ${aberto === m.id ? 'rotate-90' : ''}`} />
+                </button>
+                {aberto === m.id && (
+                  <div className="mt-3 pl-[46px] space-y-2">
+                    {a?.email && <p className="text-xs text-texto/55 dark:text-bege/55 break-all">{a.email}{a.ultimo_acesso ? `, último login ${tempoRelativo(a.ultimo_acesso)}` : ''}</p>}
+                    <div className="flex flex-wrap gap-2">
+                      <button disabled={ocupado} onClick={() => acao(m, 'nova_senha')} className="rounded-lg border border-marinho/15 dark:border-bege/15 px-3 py-1.5 text-sm font-semibold text-marinho dark:text-bege">Gerar nova senha</button>
+                      {m.id !== adminId && (a?.suspenso
+                        ? <button disabled={ocupado} onClick={() => acao(m, 'reativar')} className="rounded-lg border border-marinho/15 dark:border-bege/15 px-3 py-1.5 text-sm font-semibold text-marinho dark:text-bege">Reativar acesso</button>
+                        : <button disabled={ocupado} onClick={() => acao(m, 'suspender')} className="rounded-lg border border-red-700/30 px-3 py-1.5 text-sm font-semibold text-red-700 dark:text-red-400">Suspender acesso</button>)}
+                    </div>
+                    {mensagem?.id === m.id && (
+                      <div className="rounded-lg bg-marinho/[0.03] dark:bg-bege/[0.04] p-3 space-y-2">
+                        <p className="text-sm whitespace-pre-wrap text-texto dark:text-bege select-all">{mensagem.texto}</p>
+                        <a href={`https://wa.me/?text=${encodeURIComponent(mensagem.texto)}`} target="_blank" rel="noopener" className="botao-texto">Enviar pelo WhatsApp</a>
+                      </div>
+                    )}
+                    <p className="text-[11px] text-texto/45 dark:text-bege/45">Suspender bloqueia o login sem apagar nada. Reavaliar a permanência de alguém é decisão do grupo (metade mais 1).</p>
+                  </div>
+                )}
+              </li>
+            )
+          })}
+        </ul>
+        {membros && <p className="legenda text-center mt-3">{membros.length} {membros.length === 1 ? 'pessoa' : 'pessoas'} com acesso</p>}
+      </div>
+    </div>
+  )
+}
+
+function ConfigClube({ livro, onAbrirIndicacoes }: { livro: LivroAtivo | null; onAbrirIndicacoes?: () => void }) {
+  const [padrao, setPadrao] = useState<boolean | null>(null)
+  const [baixando, setBaixando] = useState(false)
+  const avisar = useAviso()
+
+  useEffect(() => { buscarPadraoClube().then(setPadrao) }, [])
+
+  async function salvarPadrao(v: boolean) {
+    const { error } = await supabase.from('config_clube').update({ contagem_padrao: v, atualizado_em: new Date().toISOString() }).eq('id', 1)
+    if (error) return avisar('Não foi possível salvar', 'erro')
+    setPadrao(v)
+    try { localStorage.setItem('bereanos-streak-contagem-padrao', v ? '1' : '0') } catch { /* ok */ }
+    avisar(v ? 'Sequência e conquistas aparecem para quem segue o padrão' : 'Sequência e conquistas ficam escondidas para quem segue o padrão')
+  }
+
+  async function backup() {
+    setBaixando(true)
+    try {
+      const [regs, notas, pres] = await Promise.all([
+        supabase.from('registros_leitura').select('registrado_em, origem, paginas_lidas, minutos_lidos, perfis(nome_exibicao), livros(titulo)').order('registrado_em'),
+        supabase.from('anotacoes').select('created_at, tipo, pagina, referencia, texto, compartilhada, perfis(nome_exibicao), livros(titulo)').eq('compartilhada', true).order('created_at'),
+        supabase.from('presencas').select('perfis(nome_exibicao), encontros(data, livros(titulo))')
+      ])
+      const hoje = new Date().toISOString().slice(0, 10)
+      baixarCsv(`bereanos-registros-${hoje}.csv`, ['data', 'membro', 'livro', 'origem', 'páginas', 'minutos'],
+        ((regs.data ?? []) as any[]).map((r) => [r.registrado_em, r.perfis?.nome_exibicao, r.livros?.titulo, r.origem, r.paginas_lidas, r.minutos_lidos]))
+      baixarCsv(`bereanos-mural-${hoje}.csv`, ['data', 'membro', 'livro', 'tipo', 'página', 'referência', 'texto'],
+        ((notas.data ?? []) as any[]).map((n) => [n.created_at, n.perfis?.nome_exibicao, n.livros?.titulo, n.tipo, n.pagina, n.referencia, n.texto]))
+      baixarCsv(`bereanos-presencas-${hoje}.csv`, ['encontro', 'livro', 'membro'],
+        ((pres.data ?? []) as any[]).map((p) => [p.encontros?.data, p.encontros?.livros?.titulo, p.perfis?.nome_exibicao]))
+      avisar('Três planilhas baixadas')
+    } catch {
+      avisar('Não foi possível gerar o backup', 'erro')
+    } finally {
+      setBaixando(false)
+    }
+  }
+
+  return (
+    <div className="max-w-md mx-auto px-5 mt-6 space-y-4">
+      <div className="cartao p-5">
+        <h2 className="titulo-secao">Sequência e conquistas</h2>
+        <p className="legenda mt-1 mb-3">
+          Padrão do clube para quem não escolheu no próprio Perfil. A gamificação foi desativada pelo grupo em setembro de 2026; mudar este padrão é decisão do grupo.
+        </p>
+        {padrao === null ? <div className="esqueleto h-11" /> : (
+          <div className="grid grid-cols-2 gap-2">
+            {([[false, 'Esconder'], [true, 'Mostrar']] as [boolean, string][]).map(([v, r]) => (
+              <button key={r} onClick={() => salvarPadrao(v)} aria-pressed={padrao === v}
+                className={`rounded-xl border py-2.5 text-sm font-medium ${padrao === v ? 'border-dourado bg-dourado/10 text-dourado-escuro dark:text-dourado' : 'border-marinho/15 dark:border-bege/15 text-texto/60 dark:text-bege/60'}`}>
+                {r}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <div className="cartao p-5">
+        <h2 className="titulo-secao">Backup</h2>
+        <p className="legenda mt-1 mb-3">Baixa três planilhas (CSV, abre no Excel): registros de leitura, anotações do mural e presenças nos encontros. As anotações privadas de cada membro não entram.</p>
+        <button onClick={backup} disabled={baixando} className="botao-secundario flex items-center justify-center gap-2">
+          <Icone nome="baixar" className="w-4 h-4" /> {baixando ? 'Gerando…' : 'Baixar backup'}
+        </button>
+      </div>
+
+      {onAbrirIndicacoes && (
+        <div className="cartao p-5">
+          <h2 className="titulo-secao">Próximas leituras</h2>
+          <p className="legenda mt-1 mb-3">Indicações dos membros e o sorteio do próximo livro, registrado para todos verem.</p>
+          <button onClick={onAbrirIndicacoes} className="botao-secundario">Abrir indicações e sorteio</button>
+        </div>
+      )}
+      <p className="legenda text-center">{livro ? 'Destaques do clube: no mural, toque na estrela de uma anotação.' : ''}</p>
     </div>
   )
 }

@@ -1,15 +1,16 @@
 import { useEffect, useMemo, useState } from 'react'
 import { supabase, type Perfil } from '../lib/supabase'
-import { useAviso } from '../components/Toast'
+import { apagarComDesfazer, useAviso } from '../components/Toast'
 import Icone, { type NomeIcone } from '../components/Icone'
 import Avatar from '../components/Avatar'
 import { tempoRelativo } from '../lib/estatisticas'
 import type { LivroAtivo } from './Inicio'
+import RespostasMural from '../components/RespostasMural'
 
-// Anotações de leitura: trecho marcado, reflexão ou pergunta para o encontro.
-// Privadas por padrão; o membro decide o que vai para o mural do grupo.
+// Anotações de leitura: trecho, reflexão, pergunta para o encontro e aplicação
+// (o "Aplicar" do lema). Privadas por padrão; o membro decide o que vai ao mural.
 
-type Tipo = 'trecho' | 'reflexao' | 'pergunta'
+type Tipo = 'trecho' | 'reflexao' | 'pergunta' | 'aplicacao'
 type Vista = 'minhas' | 'mural'
 type Ordem = 'recentes' | 'pagina'
 
@@ -23,18 +24,28 @@ interface Nota {
   favorita: boolean
   created_at: string
   nome: string
+  referencia: string | null
+  livro_id: string
+  livro_titulo?: string
 }
 
 const TIPOS: Record<Tipo, { rotulo: string; plural: string; icone: NomeIcone; dica: string }> = {
   trecho: { rotulo: 'Trecho', plural: 'Trechos', icone: 'aspas', dica: 'Copie a frase do livro exatamente como está.' },
   reflexao: { rotulo: 'Reflexão', plural: 'Reflexões', icone: 'lampada', dica: 'O que isso te fez pensar? Onde concorda ou discorda?' },
-  pergunta: { rotulo: 'Pergunta', plural: 'Perguntas', icone: 'interrogacao', dica: 'Uma dúvida para examinar nas Escrituras ou levar ao encontro.' }
+  pergunta: { rotulo: 'Pergunta', plural: 'Perguntas', icone: 'interrogacao', dica: 'Uma dúvida para examinar nas Escrituras ou levar ao encontro.' },
+  aplicacao: { rotulo: 'Aplicação', plural: 'Aplicações', icone: 'alvo', dica: 'O que você quer praticar a partir desta leitura? Seja concreto: o quê, quando, com quem.' }
 }
+
+/** Ordem em que os tipos aparecem em listas e cópias. */
+const ORDEM_TIPOS: Tipo[] = ['pergunta', 'trecho', 'reflexao', 'aplicacao']
 
 export interface FiltroInicialNotas {
   vista: Vista
   filtro: Tipo | 'todas'
+  novaTipo?: Tipo
 }
+
+type Filtro = Tipo | 'todas' | 'favoritas' | 'escrituras' | 'destaques'
 
 interface Props {
   perfil: Perfil
@@ -46,7 +57,10 @@ interface Props {
 export default function Notas({ perfil, livro, inicial, onCompartilhar }: Props) {
   const [vista, setVista] = useState<Vista>(inicial?.vista ?? 'minhas')
   const [notas, setNotas] = useState<Nota[] | null>(null)
-  const [filtro, setFiltro] = useState<Tipo | 'todas' | 'favoritas'>(inicial?.filtro ?? 'todas')
+  const [filtro, setFiltro] = useState<Filtro>(inicial?.filtro ?? 'todas')
+  const [todosLivros, setTodosLivros] = useState(false)
+  const [referencia, setReferencia] = useState('')
+  const [destaques, setDestaques] = useState<Set<string>>(new Set())
   const [busca, setBusca] = useState('')
   const [ordem, setOrdem] = useState<Ordem>('recentes')
   const [editor, setEditor] = useState<{ id: string | null } | null>(null) // null = fechado; id null = nova
@@ -59,16 +73,24 @@ export default function Notas({ perfil, livro, inicial, onCompartilhar }: Props)
   const [confirmando, setConfirmando] = useState<string | null>(null)
   const avisar = useAviso()
 
-  useEffect(() => { carregar() }, [livro.id, vista])
+  useEffect(() => {
+    if (inicial?.novaTipo) { abrirNova(); setTipo(inicial.novaTipo) }
+  }, [])
+
+  const buscaGeral = todosLivros && vista === 'minhas'
+  useEffect(() => { carregar() }, [livro.id, vista, buscaGeral])
 
   async function carregar() {
     setNotas(null)
     let q = supabase
       .from('anotacoes')
-      .select('id, membro_id, tipo, texto, pagina, compartilhada, favorita, created_at, perfis(nome_exibicao)')
-      .eq('livro_id', livro.id)
+      .select('id, membro_id, livro_id, tipo, texto, pagina, referencia, compartilhada, favorita, created_at, perfis(nome_exibicao), livros(titulo)')
       .order('created_at', { ascending: false })
+    if (!buscaGeral) q = q.eq('livro_id', livro.id)
     q = vista === 'minhas' ? q.eq('membro_id', perfil.id) : q.eq('compartilhada', true)
+    if (vista === 'mural') {
+      supabase.from('destaques').select('anotacao_id').then(({ data }) => setDestaques(new Set((data ?? []).map((d) => d.anotacao_id))))
+    }
     const { data, error } = await q
     if (error) {
       setErroTabela(true)
@@ -76,7 +98,7 @@ export default function Notas({ perfil, livro, inicial, onCompartilhar }: Props)
       return
     }
     setErroTabela(false)
-    setNotas((data ?? []).map((n: any) => ({ ...n, nome: n.perfis?.nome_exibicao ?? 'Membro' })))
+    setNotas((data ?? []).map((n: any) => ({ ...n, nome: n.perfis?.nome_exibicao ?? 'Membro', livro_titulo: n.livros?.titulo })))
   }
 
   function abrirNova() {
@@ -84,6 +106,7 @@ export default function Notas({ perfil, livro, inicial, onCompartilhar }: Props)
     setTipo('trecho')
     setTexto('')
     setPagina('')
+    setReferencia('')
     setNoMural(false)
   }
 
@@ -92,6 +115,7 @@ export default function Notas({ perfil, livro, inicial, onCompartilhar }: Props)
     setTipo(n.tipo)
     setTexto(n.texto)
     setPagina(n.pagina ? String(n.pagina) : '')
+    setReferencia(n.referencia ?? '')
     setNoMural(n.compartilhada)
     window.scrollTo({ top: 0, behavior: 'smooth' })
   }
@@ -99,7 +123,7 @@ export default function Notas({ perfil, livro, inicial, onCompartilhar }: Props)
   async function salvar() {
     if (!texto.trim() || !editor) return
     setSalvando(true)
-    const campos = { tipo, texto: texto.trim(), pagina: pagina ? parseInt(pagina, 10) : null, compartilhada: noMural }
+    const campos = { tipo, texto: texto.trim(), pagina: pagina ? parseInt(pagina, 10) : null, referencia: referencia.trim() || null, compartilhada: noMural }
     const { error } = editor.id
       ? await supabase.from('anotacoes').update(campos).eq('id', editor.id)
       : await supabase.from('anotacoes').insert({ ...campos, membro_id: perfil.id, livro_id: livro.id })
@@ -108,6 +132,16 @@ export default function Notas({ perfil, livro, inicial, onCompartilhar }: Props)
     avisar(editor.id ? 'Anotação atualizada' : noMural ? 'Anotação salva e posta no mural' : 'Anotação salva')
     setEditor(null)
     carregar()
+  }
+
+  async function alternarDestaque(n: Nota) {
+    const tem = destaques.has(n.id)
+    const { error } = tem
+      ? await supabase.from('destaques').delete().eq('anotacao_id', n.id)
+      : await supabase.from('destaques').insert({ anotacao_id: n.id, created_by: perfil.id })
+    if (error) return avisar('Não foi possível alterar o destaque', 'erro')
+    setDestaques((d) => { const x = new Set(d); if (tem) x.delete(n.id); else x.add(n.id); return x })
+    avisar(tem ? 'Saiu dos destaques do clube' : 'Entrou nos destaques do clube')
   }
 
   async function atualizar(n: Nota, campos: Partial<Nota>, msg: string) {
@@ -119,21 +153,24 @@ export default function Notas({ perfil, livro, inicial, onCompartilhar }: Props)
     } else if (msg) avisar(msg)
   }
 
-  async function excluir(n: Nota) {
+  function excluir(n: Nota) {
     setConfirmando(null)
-    const { error } = await supabase.from('anotacoes').delete().eq('id', n.id)
-    if (error) return avisar('Não foi possível apagar', 'erro')
-    avisar(n.membro_id === perfil.id ? 'Anotação apagada' : 'Anotação retirada do mural')
-    carregar()
+    const antes = notas
+    apagarComDesfazer({
+      avisar, texto: n.membro_id === perfil.id ? 'Anotação apagada' : 'Anotação retirada do mural',
+      esconder: () => setNotas((l) => l?.filter((x) => x.id !== n.id) ?? null),
+      restaurar: () => setNotas(antes),
+      apagar: async () => !(await supabase.from('anotacoes').delete().eq('id', n.id)).error
+    })
   }
 
   async function copiarParaEncontro() {
     const minhas = (notas ?? []).filter((n) => n.membro_id === perfil.id)
     if (minhas.length === 0) return avisar('Você ainda não tem anotações neste livro', 'erro')
     const porTipo = (t: Tipo) => minhas.filter((n) => n.tipo === t).sort((a, b) => (a.pagina ?? 9999) - (b.pagina ?? 9999))
-    const linha = (n: Nota) => `${n.pagina ? `(p. ${n.pagina}) ` : ''}${n.tipo === 'trecho' ? `“${n.texto}”` : n.texto}`
+    const linha = (n: Nota) => `${n.pagina ? `(p. ${n.pagina}) ` : ''}${n.tipo === 'trecho' ? `“${n.texto}”` : n.texto}${n.referencia ? ` [${n.referencia}]` : ''}`
     const partes = [`${livro.titulo}${livro.autor ? `, ${livro.autor}` : ''}`, `Anotações de ${perfil.nome_exibicao}`]
-    ;(['pergunta', 'trecho', 'reflexao'] as Tipo[]).forEach((t) => {
+    ORDEM_TIPOS.forEach((t) => {
       const l = porTipo(t)
       if (l.length) partes.push('', `${TIPOS[t].plural}:`, ...l.map((n) => `- ${linha(n)}`))
     })
@@ -148,22 +185,24 @@ export default function Notas({ perfil, livro, inicial, onCompartilhar }: Props)
   const visiveis = useMemo(() => {
     const termo = busca.trim().toLowerCase()
     let l = (notas ?? []).filter((n) =>
-      (filtro === 'todas' || (filtro === 'favoritas' ? n.favorita : n.tipo === filtro)) &&
-      (!termo || n.texto.toLowerCase().includes(termo) || (vista === 'mural' && n.nome.toLowerCase().includes(termo)))
+      (filtro === 'todas' || (filtro === 'favoritas' ? n.favorita : filtro === 'escrituras' ? !!n.referencia : filtro === 'destaques' ? destaques.has(n.id) : n.tipo === filtro)) &&
+      (!termo || n.texto.toLowerCase().includes(termo) || (n.referencia ?? '').toLowerCase().includes(termo) ||
+        (n.livro_titulo ?? '').toLowerCase().includes(termo) || (vista === 'mural' && n.nome.toLowerCase().includes(termo)))
     )
     if (ordem === 'pagina') l = [...l].sort((a, b) => (a.pagina ?? 99999) - (b.pagina ?? 99999))
     return l
-  }, [notas, filtro, busca, ordem, vista])
+  }, [notas, filtro, busca, ordem, vista, destaques])
 
   const contagem = useMemo(() => {
-    const c = { trecho: 0, reflexao: 0, pergunta: 0 }
+    const c = { trecho: 0, reflexao: 0, pergunta: 0, aplicacao: 0 }
     for (const n of notas ?? []) c[n.tipo]++
     return c
   }, [notas])
 
-  const filtros: (Tipo | 'todas' | 'favoritas')[] = vista === 'minhas'
-    ? ['todas', 'favoritas', 'trecho', 'reflexao', 'pergunta']
-    : ['todas', 'trecho', 'reflexao', 'pergunta']
+  const filtros: Filtro[] = vista === 'minhas'
+    ? ['todas', 'favoritas', 'trecho', 'reflexao', 'pergunta', 'aplicacao', 'escrituras']
+    : ['todas', 'destaques', 'trecho', 'reflexao', 'pergunta', 'aplicacao', 'escrituras']
+  const ROTULO_FILTRO: Record<string, string> = { todas: 'Todas', favoritas: 'Favoritas', escrituras: 'Com referência bíblica', destaques: 'Destaques do clube' }
 
   return (
     <div className="min-h-screen px-5 pt-8 pb-28">
@@ -187,10 +226,10 @@ export default function Notas({ perfil, livro, inicial, onCompartilhar }: Props)
               <h2 className="titulo-secao">{editor.id ? 'Editar anotação' : 'Nova anotação'}</h2>
               <button onClick={() => setEditor(null)} aria-label="Fechar" className="p-1 text-texto/50 dark:text-bege/50"><Icone nome="x" /></button>
             </div>
-            <div className="grid grid-cols-3 gap-2 mb-4">
+            <div className="grid grid-cols-4 gap-1.5 mb-4">
               {(Object.keys(TIPOS) as Tipo[]).map((t) => (
                 <button key={t} type="button" onClick={() => setTipo(t)}
-                  className={`rounded-xl border py-2.5 flex flex-col items-center gap-1 text-sm font-medium transition-colors ${
+                  className={`rounded-xl border py-2.5 flex flex-col items-center gap-1 text-[13px] font-medium transition-colors ${
                     tipo === t ? 'border-dourado bg-dourado/10 text-dourado-escuro dark:text-dourado' : 'border-marinho/15 dark:border-bege/15 text-texto/60 dark:text-bege/60'
                   }`}>
                   <Icone nome={TIPOS[t].icone} />
@@ -201,7 +240,11 @@ export default function Notas({ perfil, livro, inicial, onCompartilhar }: Props)
             <textarea value={texto} onChange={(e) => setTexto(e.target.value)} rows={5} maxLength={2000} autoFocus placeholder={TIPOS[tipo].dica}
               className={`campo resize-none ${tipo === 'trecho' ? 'font-serif italic text-[18px]' : ''}`} />
             <p className="text-xs text-right text-texto/40 dark:text-bege/40 mt-1">{texto.length}/2000</p>
-            <div className="flex items-center gap-3 mt-2">
+            <label className="block mt-2">
+              <span className="text-sm text-texto/70 dark:text-bege/70">Referência bíblica <span className="text-texto/40 dark:text-bege/40">(opcional)</span></span>
+              <input value={referencia} onChange={(e) => setReferencia(e.target.value)} maxLength={80} placeholder="Ex.: Atos 17:11" className="campo mt-1 py-2" />
+            </label>
+            <div className="flex items-center gap-3 mt-3">
               <label className="flex items-center gap-2 text-sm text-texto/70 dark:text-bege/70">
                 Página
                 <input type="number" inputMode="numeric" min={1} max={livro.paginas_totais} value={pagina} onChange={(e) => setPagina(e.target.value)} className="campo w-20 py-1.5 text-center" />
@@ -229,11 +272,11 @@ export default function Notas({ perfil, livro, inicial, onCompartilhar }: Props)
 
         {vista === 'minhas' && notas && notas.length > 0 && (
           <div className="cartao mt-4 p-4 flex items-center gap-4">
-            <dl className="flex gap-4 flex-1">
+            <dl className="flex gap-3 flex-1">
               {(Object.keys(TIPOS) as Tipo[]).map((t) => (
                 <div key={t}>
                   <dd className="font-serif tabular text-xl text-marinho dark:text-bege leading-none">{contagem[t]}</dd>
-                  <dt className="text-[11px] text-texto/50 dark:text-bege/50 mt-0.5">{TIPOS[t].plural.toLowerCase()}</dt>
+                  <dt className="text-[10px] text-texto/50 dark:text-bege/50 mt-0.5">{TIPOS[t].plural.toLowerCase()}</dt>
                 </div>
               ))}
             </dl>
@@ -250,11 +293,17 @@ export default function Notas({ perfil, livro, inicial, onCompartilhar }: Props)
           <input type="search" value={busca} onChange={(e) => setBusca(e.target.value)} placeholder={vista === 'mural' ? 'Buscar no mural ou por nome' : 'Buscar nas suas anotações'}
             className="campo pl-10" aria-label="Buscar anotações" />
         </div>
+        {vista === 'minhas' && (
+          <label className="flex items-center gap-2 text-sm text-texto/65 dark:text-bege/65 mt-2 cursor-pointer select-none">
+            <input type="checkbox" checked={todosLivros} onChange={(e) => setTodosLivros(e.target.checked)} className="w-4 h-4 accent-[#B8912F]" />
+            Procurar em todos os livros
+          </label>
+        )}
 
         <div className="flex items-center gap-2 mt-3 overflow-x-auto pb-1 sem-barra">
           {filtros.map((f) => (
             <button key={f} onClick={() => setFiltro(f)} className={`chip shrink-0 ${filtro === f ? 'chip-ativo' : ''}`}>
-              {f === 'todas' ? 'Todas' : f === 'favoritas' ? 'Favoritas' : TIPOS[f].plural}
+              {ROTULO_FILTRO[f] ?? TIPOS[f as Tipo].plural}
             </button>
           ))}
           <button onClick={() => setOrdem((o) => (o === 'recentes' ? 'pagina' : 'recentes'))} className="chip shrink-0 ml-auto" title="Mudar a ordem">
@@ -279,7 +328,9 @@ export default function Notas({ perfil, livro, inicial, onCompartilhar }: Props)
           {visiveis.map((n) => {
             const minha = n.membro_id === perfil.id
             return (
-              <li key={n.id} className={`cartao p-4 ${n.favorita && vista === 'minhas' ? 'border-dourado/45' : ''}`}>
+              <li key={n.id} className={`cartao p-4 ${(n.favorita && vista === 'minhas') || (vista === 'mural' && destaques.has(n.id)) ? 'border-dourado/45' : ''}`}>
+                {buscaGeral && n.livro_titulo && <p className="text-[11px] font-semibold text-texto/45 dark:text-bege/45 mb-1 truncate">{n.livro_titulo}</p>}
+                {vista === 'mural' && destaques.has(n.id) && <p className="text-[11px] font-semibold text-dourado-escuro dark:text-dourado mb-1">Destaque do clube</p>}
                 <div className="flex items-center gap-2 text-sm text-dourado-escuro dark:text-dourado mb-2">
                   <Icone nome={TIPOS[n.tipo].icone} className="w-4 h-4" />
                   <span className="font-medium">{TIPOS[n.tipo].rotulo}</span>
@@ -294,9 +345,14 @@ export default function Notas({ perfil, livro, inicial, onCompartilhar }: Props)
                     </button>
                   )}
                 </div>
-                <p className={`text-marinho dark:text-bege whitespace-pre-line ${n.tipo === 'trecho' ? 'font-serif italic text-[18px] leading-relaxed' : 'text-[15px] leading-relaxed'}`}>
+                <p className={`texto-nota text-marinho dark:text-bege whitespace-pre-line ${n.tipo === 'trecho' ? 'font-serif italic text-[18px] leading-relaxed' : 'text-[15px] leading-relaxed'}`}>
                   {n.tipo === 'trecho' ? `“${n.texto}”` : n.texto}
                 </p>
+                {n.referencia && (
+                  <p className="inline-flex items-center gap-1.5 mt-2 rounded-full bg-marinho/[0.05] dark:bg-bege/[0.07] px-2.5 py-1 text-xs font-semibold text-marinho/80 dark:text-bege/80">
+                    <Icone nome="livro" className="w-3.5 h-3.5 text-dourado" /> {n.referencia}
+                  </p>
+                )}
                 <div className="flex items-center gap-2 mt-3">
                   {vista === 'mural' && <Avatar nome={n.nome} tamanho={22} />}
                   <span className="text-xs text-texto/45 dark:text-bege/45">{vista === 'mural' ? `${n.nome}, ` : ''}{tempoRelativo(n.created_at)}</span>
@@ -307,12 +363,14 @@ export default function Notas({ perfil, livro, inicial, onCompartilhar }: Props)
                         <BotaoIcone icone="pena" rotulo="Editar" onClick={() => abrirEdicao(n)} />
                         <BotaoIcone icone="grupo" rotulo={n.compartilhada ? 'Tirar do mural' : 'Pôr no mural'} ativo={n.compartilhada}
                           onClick={() => atualizar(n, { compartilhada: !n.compartilhada }, n.compartilhada ? 'Agora só você vê' : 'Posta no mural')} />
-                        {confirmando === n.id ? (
-                          <button onClick={() => excluir(n)} className="text-xs font-semibold text-red-700 dark:text-red-400 px-2 py-1">Apagar</button>
-                        ) : (
-                          <BotaoIcone icone="lixeira" rotulo="Apagar anotação" perigo onClick={() => setConfirmando(n.id)} />
-                        )}
+                        <BotaoIcone icone="lixeira" rotulo="Apagar anotação" perigo onClick={() => excluir(n)} />
                       </>
+                    )}
+                    {vista === 'mural' && perfil.role === 'admin' && (
+                      <button onClick={() => alternarDestaque(n)} aria-label={destaques.has(n.id) ? 'Tirar dos destaques' : 'Destacar para o clube'} title={destaques.has(n.id) ? 'Tirar dos destaques' : 'Destacar para o clube'}
+                        className={`p-1.5 ${destaques.has(n.id) ? 'text-dourado' : 'text-texto/40 dark:text-bege/40 hover:text-dourado'}`}>
+                        <Estrela cheia={destaques.has(n.id)} />
+                      </button>
                     )}
                     {!minha && perfil.role === 'admin' && (confirmando === n.id ? (
                       <button onClick={() => excluir(n)} className="text-xs font-semibold text-red-700 dark:text-red-400 px-2 py-1">Retirar do mural</button>
@@ -321,6 +379,7 @@ export default function Notas({ perfil, livro, inicial, onCompartilhar }: Props)
                     ))}
                   </div>
                 </div>
+                {vista === 'mural' && <RespostasMural anotacaoId={n.id} perfil={perfil} autorNota={n.membro_id} />}
               </li>
             )
           })}
@@ -333,7 +392,7 @@ export default function Notas({ perfil, livro, inicial, onCompartilhar }: Props)
 function BotaoIcone({ icone, rotulo, onClick, ativo, perigo }: { icone: NomeIcone; rotulo: string; onClick: () => void; ativo?: boolean; perigo?: boolean }) {
   return (
     <button onClick={onClick} aria-label={rotulo} title={rotulo}
-      className={`p-1.5 rounded-lg transition-colors ${
+      className={`p-2.5 -m-0.5 rounded-lg transition-colors ${
         ativo ? 'text-dourado-escuro dark:text-dourado' : perigo ? 'text-texto/40 dark:text-bege/40 hover:text-red-700 dark:hover:text-red-400' : 'text-texto/45 dark:text-bege/45 hover:text-dourado-escuro dark:hover:text-dourado'
       }`}>
       <Icone nome={icone} className="w-[18px] h-[18px]" />

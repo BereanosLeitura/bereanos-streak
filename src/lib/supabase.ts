@@ -28,6 +28,7 @@ export interface Perfil {
   ritmo_leitura_min_por_pagina: number
   meta_diaria_paginas?: number
   senha_temporaria: boolean
+  mostrar_contagem?: boolean | null
 }
 
 export async function buscarPerfilAtual(): Promise<Perfil | null> {

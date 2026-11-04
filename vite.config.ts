@@ -9,8 +9,8 @@ export default defineConfig({
       registerType: 'autoUpdate',
       includeAssets: ['favicon.png', 'apple-touch-icon.png', 'logo/*.png'],
       manifest: {
-        name: 'Bereanos | Streak',
-        short_name: 'Streak',
+        name: 'Bereanos | Leitura',
+        short_name: 'Bereanos',
         description: 'Progresso de leitura coletivo do Clube do Livro Bereanos',
         theme_color: '#1B2A4A',
         background_color: '#1B2A4A',

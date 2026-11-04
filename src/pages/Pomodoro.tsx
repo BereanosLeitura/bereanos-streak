@@ -5,6 +5,7 @@ import { useMinhaLeitura } from '../lib/leitura'
 import { useAviso } from '../components/Toast'
 import Icone, { type NomeIcone } from '../components/Icone'
 import { chaveDia } from '../lib/estatisticas'
+import { planoCiclo } from '../lib/infograficos'
 import type { LivroAtivo } from './Inicio'
 
 interface Props {
@@ -20,13 +21,14 @@ const PRESETS = [15, 25, 45, 60]
 
 // Ciclo Pomodoro: foco, pausa curta e, a cada N sessões, uma pausa longa.
 interface Config {
+  modo: 'pomodoro' | 'livre' // livre: cronômetro sem limite, encerra quando quiser
   foco: number
   curta: number
   longa: number
   ciclo: number // sessões até a pausa longa
   autoPausa: boolean // a pausa começa sozinha ao salvar a sessão
 }
-const CONFIG_PADRAO: Config = { foco: 25, curta: 5, longa: 15, ciclo: 4, autoPausa: true }
+const CONFIG_PADRAO: Config = { modo: 'pomodoro', foco: 25, curta: 5, longa: 15, ciclo: 4, autoPausa: true }
 
 interface Intervalo {
   fim: number
@@ -41,7 +43,12 @@ interface SessaoAtiva {
   duracao_minutos: number
   pausadoEm?: string | null // ISO de quando pausou
   pausaMs?: number // total já pausado
+  livre?: boolean
+  metaPagina?: number | null // onde a pessoa quer chegar nesta sessão
+  notas?: number // anotações feitas durante a sessão
 }
+
+const LIMITE_LIVRE = 240 // minutos: teto do modo livre
 
 type Som = 'nenhum' | 'suave' | 'chuva'
 
@@ -72,6 +79,9 @@ function pausadoAgoraMs(s: SessaoAtiva) {
 function restanteSeg(s: SessaoAtiva) {
   const fim = new Date(s.inicio).getTime() + s.duracao_minutos * 60_000 + (s.pausaMs ?? 0) + pausadoAgoraMs(s)
   return Math.max(0, Math.round((fim - Date.now()) / 1000))
+}
+function decorridoSeg(s: SessaoAtiva) {
+  return Math.max(0, Math.round((Date.now() - new Date(s.inicio).getTime() - (s.pausaMs ?? 0) - pausadoAgoraMs(s)) / 1000))
 }
 function focadoMin(s: SessaoAtiva) {
   const ms = Date.now() - new Date(s.inicio).getTime() - (s.pausaMs ?? 0) - pausadoAgoraMs(s)
@@ -172,6 +182,7 @@ export default function Pomodoro({ perfil, livro, onFocoAtivo }: Props) {
   const [som, setSom] = useState<Som>('nenhum')
   const [anotando, setAnotando] = useState(false)
   const [sessoesSemana, setSessoesSemana] = useState<{ fim: string; duracao_minutos: number }[]>([])
+  const [metaPagina, setMetaPagina] = useState('')
   const [, forcar] = useState(0)
   const pararSom = useRef<(() => void) | null>(null)
   const wakeLock = useRef<any>(null)
@@ -203,7 +214,7 @@ export default function Pomodoro({ perfil, livro, onFocoAtivo }: Props) {
     const tick = () => {
       const r = restanteSeg(sessao)
       setRestante(r)
-      document.title = r > 0 ? `${sessao.pausadoEm ? 'Pausado' : formatar(r)} · Foco` : 'Sessão concluída'
+      document.title = r > 0 ? `${sessao.pausadoEm ? 'Pausado' : formatar(sessao.livre ? decorridoSeg(sessao) : r)} · Foco` : 'Sessão concluída'
       if (r === 0 && !sessao.pausadoEm) {
         // só toca o sino se acabou agora (não ao reabrir o app horas depois)
         const fimReal = new Date(sessao.inicio).getTime() + sessao.duracao_minutos * 60_000 + (sessao.pausaMs ?? 0)
@@ -215,7 +226,7 @@ export default function Pomodoro({ perfil, livro, onFocoAtivo }: Props) {
     pedirWakeLock()
     return () => {
       clearInterval(id)
-      document.title = 'Bereanos | Streak'
+      document.title = 'Bereanos | Leitura'
       liberarWakeLock()
     }
   }, [sessao, terminada])
@@ -280,6 +291,7 @@ export default function Pomodoro({ perfil, livro, onFocoAtivo }: Props) {
     setValorFim('')
     if (chegouAoFim) {
       tocarSino()
+      try { navigator.vibrate?.([200, 120, 200]) } catch { /* sem vibração */ }
       try {
         if ('Notification' in window && Notification.permission === 'granted' && document.hidden) {
           new Notification('Sessão de leitura concluída', { body: `${minutos} minutos em ${livro.titulo}.` })
@@ -289,7 +301,13 @@ export default function Pomodoro({ perfil, livro, onFocoAtivo }: Props) {
   }
 
   function iniciar() {
-    const nova: SessaoAtiva = { id: crypto.randomUUID(), livro_id: livro.id, inicio: new Date().toISOString(), duracao_minutos: duracao, pausadoEm: null, pausaMs: 0 }
+    const livre = config.modo === 'livre'
+    const meta = parseInt(metaPagina, 10)
+    const nova: SessaoAtiva = {
+      id: crypto.randomUUID(), livro_id: livro.id, inicio: new Date().toISOString(),
+      duracao_minutos: livre ? LIMITE_LIVRE : duracao, pausadoEm: null, pausaMs: 0, livre,
+      metaPagina: meta > leitura.paginasLivro ? Math.min(meta, livro.paginas_totais) : null, notas: 0
+    }
     gravar(CHAVE_SESSAO, nova)
     gravar(CHAVE_INTERVALO, null)
     setIntervalo(null)
@@ -351,7 +369,8 @@ export default function Pomodoro({ perfil, livro, onFocoAtivo }: Props) {
     leitura.recarregar()
     carregarSemana()
     // ciclo Pomodoro: pausa longa a cada N sessões concluídas no dia
-    if (config.autoPausa) {
+    setMetaPagina('')
+    if (config.autoPausa && !sessao.livre) {
       const feitasHoje = sessoesSemana.filter((x) => chaveDia(x.fim) === chaveDia(new Date())).length + 1
       comecarPausa(feitasHoje % config.ciclo === 0 ? 'longa' : 'curta')
     }
@@ -370,7 +389,13 @@ export default function Pomodoro({ perfil, livro, onFocoAtivo }: Props) {
             <Icone nome="check" className="w-7 h-7" traco={2} />
           </span>
           <h1 className="font-serif text-[26px] text-marinho dark:text-bege mt-4">{terminada.minutos} minutos de leitura</h1>
-          <p className="legenda mt-1">Você começou na página {leitura.paginasLivro}.</p>
+          <p className="legenda mt-1">
+            Você começou na página {leitura.paginasLivro}{sessao.metaPagina ? ` e queria chegar à ${sessao.metaPagina}` : ''}.
+            {sessao.notas ? ` ${sessao.notas} ${sessao.notas === 1 ? 'anotação feita' : 'anotações feitas'} nesta sessão.` : ''}
+          </p>
+          {sessao.metaPagina && modoFim === 'pagina' && !valorFim && (
+            <button onClick={() => setValorFim(String(sessao.metaPagina))} className="botao-texto text-sm mt-2">Cheguei à página {sessao.metaPagina}</button>
+          )}
 
           <div className="grid grid-cols-2 p-1 rounded-xl bg-marinho/[0.06] dark:bg-bege/[0.06] mt-5">
             {([['pagina', 'Parei na página'], ['quantidade', 'Quantas li']] as const).map(([m, r]) => (
@@ -404,7 +429,9 @@ export default function Pomodoro({ perfil, livro, onFocoAtivo }: Props) {
 
   if (sessao) {
     const total = sessao.duracao_minutos * 60
-    const progresso = 1 - restante / total
+    const decorrido = decorridoSeg(sessao)
+    const progresso = sessao.livre ? (decorrido % 3600) / 3600 : 1 - restante / total
+    const estimadas = Math.floor(decorrido / 60 / (perfil.ritmo_leitura_min_por_pagina || 2))
     const r = 46
     const c = 2 * Math.PI * r
     const pausado = !!sessao.pausadoEm
@@ -414,8 +441,10 @@ export default function Pomodoro({ perfil, livro, onFocoAtivo }: Props) {
         <div className="text-center">
           <p className="text-sm text-dourado-escuro dark:text-dourado">{pausado ? 'Pausado' : 'Em foco'}</p>
           <p className="font-serif text-xl text-marinho dark:text-bege mt-0.5 max-w-xs truncate">{livro.titulo}</p>
-          <p className="text-xs text-texto/45 dark:text-bege/45">a partir da página {leitura.paginasLivro}</p>
-          <div className="flex justify-center"><Ciclo feitas={posicaoCiclo} total={config.ciclo} /></div>
+          <p className="text-xs text-texto/45 dark:text-bege/45">
+            a partir da página {leitura.paginasLivro}{sessao.metaPagina ? `, meta: página ${sessao.metaPagina}` : ''}
+          </p>
+          {!sessao.livre && <div className="flex justify-center"><Ciclo feitas={posicaoCiclo} total={config.ciclo} /></div>}
         </div>
 
         <div className={`relative w-72 h-72 ${pausado ? 'opacity-60' : ''} transition-opacity`}>
@@ -425,10 +454,11 @@ export default function Pomodoro({ perfil, livro, onFocoAtivo }: Props) {
               strokeDasharray={c} strokeDashoffset={c * (1 - progresso)} style={{ transition: 'stroke-dashoffset 1s linear' }} />
           </svg>
           <div className="absolute inset-0 flex flex-col items-center justify-center">
-            <p className="font-serif tabular text-[72px] leading-none text-marinho dark:text-bege">{formatar(restante)}</p>
+            <p className="font-serif tabular text-[72px] leading-none text-marinho dark:text-bege">{formatar(sessao.livre ? decorrido : restante)}</p>
             <p className="text-sm text-texto/50 dark:text-bege/50 mt-2">
-              {pausado ? 'toque em continuar' : `termina às ${termino.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}`}
+              {pausado ? 'toque em continuar' : sessao.livre ? 'leitura livre, encerre quando quiser' : `termina às ${termino.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}`}
             </p>
+            {estimadas > 0 && <p className="text-xs text-dourado-escuro dark:text-dourado mt-1">cerca de {estimadas} {estimadas === 1 ? 'página' : 'páginas'} no seu ritmo</p>}
           </div>
         </div>
 
@@ -448,7 +478,8 @@ export default function Pomodoro({ perfil, livro, onFocoAtivo }: Props) {
           <button onClick={cancelar} className="w-full text-sm text-texto/45 dark:text-bege/45 hover:underline underline-offset-4">Cancelar sem registrar</button>
         </div>
 
-        {anotando && <AnotacaoRapida perfil={perfil} livro={livro} paginaSugerida={leitura.paginasLivro} onFechar={() => setAnotando(false)} />}
+        {anotando && <AnotacaoRapida perfil={perfil} livro={livro} paginaSugerida={leitura.paginasLivro} onFechar={() => setAnotando(false)}
+          onSalva={() => { const n = { ...sessao, notas: (sessao.notas ?? 0) + 1 }; gravar(CHAVE_SESSAO, n); setSessao(n) }} />}
       </div>
     )
   }
@@ -515,6 +546,16 @@ export default function Pomodoro({ perfil, livro, onFocoAtivo }: Props) {
           </div>
         )}
 
+        <div className="grid grid-cols-2 p-1 rounded-xl bg-marinho/[0.06] dark:bg-bege/[0.06] mt-5" role="tablist">
+          {([['pomodoro', 'Pomodoro'], ['livre', 'Leitura livre']] as const).map(([m, r]) => (
+            <button key={m} role="tab" aria-selected={config.modo === m} onClick={() => setConfig({ modo: m })}
+              className={`rounded-lg py-2 text-sm font-semibold ${config.modo === m ? 'bg-folha dark:bg-noite-cartao text-marinho dark:text-bege shadow-sm' : 'text-texto/55 dark:text-bege/55'}`}>
+              {r}
+            </button>
+          ))}
+        </div>
+
+        {config.modo === 'pomodoro' ? (<>
         <div className="mt-5 flex flex-col items-center">
           <Ciclo feitas={posicaoCiclo} total={config.ciclo} />
           <p className="text-xs text-texto/50 dark:text-bege/50 mt-1.5">
@@ -535,19 +576,42 @@ export default function Pomodoro({ perfil, livro, onFocoAtivo }: Props) {
             className="w-11 h-11 rounded-full border border-marinho/15 dark:border-bege/15 text-xl text-marinho dark:text-bege hover:border-dourado">+</button>
         </div>
 
-        <div className="flex justify-center gap-2 mb-7">
+        <div className="flex justify-center gap-2 mb-6">
           {PRESETS.map((m) => (
             <button key={m} onClick={() => setDuracao(m)} className={`chip ${duracao === m ? 'chip-ativo' : ''}`}>{m} min</button>
           ))}
         </div>
+        </>) : (
+          <div className="my-8">
+            <p className="font-serif tabular text-[64px] leading-none text-marinho dark:text-bege">00:00</p>
+            <p className="text-sm text-texto/55 dark:text-bege/55 mt-2 max-w-[260px] mx-auto">O cronômetro conta para cima, sem limite de tempo. Encerre quando terminar de ler.</p>
+          </div>
+        )}
 
-        <button onClick={iniciar} className="botao-primario text-lg">Começar</button>
+        {(() => {
+          const sugestao = planoCiclo(livro)?.find((x) => x.atual)?.ate
+          return (
+            <div className="cartao p-4 mb-6 text-left flex items-center gap-3">
+              <Icone nome="alvo" className="w-5 h-5 text-dourado shrink-0" />
+              <label className="flex-1 text-sm text-texto/75 dark:text-bege/75" htmlFor="meta-sessao">
+                Até onde quer ler? <span className="text-texto/45 dark:text-bege/45">(opcional)</span>
+                {sugestao && sugestao > leitura.paginasLivro && (
+                  <button type="button" onClick={() => setMetaPagina(String(sugestao))} className="block text-xs botao-texto mt-0.5">Marco da semana: página {sugestao}</button>
+                )}
+              </label>
+              <input id="meta-sessao" type="number" inputMode="numeric" min={leitura.paginasLivro + 1} max={livro.paginas_totais} value={metaPagina}
+                onChange={(e) => setMetaPagina(e.target.value)} placeholder="página" className="campo w-24 py-2 text-center" />
+            </div>
+          )
+        })()}
+
+        <button onClick={iniciar} className="botao-primario text-lg">{config.modo === 'livre' ? 'Começar leitura livre' : `Começar ${duracao} min`}</button>
         <div className="flex justify-center gap-4 mt-3">
           <button onClick={() => comecarPausa('curta')} className="botao-texto">Fazer uma pausa</button>
-          <button onClick={() => setAjustes((v) => !v)} className="botao-texto">{ajustes ? 'Fechar ajustes' : 'Ajustes do Pomodoro'}</button>
+          {config.modo === 'pomodoro' && <button onClick={() => setAjustes((v) => !v)} className="botao-texto">{ajustes ? 'Fechar ajustes' : 'Ajustes do Pomodoro'}</button>}
         </div>
 
-        {ajustes && (
+        {ajustes && config.modo === 'pomodoro' && (
           <section className="cartao p-5 mt-4 text-left space-y-4 animate-subir-suave">
             <Opcoes rotulo="Pausa curta" valor={config.curta} opcoes={[3, 5, 10]} sufixo="min" onMudar={(v) => setConfig({ curta: v })} />
             <Opcoes rotulo="Pausa longa" valor={config.longa} opcoes={[15, 20, 30]} sufixo="min" onMudar={(v) => setConfig({ longa: v })} />
@@ -578,6 +642,17 @@ export default function Pomodoro({ perfil, livro, onFocoAtivo }: Props) {
               </div>
             ))}
           </div>
+          {(() => {
+            const totalSemana = dias.reduce((a, d) => a + d.min, 0)
+            const diasComFoco = dias.filter((d) => d.min > 0).length
+            return (
+              <dl className="grid grid-cols-3 gap-2 text-center mt-4 pt-4 border-t border-marinho/[0.07] dark:border-bege/[0.08]">
+                <div><dd className="font-serif tabular text-xl text-marinho dark:text-bege">{totalSemana >= 60 ? `${Math.floor(totalSemana / 60)}h${String(totalSemana % 60).padStart(2, '0')}` : `${totalSemana} min`}</dd><dt className="text-[11px] text-texto/50 dark:text-bege/50">na semana</dt></div>
+                <div><dd className="font-serif tabular text-xl text-marinho dark:text-bege">{sessoesSemana.length}</dd><dt className="text-[11px] text-texto/50 dark:text-bege/50">{sessoesSemana.length === 1 ? 'sessão' : 'sessões'}</dt></div>
+                <div><dd className="font-serif tabular text-xl text-marinho dark:text-bege">{diasComFoco}</dd><dt className="text-[11px] text-texto/50 dark:text-bege/50">{diasComFoco === 1 ? 'dia com foco' : 'dias com foco'}</dt></div>
+              </dl>
+            )
+          })()}
           <p className="text-xs text-texto/45 dark:text-bege/45 mt-3">Minutos de foco nos últimos 7 dias.</p>
         </section>
       </div>
@@ -585,8 +660,8 @@ export default function Pomodoro({ perfil, livro, onFocoAtivo }: Props) {
   )
 }
 
-function AnotacaoRapida({ perfil, livro, paginaSugerida, onFechar }: { perfil: Perfil; livro: LivroAtivo; paginaSugerida: number; onFechar: () => void }) {
-  const [tipo, setTipo] = useState<'trecho' | 'reflexao' | 'pergunta'>('reflexao')
+function AnotacaoRapida({ perfil, livro, paginaSugerida, onFechar, onSalva }: { perfil: Perfil; livro: LivroAtivo; paginaSugerida: number; onFechar: () => void; onSalva?: () => void }) {
+  const [tipo, setTipo] = useState<'trecho' | 'reflexao' | 'pergunta' | 'aplicacao'>('reflexao')
   const [texto, setTexto] = useState('')
   const [pagina, setPagina] = useState('')
   const [salvando, setSalvando] = useState(false)
@@ -602,6 +677,7 @@ function AnotacaoRapida({ perfil, livro, paginaSugerida, onFechar }: { perfil: P
     setSalvando(false)
     if (error) return avisar('Não foi possível salvar', 'erro')
     avisar('Anotação salva. O tempo continua.')
+    onSalva?.()
     onFechar()
   }
 
@@ -612,14 +688,14 @@ function AnotacaoRapida({ perfil, livro, paginaSugerida, onFechar }: { perfil: P
           <h2 className="titulo-secao">Anotar sem parar</h2>
           <button onClick={onFechar} aria-label="Fechar" className="p-1 text-texto/50 dark:text-bege/50"><Icone nome="x" /></button>
         </div>
-        <div className="flex gap-2 mb-3">
-          {([['trecho', 'Trecho'], ['reflexao', 'Reflexão'], ['pergunta', 'Pergunta']] as const).map(([t, r]) => (
+        <div className="flex flex-wrap gap-2 mb-3">
+          {([['trecho', 'Trecho'], ['reflexao', 'Reflexão'], ['pergunta', 'Pergunta'], ['aplicacao', 'Aplicação']] as const).map(([t, r]) => (
             <button key={t} onClick={() => setTipo(t)} className={`chip ${tipo === t ? 'chip-ativo' : ''}`}>{r}</button>
           ))}
         </div>
         <textarea autoFocus rows={4} value={texto} onChange={(e) => setTexto(e.target.value)} maxLength={2000}
           className={`campo resize-none ${tipo === 'trecho' ? 'font-serif italic text-[18px]' : ''}`}
-          placeholder={tipo === 'trecho' ? 'Copie a frase do livro.' : tipo === 'reflexao' ? 'O que você está pensando?' : 'Uma dúvida para o encontro.'} />
+          placeholder={tipo === 'trecho' ? 'Copie a frase do livro.' : tipo === 'reflexao' ? 'O que você está pensando?' : tipo === 'aplicacao' ? 'O que você quer praticar?' : 'Uma dúvida para o encontro.'} />
         <div className="flex items-center gap-3 mt-3">
           <label className="text-sm text-texto/70 dark:text-bege/70 flex items-center gap-2">
             Página

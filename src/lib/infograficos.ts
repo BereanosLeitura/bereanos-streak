@@ -1,4 +1,5 @@
 import { supabase } from './supabase'
+import { tempoManual } from './tempo'
 import { chaveDia, maiorSequencia, paginasEquivalentes, type RegistroBasico } from './estatisticas'
 
 // Cálculos dos infográficos: retrospectiva de um livro, panorama do grupo
@@ -62,7 +63,8 @@ export interface Retrospectiva {
   maiorSequencia: number
   sessoes: number
   minutos: number
-  anotacoes: { trecho: number; reflexao: number; pergunta: number }
+  anotacoes: { trecho: number; reflexao: number; pergunta: number; aplicacao: number }
+  aplicacoes: string[]
   melhorDia: { data: string; paginas: number } | null
   inicio: string | null
   fim: string | null
@@ -92,11 +94,11 @@ export async function calcularRetrospectiva(
   let melhorDia: Retrospectiva['melhorDia'] = null
   for (const [data, p] of porDia) if (!melhorDia || p > melhorDia.paginas) melhorDia = { data, paginas: Math.round(p) }
   const paginas = Math.min(livro.paginas_totais, Math.round([...porDia.values()].reduce((x, y) => x + y, 0)))
-  const notas = (a.data ?? []) as { tipo: 'trecho' | 'reflexao' | 'pergunta'; texto: string; pagina: number | null; favorita: boolean }[]
+  const notas = (a.data ?? []) as { tipo: 'trecho' | 'reflexao' | 'pergunta' | 'aplicacao'; texto: string; pagina: number | null; favorita: boolean }[]
   const trechos = notas.filter((n) => n.tipo === 'trecho')
   const fav = trechos.find((n) => n.favorita) ?? trechos[0] ?? null
   const mh = mapaHorarios(regs, ritmo)
-  const minutos = (s.data ?? []).reduce((x, y) => x + (y.duracao_minutos ?? 0), 0)
+  const minutos = (s.data ?? []).reduce((x, y) => x + (y.duracao_minutos ?? 0), 0) + await tempoManual(membroId, { livroId: livro.id })
   return {
     paginas,
     pct: Math.min(100, Math.round((paginas / livro.paginas_totais) * 100)),
@@ -107,8 +109,10 @@ export async function calcularRetrospectiva(
     anotacoes: {
       trecho: trechos.length,
       reflexao: notas.filter((n) => n.tipo === 'reflexao').length,
-      pergunta: notas.filter((n) => n.tipo === 'pergunta').length
+      pergunta: notas.filter((n) => n.tipo === 'pergunta').length,
+      aplicacao: notas.filter((n) => n.tipo === 'aplicacao').length
     },
+    aplicacoes: notas.filter((n) => n.tipo === 'aplicacao').map((n) => n.texto),
     melhorDia,
     inicio: regs[0]?.registrado_em ?? null,
     fim: regs[regs.length - 1]?.registrado_em ?? null,
@@ -126,7 +130,8 @@ export interface Panorama {
   diasComLeitura: number
   leramHoje: number
   ultimos14: { chave: string; paginas: number }[]
-  mural: { trecho: number; reflexao: number; pergunta: number }
+  mural: { trecho: number; reflexao: number; pergunta: number; aplicacao: number }
+  marcas: { pagina: number | null; tipo: string }[]
   horarios: MapaHorarios
 }
 
@@ -134,7 +139,7 @@ export async function calcularPanorama(livro: { id: string; paginas_totais: numb
   const [r, a] = await Promise.all([
     supabase.from('registros_leitura').select('membro_id, paginas_lidas, minutos_lidos, registrado_em, perfis(ritmo_leitura_min_por_pagina)')
       .eq('livro_id', livro.id),
-    supabase.from('anotacoes').select('tipo').eq('livro_id', livro.id).eq('compartilhada', true)
+    supabase.from('anotacoes').select('tipo, pagina').eq('livro_id', livro.id).eq('compartilhada', true)
   ])
   const regs = ((r.data ?? []) as any[]).map((x) => ({ ...x, ritmo: x.perfis?.ritmo_leitura_min_por_pagina ?? 2 }))
   const porMembro = new Map<string, number>()
@@ -153,7 +158,7 @@ export async function calcularPanorama(livro: { id: string; paginas_totais: numb
     const chave = chaveDia(d)
     return { chave, paginas: Math.round(porDia.get(chave) ?? 0) }
   })
-  const notas = (a.data ?? []) as { tipo: 'trecho' | 'reflexao' | 'pergunta' }[]
+  const notas = (a.data ?? []) as { tipo: 'trecho' | 'reflexao' | 'pergunta' | 'aplicacao'; pagina: number | null }[]
   return {
     paginasGrupo: Math.round(somas.reduce((x, y) => x + y, 0)),
     leitores: porMembro.size,
@@ -165,8 +170,10 @@ export async function calcularPanorama(livro: { id: string; paginas_totais: numb
     mural: {
       trecho: notas.filter((n) => n.tipo === 'trecho').length,
       reflexao: notas.filter((n) => n.tipo === 'reflexao').length,
-      pergunta: notas.filter((n) => n.tipo === 'pergunta').length
+      pergunta: notas.filter((n) => n.tipo === 'pergunta').length,
+      aplicacao: notas.filter((n) => n.tipo === 'aplicacao').length
     },
+    marcas: notas.map((n) => ({ pagina: n.pagina, tipo: n.tipo })),
     horarios: mapaHorarios(regs, 2)
   }
 }
@@ -209,4 +216,31 @@ export function serieRitmo(
   }
   const atual = pontos.filter((p) => p.acumulado !== null).slice(-1)[0]?.acumulado ?? 0
   return { pontos, diferenca: idealHoje !== null ? Math.round(atual - idealHoje) : null }
+}
+
+// ---------- plano do ciclo ----------
+export interface SemanaPlano { n: number; inicio: string; fim: string; ate: number; atual: boolean; passou: boolean }
+
+/** Marcos semanais (incentivo, não cobrança) a partir das datas do ciclo. */
+export function planoCiclo(livro: { paginas_totais: number; ciclo_inicio: string | null; ciclo_fim: string | null }): SemanaPlano[] | null {
+  if (!livro.ciclo_inicio || !livro.ciclo_fim || livro.ciclo_fim < livro.ciclo_inicio) return null
+  const d0 = new Date(livro.ciclo_inicio + 'T12:00:00')
+  const d1 = new Date(livro.ciclo_fim + 'T12:00:00')
+  const totalDias = Math.round((d1.getTime() - d0.getTime()) / 86_400_000) + 1
+  const hoje = chaveDia(new Date())
+  const semanas: SemanaPlano[] = []
+  for (let ini = 0, n = 1; ini < totalDias; ini += 7, n++) {
+    const fimDia = Math.min(totalDias, ini + 7)
+    const a = new Date(d0); a.setDate(a.getDate() + ini)
+    const b = new Date(d0); b.setDate(b.getDate() + fimDia - 1)
+    const inicio = chaveDia(a)
+    const fim = chaveDia(b)
+    semanas.push({
+      n, inicio, fim,
+      ate: fimDia === totalDias ? livro.paginas_totais : Math.round((livro.paginas_totais * fimDia) / totalDias),
+      atual: hoje >= inicio && hoje <= fim,
+      passou: hoje > fim
+    })
+  }
+  return semanas
 }

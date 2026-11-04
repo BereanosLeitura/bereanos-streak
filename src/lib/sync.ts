@@ -35,6 +35,7 @@ async function sincronizarRegistros() {
         origem: r.origem,
         paginas_lidas: r.paginas_lidas,
         minutos_lidos: r.minutos_lidos,
+        ...(r.tempo_minutos ? { tempo_minutos: r.tempo_minutos } : {}),
         registrado_em: r.registrado_em
       })
       if (error) throw error
@@ -79,7 +80,9 @@ export async function criarRegistroLeitura(dados: {
   paginas_lidas: number | null
   minutos_lidos: number | null
   registrado_em?: string // para lançar uma leitura de outro dia (ex.: ontem)
+  tempo_minutos?: number | null
 }): Promise<RegistroLeituraLocal> {
+  try { navigator.vibrate?.(15) } catch { /* sem vibração */ }
   const registro: RegistroLeituraLocal = {
     id: crypto.randomUUID(),
     ...dados,

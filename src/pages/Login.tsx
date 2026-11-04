@@ -8,6 +8,7 @@ export default function Login() {
   const [senha, setSenha] = useState('')
   const [erro, setErro] = useState<string | null>(null)
   const [carregando, setCarregando] = useState(false)
+  const [esqueci, setEsqueci] = useState(false)
 
   async function entrar(e: FormEvent) {
     e.preventDefault()
@@ -67,8 +68,16 @@ export default function Login() {
 
       <p className="text-xs text-center text-texto/50 dark:text-bege/50 mt-5">
         Se você recebeu uma senha temporária, vai trocá-la no próximo passo.
-        <br />Esqueceu a senha? Peça uma nova ao admin do clube.
       </p>
+      <div className="text-center mt-2">
+        <button type="button" onClick={() => setEsqueci((v) => !v)} className="botao-texto text-sm" aria-expanded={esqueci}>Esqueci minha senha</button>
+      </div>
+      {esqueci && (
+        <div className="cartao p-4 mt-3 text-sm text-texto/80 dark:text-bege/80 animate-subir-suave">
+          Sem problema. Avise o admin do clube: ele gera uma senha temporária nova pelo próprio app e te manda no privado.
+          Ao entrar com ela, você cria uma senha sua de novo. Seus registros e anotações continuam todos aqui.
+        </div>
+      )}
 
       <figure className="mt-10 text-center">
         <blockquote className="font-serif italic text-[17px] leading-relaxed text-marinho/80 dark:text-bege/75">

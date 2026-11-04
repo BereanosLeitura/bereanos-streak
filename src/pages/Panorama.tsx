@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react'
 import Icone from '../components/Icone'
-import { BarrasDias, MapaDeHorarios } from '../components/Graficos'
-import { BLOCOS, calcularPanorama, type Panorama as TPanorama } from '../lib/infograficos'
+import { BarrasDias, MapaDeHorarios, MapaDoLivro } from '../components/Graficos'
+import { BLOCOS, calcularPanorama, planoCiclo, type Panorama as TPanorama } from '../lib/infograficos'
+import { formatarData } from '../lib/estatisticas'
 import type { LivroAtivo } from './Inicio'
 
 interface Props {
@@ -20,7 +21,7 @@ export default function Panorama({ livro, onVoltar, onCompartilhar, onMural }: P
     calcularPanorama(livro).then(setP).catch(() => setErro(true))
   }, [livro.id])
 
-  const totalMural = p ? p.mural.trecho + p.mural.reflexao + p.mural.pergunta : 0
+  const totalMural = p ? p.mural.trecho + p.mural.reflexao + p.mural.pergunta + p.mural.aplicacao : 0
   const pags14 = p ? p.ultimos14.reduce((a, x) => a + x.paginas, 0) : 0
 
   return (
@@ -64,7 +65,7 @@ export default function Panorama({ livro, onVoltar, onCompartilhar, onMural }: P
               <div className="mt-4"><BarrasDias valores={p.ultimos14} /></div>
               <p className="text-sm text-texto/65 dark:text-bege/65 mt-3">
                 {p.leramHoje === 0 ? 'Ninguém registrou leitura hoje ainda.' : `${p.leramHoje} ${p.leramHoje === 1 ? 'pessoa leu' : 'pessoas leram'} hoje.`}
-                {' '}O clube leu em {p.diasComLeitura} {p.diasComLeitura === 1 ? 'dia' : 'dias'} deste ciclo.
+                {' '}{p.diasComLeitura === 0 ? 'O clube ainda não registrou leitura neste ciclo.' : `O clube leu em ${p.diasComLeitura} ${p.diasComLeitura === 1 ? 'dia' : 'dias'} deste ciclo.`}
               </p>
             </section>
 
@@ -76,13 +77,40 @@ export default function Panorama({ livro, onVoltar, onCompartilhar, onMural }: P
               {totalMural === 0 ? (
                 <p className="legenda mt-2">Nenhuma anotação compartilhada ainda.</p>
               ) : (
-                <div className="grid grid-cols-3 gap-2 mt-4 text-center">
+                <div className="grid grid-cols-4 gap-2 mt-4 text-center">
                   <Bloco icone="aspas" v={p.mural.trecho} r={p.mural.trecho === 1 ? 'trecho' : 'trechos'} />
                   <Bloco icone="lampada" v={p.mural.reflexao} r={p.mural.reflexao === 1 ? 'reflexão' : 'reflexões'} />
                   <Bloco icone="interrogacao" v={p.mural.pergunta} r={p.mural.pergunta === 1 ? 'pergunta' : 'perguntas'} />
+                  <Bloco icone="alvo" v={p.mural.aplicacao} r={p.mural.aplicacao === 1 ? 'aplicação' : 'aplicações'} />
                 </div>
               )}
             </section>
+
+            <section className="cartao p-5 mt-4">
+              <h2 className="titulo-secao mb-1">Mapa do livro</h2>
+              <p className="legenda mb-3">Onde as anotações do mural se concentram.</p>
+              <MapaDoLivro marcas={p.marcas} total={livro.paginas_totais} />
+            </section>
+
+            {(() => {
+              const plano = planoCiclo(livro)
+              if (!plano) return null
+              return (
+                <section className="cartao p-5 mt-4">
+                  <h2 className="titulo-secao">Plano do ciclo</h2>
+                  <p className="legenda mt-1 mb-3">Um ritmo possível para terminar junto. Quem não chegar, participa do encontro normalmente.</p>
+                  <ol className="space-y-1.5">
+                    {plano.map((s) => (
+                      <li key={s.n} className={`flex items-center gap-3 rounded-lg px-3 py-2 text-sm ${s.atual ? 'bg-dourado/10 font-semibold text-marinho dark:text-bege' : s.passou ? 'text-texto/45 dark:text-bege/45' : 'text-texto/75 dark:text-bege/75'}`}>
+                        <span className="w-16 shrink-0">Semana {s.n}</span>
+                        <span className="flex-1">{formatarData(s.inicio)} a {formatarData(s.fim)}</span>
+                        <span className="tabular">até p. {s.ate}</span>
+                      </li>
+                    ))}
+                  </ol>
+                </section>
+              )
+            })()}
 
             {p.horarios.total >= 10 && (
               <section className="cartao p-5 mt-4">
@@ -113,7 +141,7 @@ function Item({ v, r }: { v: number | string; r: string }) {
   )
 }
 
-function Bloco({ icone, v, r }: { icone: 'aspas' | 'lampada' | 'interrogacao'; v: number; r: string }) {
+function Bloco({ icone, v, r }: { icone: 'aspas' | 'lampada' | 'interrogacao' | 'alvo'; v: number; r: string }) {
   return (
     <div className="rounded-xl bg-marinho/[0.04] dark:bg-bege/[0.05] py-3">
       <Icone nome={icone} className="w-4 h-4 text-dourado mx-auto" />

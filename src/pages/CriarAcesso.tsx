@@ -1,112 +1,70 @@
 import { useState } from 'react'
+import { chamarAdmin, mensagemAcesso } from '../lib/adminMembros'
+import { useAviso } from '../components/Toast'
 
-// Gera o que o admin precisa pra dar acesso a um membro novo: uma senha
-// temporária e a mensagem pronta pro WhatsApp. Desde a migração 0003, criar
-// o usuário no painel do Supabase (Authentication → Add user) já basta — a
-// linha em "perfis" é criada sozinha, e o membro completa nome/data de
-// nascimento no primeiro login. Antes disso era um INSERT manual por pessoa.
-//
-// Isso NUNCA cria o usuário de fato: criar login exige a service_role key,
-// que por regra do projeto nunca fica no app. Por isso o passo de criar
-// continua no painel do Supabase, feito por você.
+// O admin cria o acesso direto pelo app. Quem cria de fato é a Edge Function
+// "admin-membros" no Supabase (com a service_role key, que nunca fica no app).
 
-const ALFABETO = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789' // sem 0/O/1/l/I
-
-function gerarSenha(): string {
-  const valores = crypto.getRandomValues(new Uint32Array(10))
-  let senha = ''
-  for (let i = 0; i < 10; i++) senha += ALFABETO[valores[i] % ALFABETO.length]
-  return senha
-}
-
-interface Props {
-  linkApp?: string
-}
-
-export default function CriarAcesso({ linkApp }: Props) {
+export default function CriarAcesso({ onCriado }: { onCriado?: () => void }) {
   const [nome, setNome] = useState('')
   const [email, setEmail] = useState('')
-  const [senha, setSenha] = useState(gerarSenha())
-  const [copiado, setCopiado] = useState<string | null>(null)
+  const [enviando, setEnviando] = useState(false)
+  const [resultado, setResultado] = useState<{ nome: string; email: string; senha: string } | null>(null)
+  const [erro, setErro] = useState<string | null>(null)
+  const avisar = useAviso()
 
-  const mensagem = montarMensagem(nome, email, senha, linkApp)
-
-  async function copiar(texto: string, chave: string) {
+  async function criar() {
+    setErro(null)
+    setEnviando(true)
     try {
-      await navigator.clipboard.writeText(texto)
-      setCopiado(chave)
-      setTimeout(() => setCopiado(null), 1800)
-    } catch {
-      // alguns navegadores bloqueiam sem interação direta — o texto já está selecionável na tela
+      const r = await chamarAdmin<{ senha: string }>('criar', { nome: nome.trim(), email: email.trim() })
+      setResultado({ nome: nome.trim(), email: email.trim().toLowerCase(), senha: r.senha })
+      setNome(''); setEmail('')
+      onCriado?.()
+    } catch (e) {
+      setErro(e instanceof Error ? e.message : 'Não foi possível criar o acesso')
+    } finally {
+      setEnviando(false)
     }
   }
 
+  async function copiar(texto: string) {
+    try { await navigator.clipboard.writeText(texto); avisar('Mensagem copiada') } catch { avisar('Selecione e copie o texto', 'erro') }
+  }
+
+  const msg = resultado ? mensagemAcesso(resultado.nome, resultado.email, resultado.senha) : ''
+
   return (
     <div className="px-5 py-6">
-      <div className="max-w-sm mx-auto space-y-5">
-
+      <div className="max-w-md mx-auto space-y-4">
+        <p className="legenda">Antes de convidar alguém novo, avise o grupo, como combinado no clube.</p>
         <div className="cartao p-5 space-y-4">
           <div>
-            <label className="rotulo">Nome do membro</label>
-            <input value={nome} onChange={(e) => setNome(e.target.value)} className="campo" placeholder="ex: Esaú" />
+            <label className="rotulo" htmlFor="novo-nome">Nome do membro</label>
+            <input id="novo-nome" value={nome} onChange={(e) => setNome(e.target.value)} className="campo" placeholder="Nome e sobrenome" />
           </div>
           <div>
-            <label className="rotulo">E-mail que ele vai usar</label>
-            <input
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className="campo"
-              placeholder="email@exemplo.com"
-            />
+            <label className="rotulo" htmlFor="novo-email">E-mail que ele vai usar</label>
+            <input id="novo-email" type="email" inputMode="email" autoCapitalize="none" value={email} onChange={(e) => setEmail(e.target.value)} className="campo" placeholder="email@exemplo.com" />
           </div>
-          <div>
-            <div className="flex justify-between items-center">
-              <label className="rotulo mb-0">Senha temporária gerada</label>
-              <button
-                onClick={() => setSenha(gerarSenha())}
-                className="text-xs text-dourado-escuro dark:text-dourado underline underline-offset-2"
-              >
-                gerar outra
-              </button>
-            </div>
-            <p className="campo font-sans tabular font-semibold text-lg tracking-[0.15em] text-center select-all">{senha}</p>
-          </div>
-        </div>
-
-        <ol className="cartao p-5 space-y-3 text-sm text-texto/75 dark:text-bege/75 list-decimal list-inside">
-          <li>
-            Abra o painel do Supabase, em Authentication → Users → Add user, e cadastre esse e-mail com essa senha
-            (marque "Auto Confirm User").
-          </li>
-          <li>Isso já cria o acesso dele sozinho — não precisa mexer em SQL.</li>
-          <li>Copie a mensagem abaixo e mande pelo WhatsApp.</li>
-        </ol>
-
-        <div className="cartao p-5 space-y-3">
-          <p className="rotulo mb-0">Mensagem pronta pro WhatsApp</p>
-          <p className="text-sm whitespace-pre-wrap text-texto dark:text-bege bg-marinho/[0.03] dark:bg-bege/[0.04] rounded-lg p-3 select-all">
-            {mensagem}
-          </p>
-          <button onClick={() => copiar(mensagem, 'mensagem')} className="botao-secundario">
-            {copiado === 'mensagem' ? 'Copiado ✓' : 'Copiar mensagem'}
+          {erro && <p className="text-sm text-red-700 dark:text-red-400">{erro}</p>}
+          <button onClick={criar} disabled={enviando || nome.trim().length < 2 || !email.includes('@')} className="botao-primario">
+            {enviando ? 'Criando…' : 'Criar acesso'}
           </button>
         </div>
+
+        {resultado && (
+          <div className="cartao p-5 space-y-3 border-dourado/50">
+            <p className="font-semibold text-marinho dark:text-bege">Acesso criado para {resultado.nome}</p>
+            <p className="text-sm text-texto/70 dark:text-bege/70">Mande a mensagem abaixo só para ele, no privado. A senha é temporária: no primeiro acesso ele cria a dele.</p>
+            <p className="text-sm whitespace-pre-wrap text-texto dark:text-bege bg-marinho/[0.03] dark:bg-bege/[0.04] rounded-lg p-3 select-all">{msg}</p>
+            <div className="grid grid-cols-2 gap-2">
+              <button onClick={() => copiar(msg)} className="botao-secundario">Copiar</button>
+              <a href={`https://wa.me/?text=${encodeURIComponent(msg)}`} target="_blank" rel="noopener" className="botao-secundario text-center">WhatsApp</a>
+            </div>
+          </div>
+        )}
       </div>
     </div>
-  )
-}
-
-function montarMensagem(nome: string, email: string, senha: string, linkApp?: string): string {
-  const nomePart = nome.trim() ? nome.trim() : 'você'
-  const linkLinha = linkApp
-    ? `Entre em ${linkApp}`
-    : 'Entre no link do Bereanos | Streak (vou te mandar separado)'
-  return (
-    `Oi, ${nomePart}! Seu acesso ao Bereanos | Streak tá pronto.\n\n` +
-    `${linkLinha}\n` +
-    `E-mail: ${email || '(preencha o e-mail)'}\n` +
-    `Senha temporária: ${senha}\n\n` +
-    `No primeiro login, troca a senha e completa seu nome e data de nascimento. Qualquer coisa me chama.`
   )
 }

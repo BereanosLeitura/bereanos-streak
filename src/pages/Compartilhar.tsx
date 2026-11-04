@@ -5,12 +5,13 @@ import { useAviso } from '../components/Toast'
 import Icone, { type NomeIcone } from '../components/Icone'
 import {
   FORMATOS, MODELOS_LEITURA, MODELOS_TEXTO, arquivoParaImagem, canvasParaArquivo, carregarImagem,
-  desenharAdesivo, desenharLeitura, desenharTexto, dividirTexto, limiteDeCaracteres, SO_COM_FUNDO,
+  desenharAdesivo, desenharLeitura, desenharTexto, dividirTexto, limiteDeCaracteres, SO_COM_FUNDO, FONTES_CARTAO, precarregarFontes, type FonteCartao,
   type CorAdesivo, type Formato, type ModeloLeitura, type ModeloTexto, type TipoTexto
 } from '../lib/cartoes'
 import type { LivroAtivo } from './Inicio'
 import { calcularPanorama, calcularRetrospectiva, type Panorama, type Retrospectiva } from '../lib/infograficos'
 import { formatarData } from '../lib/estatisticas'
+import { useContagem } from '../lib/preferencias'
 
 export interface PreCarga {
   modo: 'texto' | 'leitura'
@@ -32,13 +33,15 @@ interface NotaResumo { id: string; tipo: TipoTexto; texto: string; pagina: numbe
 const TIPOS: { id: TipoTexto; rotulo: string; icone: NomeIcone }[] = [
   { id: 'trecho', rotulo: 'Trecho', icone: 'aspas' },
   { id: 'reflexao', rotulo: 'Reflexão', icone: 'lampada' },
-  { id: 'pergunta', rotulo: 'Pergunta', icone: 'interrogacao' }
+  { id: 'pergunta', rotulo: 'Pergunta', icone: 'interrogacao' },
+  { id: 'aplicacao', rotulo: 'Aplicação', icone: 'alvo' }
 ]
 
 const LIMITE_TEXTO = 1500
 
 export default function Compartilhar({ perfil, livro, preCarga }: Props) {
   const leitura = useMinhaLeitura(perfil, livro)
+  const contagem = useContagem()
   const [modo, setModo] = useState<'texto' | 'leitura'>(preCarga?.modo ?? 'texto')
   const [formato, setFormato] = useState<Formato>('story')
   const [modeloTexto, setModeloTexto] = useState<ModeloTexto>('pergaminho')
@@ -52,6 +55,14 @@ export default function Compartilhar({ perfil, livro, preCarga }: Props) {
   const [mostrarLivro, setMostrarLivro] = useState(true)
   const [fundo, setFundo] = useState<'com' | 'transparente'>('com')
   const [corAdesivo, setCorAdesivo] = useState<CorAdesivo>('claro')
+  const [fonteCartao, setFonteCartaoEstado] = useState<FonteCartao>(() => {
+    try { return (localStorage.getItem('bereanos-streak-fonte-cartao') as FonteCartao) || 'garamond' } catch { return 'garamond' }
+  })
+  useEffect(() => { precarregarFontes() }, [])
+  function setFonteCartao(f: FonteCartao) {
+    setFonteCartaoEstado(f)
+    try { localStorage.setItem('bereanos-streak-fonte-cartao', f) } catch { /* ok */ }
+  }
   const [parte, setParte] = useState(0)
   const [foto, setFoto] = useState<HTMLImageElement | null>(null)
   const [capa, setCapa] = useState<HTMLImageElement | null>(null)
@@ -109,6 +120,7 @@ export default function Compartilhar({ perfil, livro, preCarga }: Props) {
 
   const semana = leitura.semana.map((d) => ({ rotulo: d.rotulo, paginas: d.paginas }))
   const dadosLeitura = {
+    fonteCartao,
     titulo: mostrarLivro ? livro.titulo : '',
     autor: mostrarLivro ? livro.autor : null,
     capa: mostrarLivro ? capa : null,
@@ -123,8 +135,10 @@ export default function Compartilhar({ perfil, livro, preCarga }: Props) {
       paginas: retro.paginas,
       dias: retro.dias,
       maiorSequencia: retro.maiorSequencia,
+      sessoes: retro.sessoes,
+      semContagem: !contagem,
       minutos: retro.minutos,
-      anotacoes: retro.anotacoes.trecho + retro.anotacoes.reflexao + retro.anotacoes.pergunta,
+      anotacoes: retro.anotacoes.trecho + retro.anotacoes.reflexao + retro.anotacoes.pergunta + retro.anotacoes.aplicacao,
       melhorDia: retro.melhorDia ? { rotulo: formatarData(retro.melhorDia.data), paginas: retro.melhorDia.paginas } : null,
       periodo: retro.inicio && retro.fim
         ? (formatarData(retro.inicio) === formatarData(retro.fim) ? formatarData(retro.inicio) : `${formatarData(retro.inicio)} a ${formatarData(retro.fim)}`)
@@ -135,7 +149,7 @@ export default function Compartilhar({ perfil, livro, preCarga }: Props) {
       paginas: panorama.paginasGrupo,
       leitores: panorama.leitores,
       terminaram: panorama.terminaram,
-      mural: panorama.mural.trecho + panorama.mural.reflexao + panorama.mural.pergunta,
+      mural: panorama.mural.trecho + panorama.mural.reflexao + panorama.mural.pergunta + panorama.mural.aplicacao,
       mediaPct: panorama.mediaPct,
       dias: panorama.ultimos14.map((x) => ({ rotulo: 'DSTQQSS'[new Date(x.chave + 'T12:00:00').getDay()], paginas: x.paginas }))
     } : undefined
@@ -153,6 +167,7 @@ export default function Compartilhar({ perfil, livro, preCarga }: Props) {
       if (!t) return ''
       if (tipo === 'trecho') return `“${t.replace(/^["“]|["”]$/g, '')}”${fonte ? `\n${fonte}` : ''}\n\nLendo com o Clube do Livro Bereanos.`
       if (tipo === 'reflexao') return `${t}${autorTexto !== perfil.nome_exibicao ? `\n(${autorTexto})` : ''}\n\n${nomeLivro ? `Reflexão da leitura de ${nomeLivro}.\n` : ''}Clube do Livro Bereanos`
+      if (tipo === 'aplicacao') return `${t}\n\n${nomeLivro ? `O que levo para a vida da leitura de ${nomeLivro}.\n` : ''}Ler, examinar, dialogar e aplicar. Clube do Livro Bereanos`
       return `${t}\n\n${nomeLivro ? `Uma pergunta da leitura de ${nomeLivro}. ` : ''}O que você acha?`
     }
     const de = nomeLivro ? ` ${nomeLivro}` : ' o livro do ciclo'
@@ -167,7 +182,7 @@ export default function Compartilhar({ perfil, livro, preCarga }: Props) {
         return `${s} ${s === 1 ? 'dia seguido' : 'dias seguidos'} de leitura${nomeLivro ? `, lendo ${nomeLivro}` : ''}. Clube do Livro Bereanos.`
       case 'retrospectiva':
         return retro
-          ? `Minha leitura de${de}: ${retro.paginas} páginas em ${retro.dias} ${retro.dias === 1 ? 'dia' : 'dias'}${retro.anotacoes.trecho + retro.anotacoes.reflexao + retro.anotacoes.pergunta ? `, com ${retro.anotacoes.trecho + retro.anotacoes.reflexao + retro.anotacoes.pergunta} anotações` : ''}. Clube do Livro Bereanos.`
+          ? `Minha leitura de${de}: ${retro.paginas} páginas em ${retro.dias} ${retro.dias === 1 ? 'dia' : 'dias'}${retro.anotacoes.trecho + retro.anotacoes.reflexao + retro.anotacoes.pergunta + retro.anotacoes.aplicacao ? `, com ${retro.anotacoes.trecho + retro.anotacoes.reflexao + retro.anotacoes.pergunta + retro.anotacoes.aplicacao} anotações` : ''}. Clube do Livro Bereanos.`
           : ''
       case 'grupo':
         return panorama
@@ -183,7 +198,7 @@ export default function Compartilhar({ perfil, livro, preCarga }: Props) {
   async function desenharEm(canvas: HTMLCanvasElement, indiceParte = parteAtual) {
     if (modo === 'texto') {
       await desenharTexto(canvas, modeloTexto, formato, {
-        tipo, texto: partes[indiceParte], fonte, nome: mostrarNome ? autorTexto : null, foto,
+        fonteCartao, tipo, texto: partes[indiceParte], fonte, nome: mostrarNome ? autorTexto : null, foto,
         parte: partes.length > 1 ? { i: indiceParte + 1, n: partes.length } : undefined
       })
     } else if (transparente) {
@@ -210,7 +225,7 @@ export default function Compartilhar({ perfil, livro, preCarga }: Props) {
     }, 160)
     return () => { cancelado = true; clearTimeout(t) }
   }, [modo, formato, modeloTexto, modeloLeitura, tipo, partes, parteAtual, fonte, mostrarNome, autorTexto, mostrarLivro, foto, capa,
-      leitura.carregando, leitura.pct, leitura.seq.dias, leitura.paginasSemana, fundo, corAdesivo, retro, panorama])
+      leitura.carregando, leitura.pct, leitura.seq.dias, leitura.paginasSemana, fundo, corAdesivo, retro, panorama, fonteCartao])
 
   async function escolherFoto(e: ChangeEvent<HTMLInputElement>) {
     const arq = e.target.files?.[0]
@@ -411,7 +426,7 @@ export default function Compartilhar({ perfil, livro, preCarga }: Props) {
           <h2 className="rotulo">Modelo</h2>
           <div className="flex gap-3 overflow-x-auto pb-2 -mx-1 px-1 sem-barra">
             {(modo === 'texto' ? MODELOS_TEXTO : MODELOS_LEITURA)
-              .filter((m) => !(transparente && SO_COM_FUNDO.includes(m.id as ModeloLeitura)))
+              .filter((m) => !(transparente && SO_COM_FUNDO.includes(m.id as ModeloLeitura)) && !(!contagem && m.id === 'constancia'))
               .map((m) => {
                 const ativo = modo === 'texto' ? modeloTexto === m.id : modeloLeitura === m.id
                 return (
@@ -444,6 +459,20 @@ export default function Compartilhar({ perfil, livro, preCarga }: Props) {
           </div>
         </section>
 
+        {/* Fonte */}
+        <section className="mt-4">
+          <h2 className="rotulo">Fonte</h2>
+          <div className="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1 sem-barra">
+            {FONTES_CARTAO.map((f) => (
+              <button key={f.id} onClick={() => setFonteCartao(f.id)} aria-pressed={fonteCartao === f.id}
+                className={`shrink-0 rounded-xl border px-3.5 py-2 text-left transition-colors ${fonteCartao === f.id ? 'border-dourado bg-dourado/10' : 'border-marinho/15 dark:border-bege/15'}`}>
+                <span className="block text-[19px] leading-tight text-marinho dark:text-bege" style={{ fontFamily: f.css }}>Aa</span>
+                <span className={`block text-[11px] ${fonteCartao === f.id ? 'font-semibold text-dourado-escuro dark:text-dourado' : 'text-texto/55 dark:text-bege/55'}`}>{f.nome}</span>
+              </button>
+            ))}
+          </div>
+        </section>
+
         {/* Foto */}
         {aceitaFoto && (
           <section className="cartao p-4 mt-4 flex items-center gap-3">
@@ -468,7 +497,7 @@ export default function Compartilhar({ perfil, livro, preCarga }: Props) {
         {/* Conteúdo */}
         {modo === 'texto' ? (
           <section className="cartao p-5 mt-4 space-y-4">
-            <div className="grid grid-cols-3 gap-2">
+            <div className="grid grid-cols-4 gap-1.5">
               {TIPOS.map((t) => (
                 <button key={t.id} onClick={() => { setTipo(t.id); setLegendaEditada(false) }}
                   className={`rounded-xl border py-2.5 flex flex-col items-center gap-1 text-sm font-medium transition-colors ${
@@ -495,11 +524,11 @@ export default function Compartilhar({ perfil, livro, preCarga }: Props) {
             )}
 
             <div>
-              <label className="rotulo" htmlFor="texto-cartao">{tipo === 'trecho' ? 'Trecho do livro' : tipo === 'reflexao' ? 'Sua reflexão' : 'Sua pergunta'}</label>
+              <label className="rotulo" htmlFor="texto-cartao">{tipo === 'trecho' ? 'Trecho do livro' : tipo === 'reflexao' ? 'Sua reflexão' : tipo === 'aplicacao' ? 'O que você vai aplicar' : 'Sua pergunta'}</label>
               <textarea
                 id="texto-cartao" rows={5} maxLength={LIMITE_TEXTO} value={texto}
                 onChange={(e) => { setTexto(e.target.value); setLegendaEditada(false) }}
-                placeholder={tipo === 'trecho' ? 'Copie a frase exatamente como está no livro.' : tipo === 'reflexao' ? 'O que essa leitura te fez pensar?' : 'Uma dúvida para examinar ou levar ao encontro.'}
+                placeholder={tipo === 'trecho' ? 'Copie a frase exatamente como está no livro.' : tipo === 'reflexao' ? 'O que essa leitura te fez pensar?' : tipo === 'aplicacao' ? 'O que você quer praticar a partir desta leitura?' : 'Uma dúvida para examinar ou levar ao encontro.'}
                 className={`campo resize-y ${tipo === 'trecho' ? 'font-serif italic text-[18px]' : ''}`}
               />
               <div className="flex justify-between text-xs mt-1">
@@ -517,11 +546,11 @@ export default function Compartilhar({ perfil, livro, preCarga }: Props) {
           </section>
         ) : (
           <section className="cartao p-5 mt-4">
-            <dl className="grid grid-cols-4 text-center">
+            <dl className={`grid ${contagem ? "grid-cols-4" : "grid-cols-3"} text-center`}>
               <Num valor={`${leitura.pct}%`} rotulo="lido" />
               <Num valor={leitura.paginasLivro} rotulo="página" />
               <Num valor={leitura.paginasSemana} rotulo="na semana" />
-              <Num valor={leitura.seq.dias} rotulo="dias seguidos" />
+              {contagem && <Num valor={leitura.seq.dias} rotulo="dias seguidos" />}
             </dl>
             {modeloLeitura === 'terminei' && leitura.pct < 100 && <Dica>Esse modelo é para quando você terminar o livro.</Dica>}
             {modeloLeitura === 'constancia' && leitura.seq.dias === 0 && <Dica>Você ainda não tem dias seguidos. Registre uma leitura hoje para começar.</Dica>}
