@@ -1,11 +1,12 @@
-import { useEffect, useMemo, useRef, useState, type ChangeEvent, type ReactNode } from 'react'
+import { useEffect, useMemo, useRef, useState, type ChangeEvent, type PointerEvent as PE, type ReactNode, type WheelEvent as WE } from 'react'
 import { supabase, type Perfil } from '../lib/supabase'
 import { useMinhaLeitura } from '../lib/leitura'
 import { useAviso } from '../components/Toast'
 import Icone, { type NomeIcone } from '../components/Icone'
 import {
   FORMATOS, MODELOS_LEITURA, MODELOS_TEXTO, arquivoParaImagem, canvasParaArquivo, carregarImagem,
-  desenharAdesivo, desenharLeitura, desenharTexto, dividirTexto, limiteDeCaracteres, SO_COM_FUNDO, FONTES_CARTAO, precarregarFontes, type FonteCartao,
+  desenharAdesivo, desenharLeitura, desenharTexto, dividirTexto, limiteDeCaracteres, SO_COM_FUNDO, SO_SEM_FUNDO, FONTES_CARTAO, precarregarFontes, type FonteCartao,
+  AJUSTE_PADRAO, MODELOS_COM_FOTO, VERSOES, type AjusteFoto, type FiltroFoto, type FundoCaber,
   type CorAdesivo, type Formato, type ModeloLeitura, type ModeloTexto, type TipoTexto
 } from '../lib/cartoes'
 import type { LivroAtivo } from './Inicio'
@@ -38,6 +39,19 @@ const TIPOS: { id: TipoTexto; rotulo: string; icone: NomeIcone }[] = [
 ]
 
 const LIMITE_TEXTO = 1500
+const CHAVE_VERSOES = 'bereanos-streak-versoes-cartao'
+const CHAVE_RASCUNHO = 'bereanos-streak-rascunho-cartao'
+
+interface Rascunho { livroId: string; tipo: TipoTexto; texto: string; pagina: string }
+function lerRascunho(livroId: string): Rascunho | null {
+  try {
+    const r = JSON.parse(localStorage.getItem(CHAVE_RASCUNHO) || 'null') as Rascunho | null
+    return r && r.livroId === livroId && r.texto ? r : null
+  } catch { return null }
+}
+
+const FILTROS: [FiltroFoto, string][] = [['original', 'Original'], ['pb', 'Preto e branco'], ['sepia', 'Sépia'], ['quente', 'Quente']]
+const FUNDOS_CABER: [FundoCaber, string][] = [['desfocado', 'Desfocado'], ['marinho', 'Marinho'], ['bege', 'Bege'], ['preto', 'Preto']]
 
 export default function Compartilhar({ perfil, livro, preCarga }: Props) {
   const leitura = useMinhaLeitura(perfil, livro)
@@ -46,9 +60,11 @@ export default function Compartilhar({ perfil, livro, preCarga }: Props) {
   const [formato, setFormato] = useState<Formato>('story')
   const [modeloTexto, setModeloTexto] = useState<ModeloTexto>('pergaminho')
   const [modeloLeitura, setModeloLeitura] = useState<ModeloLeitura>(preCarga?.modeloLeitura ?? 'lendo')
-  const [tipo, setTipo] = useState<TipoTexto>(preCarga?.tipo ?? 'trecho')
-  const [texto, setTexto] = useState(preCarga?.texto ?? '')
-  const [pagina, setPagina] = useState(preCarga?.pagina ? String(preCarga.pagina) : '')
+  // sem texto vindo de uma anotação, volta o rascunho que ficou na tela
+  const [rascunhoInicial] = useState(() => (preCarga?.texto ? null : lerRascunho(livro.id)))
+  const [tipo, setTipo] = useState<TipoTexto>(preCarga?.tipo ?? rascunhoInicial?.tipo ?? 'trecho')
+  const [texto, setTexto] = useState(preCarga?.texto ?? rascunhoInicial?.texto ?? '')
+  const [pagina, setPagina] = useState(preCarga?.pagina ? String(preCarga.pagina) : rascunhoInicial?.pagina ?? '')
   const [mostrarNome, setMostrarNome] = useState(true)
   // o nome no cartão de frase é de quem escreveu: você, ou o membro do mural
   const [autorTexto, setAutorTexto] = useState(preCarga?.autor ?? perfil.nome_exibicao)
@@ -65,6 +81,10 @@ export default function Compartilhar({ perfil, livro, preCarga }: Props) {
   }
   const [parte, setParte] = useState(0)
   const [foto, setFoto] = useState<HTMLImageElement | null>(null)
+  const [ajuste, setAjuste] = useState<AjusteFoto>(AJUSTE_PADRAO)
+  const [versoes, setVersoes] = useState<Record<string, number>>(() => {
+    try { return JSON.parse(localStorage.getItem(CHAVE_VERSOES) || '{}') } catch { return {} }
+  })
   const [capa, setCapa] = useState<HTMLImageElement | null>(null)
   const [notas, setNotas] = useState<NotaResumo[]>([])
   const [legenda, setLegenda] = useState('')
@@ -74,6 +94,7 @@ export default function Compartilhar({ perfil, livro, preCarga }: Props) {
   const [retro, setRetro] = useState<Retrospectiva | null>(null)
   const [panorama, setPanorama] = useState<Panorama | null>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
+  const modeloVisivel = useRef<string | null>(null)
   const fotoRef = useRef<HTMLInputElement>(null)
   const avisar = useAviso()
 
@@ -92,10 +113,28 @@ export default function Compartilhar({ perfil, livro, preCarga }: Props) {
   }, [modo, modeloLeitura, livro.id])
   // adesivo sem fundo não existe para os modelos de página inteira
   useEffect(() => { if (SO_COM_FUNDO.includes(modeloLeitura) && fundo === 'transparente') setFundo('com') }, [modeloLeitura])
-  useEffect(() => { if (fundo === 'transparente' && SO_COM_FUNDO.includes(modeloLeitura)) setModeloLeitura('lendo') }, [fundo])
+  useEffect(() => { if (fundo === 'transparente' && (SO_COM_FUNDO.includes(modeloLeitura) || modeloLeitura === 'lendo')) setModeloLeitura('capa') }, [fundo])
+  useEffect(() => { if (fundo === 'com' && SO_SEM_FUNDO.includes(modeloLeitura)) setModeloLeitura('lendo') }, [fundo])
+
+  // rascunho do texto: continua lá se a pessoa sair da tela e voltar
+  useEffect(() => {
+    try {
+      if (texto.trim()) localStorage.setItem(CHAVE_RASCUNHO, JSON.stringify({ livroId: livro.id, tipo, texto, pagina } satisfies Rascunho))
+      else localStorage.removeItem(CHAVE_RASCUNHO)
+    } catch { /* sem armazenamento: segue sem rascunho */ }
+  }, [texto, tipo, pagina, livro.id])
+
+  const modeloAtual = modo === 'texto' ? modeloTexto : modeloLeitura
+  const listaVersoes = VERSOES[modeloAtual] ?? []
+  const versao = Math.min(versoes[modeloAtual] ?? 0, Math.max(0, listaVersoes.length - 1))
+  function escolherVersao(v: number) {
+    const novo = { ...versoes, [modeloAtual]: v }
+    setVersoes(novo)
+    try { localStorage.setItem(CHAVE_VERSOES, JSON.stringify(novo)) } catch { /* ok */ }
+  }
 
   const transparente = modo === 'leitura' && fundo === 'transparente'
-  const precisaFoto = !transparente && ((modo === 'texto' && modeloTexto === 'foto') || (modo === 'leitura' && modeloLeitura === 'foto-leitura'))
+  const precisaFoto = !transparente && ((modo === 'texto' && MODELOS_COM_FOTO.includes(modeloTexto)) || (modo === 'leitura' && modeloLeitura === 'foto-leitura'))
   const aceitaFoto = precisaFoto || (modo === 'texto' && modeloTexto === 'polaroid')
 
   const fonte = useMemo(() => {
@@ -130,6 +169,8 @@ export default function Compartilhar({ perfil, livro, preCarga }: Props) {
     sequencia: leitura.seq.dias,
     nome: mostrarNome ? perfil.nome_exibicao : null,
     foto,
+    ajuste,
+    versao,
     semana,
     retro: retro ? {
       paginas: retro.paginas,
@@ -198,7 +239,7 @@ export default function Compartilhar({ perfil, livro, preCarga }: Props) {
   async function desenharEm(canvas: HTMLCanvasElement, indiceParte = parteAtual) {
     if (modo === 'texto') {
       await desenharTexto(canvas, modeloTexto, formato, {
-        fonteCartao, tipo, texto: partes[indiceParte], fonte, nome: mostrarNome ? autorTexto : null, foto,
+        fonteCartao, tipo, texto: partes[indiceParte], fonte, nome: mostrarNome ? autorTexto : null, foto, ajuste, versao,
         parte: partes.length > 1 ? { i: indiceParte + 1, n: partes.length } : undefined
       })
     } else if (transparente) {
@@ -208,24 +249,75 @@ export default function Compartilhar({ perfil, livro, preCarga }: Props) {
     }
   }
 
-  // redesenha a prévia (com pequena espera para não travar enquanto digita)
+  // redesenha a prévia: desenha fora da tela e só mostra o desenho mais recente
+  // (espera curta ao digitar; quase nenhuma ao arrastar ou dar zoom na foto)
+  const rodada = useRef(0)
+  const rapido = useRef(false)
   useEffect(() => {
     const canvas = canvasRef.current
     if (!canvas || leitura.carregando) return
-    setGerando(true)
+    const minha = ++rodada.current
+    const espera = rapido.current ? 0 : 160
+    rapido.current = false
+    if (espera) setGerando(true)
     let cancelado = false
     const t = setTimeout(async () => {
       try {
-        await desenharEm(canvas)
+        const fora = document.createElement('canvas')
+        await desenharEm(fora)
+        if (cancelado || minha !== rodada.current) return
+        canvas.width = fora.width
+        canvas.height = fora.height
+        canvas.getContext('2d')!.drawImage(fora, 0, 0)
       } catch (e) {
         console.error('Falha ao desenhar o cartão:', e)
       } finally {
-        if (!cancelado) setGerando(false)
+        if (!cancelado && minha === rodada.current) setGerando(false)
       }
-    }, 160)
+    }, espera)
     return () => { cancelado = true; clearTimeout(t) }
-  }, [modo, formato, modeloTexto, modeloLeitura, tipo, partes, parteAtual, fonte, mostrarNome, autorTexto, mostrarLivro, foto, capa,
+  }, [modo, formato, modeloTexto, modeloLeitura, tipo, partes, parteAtual, fonte, mostrarNome, autorTexto, mostrarLivro, foto, capa, ajuste, versao,
       leitura.carregando, leitura.pct, leitura.seq.dias, leitura.paginasSemana, fundo, corAdesivo, retro, panorama, fonteCartao])
+
+  // ----- gestos na prévia: arrastar move a foto, pinça ou rodinha dão zoom -----
+  const editandoFoto = aceitaFoto && !!foto && !transparente
+  const ponteiros = useRef(new Map<number, { x: number; y: number }>())
+  const pinca = useRef<{ dist: number; zoom: number } | null>(null)
+  const mudarAjuste = (f: (a: AjusteFoto) => AjusteFoto, gesto = false) => { if (gesto) rapido.current = true; setAjuste(f) }
+  const limitarZoom = (z: number) => Math.max(0.5, Math.min(4, z))
+  function aoTocar(e: PE<HTMLDivElement>) {
+    if (!editandoFoto) return
+    e.currentTarget.setPointerCapture(e.pointerId)
+    ponteiros.current.set(e.pointerId, { x: e.clientX, y: e.clientY })
+    if (ponteiros.current.size === 2) {
+      const [a, b] = [...ponteiros.current.values()]
+      pinca.current = { dist: Math.hypot(a.x - b.x, a.y - b.y), zoom: ajuste.zoom }
+    }
+  }
+  function aoMover(e: PE<HTMLDivElement>) {
+    const antes = ponteiros.current.get(e.pointerId)
+    if (!editandoFoto || !antes) return
+    const agora = { x: e.clientX, y: e.clientY }
+    ponteiros.current.set(e.pointerId, agora)
+    const caixa = e.currentTarget.getBoundingClientRect()
+    if (ponteiros.current.size >= 2 && pinca.current) {
+      const [a, b] = [...ponteiros.current.values()]
+      const z = limitarZoom(pinca.current.zoom * (Math.hypot(a.x - b.x, a.y - b.y) / Math.max(1, pinca.current.dist)))
+      mudarAjuste((x) => ({ ...x, zoom: z }), true)
+    } else if (ponteiros.current.size === 1) {
+      const ddx = (agora.x - antes.x) / caixa.width
+      const ddy = (agora.y - antes.y) / caixa.height
+      mudarAjuste((x) => ({ ...x, dx: Math.max(-1, Math.min(1, x.dx + ddx)), dy: Math.max(-1, Math.min(1, x.dy + ddy)) }), true)
+    }
+  }
+  function aoSoltar(e: PE<HTMLDivElement>) {
+    ponteiros.current.delete(e.pointerId)
+    if (ponteiros.current.size < 2) pinca.current = null
+  }
+  function aoRolar(e: WE<HTMLDivElement>) {
+    if (!editandoFoto) return
+    mudarAjuste((x) => ({ ...x, zoom: limitarZoom(x.zoom * (e.deltaY < 0 ? 1.08 : 0.92)) }), true)
+  }
 
   async function escolherFoto(e: ChangeEvent<HTMLInputElement>) {
     const arq = e.target.files?.[0]
@@ -233,6 +325,7 @@ export default function Compartilhar({ perfil, livro, preCarga }: Props) {
     if (!arq) return
     try {
       setFoto(await arquivoParaImagem(arq))
+      setAjuste(AJUSTE_PADRAO)
     } catch {
       avisar('Não foi possível abrir essa foto', 'erro')
     }
@@ -368,14 +461,18 @@ export default function Compartilhar({ perfil, livro, preCarga }: Props) {
             </div>
           ) : (
             <div
-              className="relative rounded-2xl overflow-hidden shadow-xl shadow-marinho/20 ring-1 ring-black/5 bg-marinho/5"
-              style={{ aspectRatio: `${w} / ${h}`, height: formato === 'story' ? 'min(62vh, 560px)' : formato === 'post' ? 'min(50vh, 440px)' : 'min(42vh, 360px)' }}
+              className={`relative rounded-2xl overflow-hidden shadow-xl shadow-marinho/20 ring-1 ring-black/5 bg-marinho/5 ${editandoFoto ? 'cursor-grab active:cursor-grabbing select-none' : ''}`}
+              style={{ aspectRatio: `${w} / ${h}`, height: formato === 'story' ? 'min(62vh, 560px)' : formato === 'post' ? 'min(50vh, 440px)' : 'min(42vh, 360px)', touchAction: editandoFoto ? 'none' : undefined }}
+              onPointerDown={aoTocar} onPointerMove={aoMover} onPointerUp={aoSoltar} onPointerCancel={aoSoltar} onWheel={aoRolar}
             >
               <canvas ref={canvasRef} className="w-full h-full block" aria-label="Prévia da imagem" />
               {gerando && <Girando />}
             </div>
           )}
         </div>
+        {editandoFoto && (
+          <p className="text-xs text-center text-texto/50 dark:text-bege/50 mt-2">Arraste a foto na prévia para enquadrar. Dois dedos dão zoom.</p>
+        )}
 
         {/* partes de um texto longo */}
         {modo === 'texto' && partes.length > 1 && (
@@ -426,12 +523,13 @@ export default function Compartilhar({ perfil, livro, preCarga }: Props) {
           <h2 className="rotulo">Modelo</h2>
           <div className="flex gap-3 overflow-x-auto pb-2 -mx-1 px-1 sem-barra">
             {(modo === 'texto' ? MODELOS_TEXTO : MODELOS_LEITURA)
-              .filter((m) => !(transparente && SO_COM_FUNDO.includes(m.id as ModeloLeitura)) && !(!contagem && m.id === 'constancia'))
+              .filter((m) => !(transparente && SO_COM_FUNDO.includes(m.id as ModeloLeitura)) && !(!transparente && SO_SEM_FUNDO.includes(m.id as ModeloLeitura)) && !(!contagem && m.id === 'constancia'))
               .map((m) => {
                 const ativo = modo === 'texto' ? modeloTexto === m.id : modeloLeitura === m.id
                 return (
                   <button
                     key={m.id}
+                    ref={ativo ? (el) => { if (el && modeloVisivel.current !== m.id) { modeloVisivel.current = m.id; const lista = el.parentElement; if (lista) lista.scrollLeft = el.offsetLeft - lista.clientWidth / 2 + el.clientWidth / 2 } } : undefined}
                     onClick={() => {
                       if (modo === 'texto') setModeloTexto(m.id as ModeloTexto)
                       else setModeloLeitura(m.id as ModeloLeitura)
@@ -446,8 +544,10 @@ export default function Compartilhar({ perfil, livro, preCarga }: Props) {
                       }`}
                       style={{ background: transparente ? fundoPrevia : m.cores[0] }}
                     >
-                      {m.id === 'foto' || m.id === 'foto-leitura' ? (
+                      {m.id.startsWith('foto') ? (
                         <Icone nome="camera" className="w-6 h-6 mb-7 text-white/80" />
+                      ) : m.id === 'capa' ? (
+                        <span className="w-7 h-10 mb-5 rounded-[3px] shadow-md" style={{ background: 'linear-gradient(160deg, #6b4a3a, #2b1f18)', boxShadow: '0 4px 10px rgba(0,0,0,0.35)' }} />
                       ) : (
                         <span className="w-8 h-1.5 rounded-full mb-5" style={{ background: transparente ? (corAdesivo === 'claro' ? '#fff' : '#1B2A4A') : m.cores[1] }} />
                       )}
@@ -457,6 +557,16 @@ export default function Compartilhar({ perfil, livro, preCarga }: Props) {
                 )
               })}
           </div>
+          {listaVersoes.length > 1 && (
+            <div className="mt-2">
+              <h3 className="text-xs font-semibold text-texto/55 dark:text-bege/55 mb-1.5">Versão</h3>
+              <div className="flex flex-wrap gap-2">
+                {listaVersoes.map((nome, i) => (
+                  <button key={nome} onClick={() => escolherVersao(i)} aria-pressed={versao === i} className={`chip ${versao === i ? 'chip-ativo' : ''}`}>{nome}</button>
+                ))}
+              </div>
+            </div>
+          )}
         </section>
 
         {/* Fonte */}
@@ -481,8 +591,8 @@ export default function Compartilhar({ perfil, livro, preCarga }: Props) {
             </span>
             <p className="text-sm text-texto/70 dark:text-bege/70 flex-1">
               {modo === 'texto' && modeloTexto === 'polaroid'
-                ? foto ? 'Foto escolhida. Ela entra na moldura branca.' : 'Opcional: sem foto, a moldura mostra o emblema do clube.'
-                : foto ? 'Foto escolhida. O texto fica por cima, com um escurecimento para dar leitura.' : 'Use uma foto sua: o livro aberto, a mesa de estudo, o encontro.'}
+                ? foto ? 'Foto escolhida. Ela entra na moldura branca; ajuste logo abaixo.' : 'Opcional: sem foto, a moldura mostra o emblema do clube.'
+                : foto ? 'Foto escolhida. Ajuste zoom, posição, giro e filtro logo abaixo.' : 'Use uma foto sua: o livro aberto, a mesa de estudo, o encontro.'}
             </p>
             <input ref={fotoRef} type="file" accept="image/*" onChange={escolherFoto} className="hidden" />
             <div className="flex flex-col gap-1">
@@ -492,6 +602,9 @@ export default function Compartilhar({ perfil, livro, preCarga }: Props) {
               {foto && <button onClick={() => setFoto(null)} className="text-xs text-texto/50 dark:text-bege/50">Remover</button>}
             </div>
           </section>
+        )}
+        {editandoFoto && (
+          <EditorFoto ajuste={ajuste} onMudar={(a) => setAjuste(a)} comEscurecer={modo === 'leitura' || ['foto', 'foto-faixa', 'foto-destaque'].includes(modeloTexto)} />
         )}
 
         {/* Conteúdo */}
@@ -535,7 +648,10 @@ export default function Compartilhar({ perfil, livro, preCarga }: Props) {
                 <span className="text-texto/45 dark:text-bege/45">
                   {partes.length > 1 ? `Vai em ${partes.length} imagens neste formato` : `Cabe em 1 imagem (até ${limiteDeCaracteres(modeloTexto, formato)} caracteres)`}
                 </span>
-                <span className="text-texto/45 dark:text-bege/45">{texto.length}/{LIMITE_TEXTO}</span>
+                <span className="text-texto/45 dark:text-bege/45 flex items-center gap-3">
+                  {texto && <button onClick={() => { setTexto(''); setLegendaEditada(false) }} className="underline underline-offset-2">Limpar</button>}
+                  {texto.length}/{LIMITE_TEXTO}
+                </span>
               </div>
             </div>
 
@@ -599,6 +715,75 @@ export default function Compartilhar({ perfil, livro, preCarga }: Props) {
         </div>
       </div>
     </div>
+  )
+}
+
+function EditorFoto({ ajuste, onMudar, comEscurecer }: { ajuste: AjusteFoto; onMudar: (a: AjusteFoto) => void; comEscurecer: boolean }) {
+  const mudar = (parcial: Partial<AjusteFoto>) => onMudar({ ...ajuste, ...parcial })
+  const zoomPct = Math.round(ajuste.zoom * 100)
+  return (
+    <section className="cartao p-4 mt-3 space-y-4 animate-subir-suave" aria-label="Ajustar a foto">
+      <div className="flex items-baseline justify-between">
+        <h2 className="titulo-secao text-[17px]">Ajustar a foto</h2>
+        <button onClick={() => onMudar({ ...AJUSTE_PADRAO })} className="botao-texto text-xs">Recomeçar</button>
+      </div>
+
+      <div>
+        <div className="flex items-center justify-between text-sm text-texto/70 dark:text-bege/70 mb-1">
+          <label htmlFor="zoom-foto">Zoom</label>
+          <span className="tabular text-xs">{zoomPct}%</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <button onClick={() => mudar({ zoom: Math.max(0.5, +(ajuste.zoom - 0.1).toFixed(2)) })} className="chip w-10" aria-label="Diminuir zoom">−</button>
+          <input id="zoom-foto" type="range" min={0.5} max={4} step={0.05} value={ajuste.zoom}
+            onChange={(e) => mudar({ zoom: Number(e.target.value) })} className="flex-1 accent-[#B8912F]" />
+          <button onClick={() => mudar({ zoom: Math.min(4, +(ajuste.zoom + 0.1).toFixed(2)) })} className="chip w-10" aria-label="Aumentar zoom">+</button>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-3 gap-2">
+        <button onClick={() => mudar({ rot: (((ajuste.rot + 90) % 360) as AjusteFoto['rot']) })} className="chip">Girar 90°</button>
+        <button onClick={() => mudar({ espelhar: !ajuste.espelhar })} aria-pressed={ajuste.espelhar} className={`chip ${ajuste.espelhar ? 'chip-ativo' : ''}`}>Espelhar</button>
+        <button onClick={() => mudar({ dx: 0, dy: 0 })} className="chip">Centralizar</button>
+      </div>
+
+      <div>
+        <p className="text-sm text-texto/70 dark:text-bege/70 mb-1.5">Enquadramento</p>
+        <div className="grid grid-cols-2 gap-2">
+          <button onClick={() => mudar({ modo: 'preencher', zoom: 1, dx: 0, dy: 0 })} aria-pressed={ajuste.modo === 'preencher'} className={`chip ${ajuste.modo === 'preencher' ? 'chip-ativo' : ''}`}>Preencher</button>
+          <button onClick={() => mudar({ modo: 'caber', zoom: 1, dx: 0, dy: 0 })} aria-pressed={ajuste.modo === 'caber'} className={`chip ${ajuste.modo === 'caber' ? 'chip-ativo' : ''}`}>Caber inteira</button>
+        </div>
+        {ajuste.modo === 'caber' && (
+          <div className="flex flex-wrap gap-2 mt-2">
+            <span className="text-xs text-texto/55 dark:text-bege/55 self-center mr-1">Fundo:</span>
+            {FUNDOS_CABER.map(([id, nome]) => (
+              <button key={id} onClick={() => mudar({ fundo: id })} aria-pressed={ajuste.fundo === id} className={`chip ${ajuste.fundo === id ? 'chip-ativo' : ''}`}>{nome}</button>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <div>
+        <p className="text-sm text-texto/70 dark:text-bege/70 mb-1.5">Filtro</p>
+        <div className="flex flex-wrap gap-2">
+          {FILTROS.map(([id, nome]) => (
+            <button key={id} onClick={() => mudar({ filtro: id })} aria-pressed={ajuste.filtro === id} className={`chip ${ajuste.filtro === id ? 'chip-ativo' : ''}`}>{nome}</button>
+          ))}
+        </div>
+      </div>
+
+      {comEscurecer && (
+        <div>
+          <div className="flex items-center justify-between text-sm text-texto/70 dark:text-bege/70 mb-1">
+            <label htmlFor="escurecer-foto">Escurecimento</label>
+            <span className="tabular text-xs">{ajuste.escurecer}%</span>
+          </div>
+          <input id="escurecer-foto" type="range" min={0} max={100} step={5} value={ajuste.escurecer}
+            onChange={(e) => mudar({ escurecer: Number(e.target.value) })} className="w-full accent-[#B8912F]" />
+          <p className="text-xs text-texto/45 dark:text-bege/45 mt-1">Mais escuro deixa o texto mais fácil de ler sobre a foto.</p>
+        </div>
+      )}
+    </section>
   )
 }
 

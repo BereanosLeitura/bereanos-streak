@@ -1,4 +1,5 @@
-import { useState, type FormEvent } from 'react'
+import { useEffect, useState, type FormEvent, type ReactNode } from 'react'
+import { buscarPendentes, marcarLeitura, type LivroPendente } from '../lib/pendentes'
 import { apagarRegistroLeitura, criarRegistroLeitura } from '../lib/sync'
 import { supabase, type Perfil } from '../lib/supabase'
 import { useMinhaLeitura } from '../lib/leitura'
@@ -11,8 +12,84 @@ import type { LivroAtivo } from './Inicio'
 interface Props {
   perfil: Perfil
   livro: LivroAtivo
+  pendenteInicial?: string | null // id de uma leitura pendente para abrir já selecionada
+  onRegistrado: (terminouLivro: boolean, livro: LivroAtivo) => void
+  onAnotar: () => void
+}
+
+interface PropsForm {
+  perfil: Perfil
+  livro: LivroAtivo
+  seletor?: ReactNode
+  pendente?: boolean
   onRegistrado: (terminouLivro: boolean) => void
   onAnotar: () => void
+  onMarcar?: (status: 'terminou' | 'deixou') => void
+}
+
+/**
+ * Registrar leitura do livro atual ou de uma leitura pendente
+ * (livro de ciclo encerrado que a pessoa ainda está lendo, no próprio ritmo).
+ */
+export default function RegistrarLeitura({ perfil, livro, pendenteInicial, onRegistrado, onAnotar }: Props) {
+  const [pendentes, setPendentes] = useState<LivroPendente[]>([])
+  const [escolhido, setEscolhido] = useState<string>(pendenteInicial ?? livro.id)
+  const avisar = useAviso()
+  useEffect(() => { buscarPendentes(perfil).then(setPendentes).catch(() => setPendentes([])) }, [perfil.id])
+
+  const opcoes: LivroAtivo[] = [livro, ...pendentes.filter((p) => p.id !== livro.id)]
+  const atual = opcoes.find((l) => l.id === escolhido) ?? livro
+  const ehPendente = atual.id !== livro.id
+
+  async function marcar(status: 'terminou' | 'deixou') {
+    const alvo = atual
+    const { error } = await marcarLeitura(alvo.id, perfil.id, status, perfil.id)
+    if (error) return avisar('Não foi possível salvar agora. Tente de novo.', 'erro')
+    setPendentes((l) => l.filter((p) => p.id !== alvo.id))
+    setEscolhido(livro.id)
+    if (status === 'terminou') {
+      avisar(`Você terminou ${alvo.titulo}.`)
+      onRegistrado(true, alvo)
+    } else {
+      avisar(`${alvo.titulo} saiu das leituras pendentes`, 'ok', {
+        rotulo: 'Desfazer',
+        aoClicar: async () => { await marcarLeitura(alvo.id, perfil.id, null, perfil.id); buscarPendentes(perfil).then(setPendentes) }
+      })
+    }
+  }
+
+  const seletor = opcoes.length > 1 ? (
+    <div className="mt-3" role="radiogroup" aria-label="Qual livro">
+      <div className="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1 sem-barra">
+        {opcoes.map((l, i) => {
+          const ativo = l.id === atual.id
+          const p = pendentes.find((x) => x.id === l.id)
+          return (
+            <button key={l.id} type="button" role="radio" aria-checked={ativo} onClick={() => setEscolhido(l.id)}
+              className={`shrink-0 max-w-[15rem] rounded-xl border px-3 py-2 text-left transition-colors ${ativo ? 'border-dourado bg-dourado/10' : 'border-marinho/15 dark:border-bege/15'}`}>
+              <span className={`block text-[11px] font-semibold ${ativo ? 'text-dourado-escuro dark:text-dourado' : 'text-texto/50 dark:text-bege/50'}`}>
+                {i === 0 ? 'Leitura atual' : `Pendente, ${p?.pct ?? 0}%`}
+              </span>
+              <span className="block text-sm text-marinho dark:text-bege truncate">{l.titulo}</span>
+            </button>
+          )
+        })}
+      </div>
+    </div>
+  ) : null
+
+  return (
+    <FormRegistro
+      key={atual.id}
+      perfil={perfil}
+      livro={atual}
+      seletor={seletor}
+      pendente={ehPendente}
+      onRegistrado={(t) => onRegistrado(t, atual)}
+      onAnotar={onAnotar}
+      onMarcar={marcar}
+    />
+  )
 }
 
 type Modo = 'pagina' | 'quantidade' | 'tempo'
@@ -24,7 +101,7 @@ type TipoNota = 'trecho' | 'reflexao' | 'pergunta' | 'aplicacao'
 // quantas leu ou só o tempo. Dá para lançar
 // uma leitura de ontem ou anteontem e, no mesmo envio, guardar uma anotação.
 
-export default function RegistrarLeitura({ perfil, livro, onRegistrado, onAnotar }: Props) {
+function FormRegistro({ perfil, livro, seletor, pendente, onRegistrado, onAnotar, onMarcar }: PropsForm) {
   const leitura = useMinhaLeitura(perfil, livro)
   const [modo, setModo] = useState<Modo>('pagina')
   const [valor, setValor] = useState('')
@@ -133,7 +210,8 @@ export default function RegistrarLeitura({ perfil, livro, onRegistrado, onAnotar
     <div className="min-h-screen px-5 pt-8 pb-28">
       <form onSubmit={salvar} className="max-w-md mx-auto">
         <h1 className="font-serif text-[30px] text-marinho dark:text-bege">Registrar leitura</h1>
-        <p className="legenda mt-1 mb-5">
+        {seletor}
+        <p className="legenda mt-2 mb-5">
           {leitura.carregando
             ? 'Carregando seu progresso…'
             : `Você está na página ${jaLidas} de ${livro.paginas_totais}${leitura.paginasHoje > 0 ? `, com ${leitura.paginasHoje} lidas hoje` : ''}.`}
@@ -210,17 +288,17 @@ export default function RegistrarLeitura({ perfil, livro, onRegistrado, onAnotar
                 )}
               </div>
               <div className="flex items-center gap-2">
-                <div className="grid grid-cols-4 gap-2 flex-1">
+                <div className="grid grid-cols-4 gap-1.5 flex-1 min-w-0">
                   {[15, 30, 45, 60].map((n) => (
                     <button key={n} type="button" onClick={() => { setTempo(String(n)); setErro(null) }}
-                      className={`chip !px-1 whitespace-nowrap ${minutosInformados === n ? 'chip-ativo' : ''}`}>{n === 60 ? '1h' : `${n} min`}</button>
+                      className={`chip !px-0 text-[13px] whitespace-nowrap ${minutosInformados === n ? 'chip-ativo' : ''}`}>{n === 60 ? '1h' : `${n} min`}</button>
                   ))}
                 </div>
-                <div className="relative w-[5.5rem] shrink-0">
+                <div className="relative w-[4.75rem] shrink-0">
                   <input id="tempo" type="number" inputMode="numeric" min={1} max={1440} value={tempo}
                     onChange={(e) => { setTempo(e.target.value); setErro(null) }}
-                    className="campo pr-9 text-center tabular" placeholder="outro" aria-label="Minutos de leitura" />
-                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-texto/45 dark:text-bege/45 pointer-events-none">min</span>
+                    className={`campo !px-2 text-center tabular ${tempo ? '!pr-8' : ''}`} placeholder="outro" aria-label="Minutos de leitura" />
+                  {tempo && <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs text-texto/45 dark:text-bege/45 pointer-events-none">min</span>}
                 </div>
               </div>
               {minPorPagina && (
@@ -336,6 +414,17 @@ export default function RegistrarLeitura({ perfil, livro, onRegistrado, onAnotar
         <p className="text-xs text-center text-texto/40 dark:text-bege/40 mt-4">
           Funciona sem internet: o registro fica no aparelho e sincroniza quando a conexão voltar.
         </p>
+        {pendente && onMarcar && (
+          <section className="cartao p-4 mt-4">
+            <p className="text-sm text-texto/70 dark:text-bege/70">
+              Leitura pendente de um ciclo já encerrado. Continue no seu ritmo: quando chegar à última página, ela sai daqui sozinha.
+            </p>
+            <div className="grid grid-cols-2 gap-2 mt-3">
+              <button type="button" onClick={() => onMarcar('terminou')} className="botao-secundario !py-2.5 text-sm">Terminei este livro</button>
+              <button type="button" onClick={() => onMarcar('deixou')} className="rounded-xl py-2.5 text-sm text-texto/60 dark:text-bege/60 hover:text-marinho dark:hover:text-bege">Deixar de lado</button>
+            </div>
+          </section>
+        )}
       </form>
     </div>
   )

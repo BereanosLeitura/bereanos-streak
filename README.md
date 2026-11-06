@@ -10,13 +10,16 @@ Protótipo pessoal de Felipe para acompanhar a leitura coletiva do Clube do Livr
 - Anotações (trechos, reflexões e perguntas), mural do grupo e perguntas para o encontro
 - Compartilhar: modelos de imagem para frases e para a leitura, em Story, Post e Quadrado, com opção sem fundo
 - Perfil com conquistas, horários de leitura, Estante (histórico de cada ciclo) e retrospectiva por livro
+- Seu ano de leitura com a imagem "Minha estante" (capas e nomes dos livros) e adesivo sem fundo com a capa
 - Panorama do grupo no livro do ciclo
-- Painel do admin: livro do ciclo (capa, dados, datas), próximo encontro, concluir ciclo, membros
+- Métricas: as suas (só você vê) e as do grupo (totais e distribuições, sem nomes e sem ranking)
+- Painel do admin: livro do ciclo (capa, dados, datas), próximo encontro, concluir ciclo marcando quem terminou, membros
+- Leituras pendentes: quem não terminou um ciclo encerrado continua no próprio ritmo; cada membro pode marcar "Terminei" ou "Deixar de lado"
 - Funciona offline e sincroniza quando a internet volta; pode ser instalado no celular (PWA)
 - Temas claro, escuro e azul
 - Anotação do tipo Aplicação (o "Aplicar" do lema) e referência bíblica nas anotações
 - Respostas no mural, destaques do clube escolhidos pelo admin e busca em todos os livros
-- Modo Encontro: roteiro de cerca de 1h30 com cronômetro, perguntas do mural e presença
+- Modo Encontro: roteiro de cerca de 2h30 com cronômetro, perguntas do mural e presença
 - Plano do ciclo (marcos semanais calculados pelas datas), aniversariantes da semana
 - Indicações de livros e sorteio registrado no servidor
 - Relatório do ciclo para salvar em PDF, backup em planilhas (admin), baixar as próprias anotações
@@ -26,7 +29,7 @@ Protótipo pessoal de Felipe para acompanhar a leitura coletiva do Clube do Livr
 
 ## Banco de dados (Supabase)
 
-As migrações ficam em `supabase/migrations`, de `0001` a `0014`, e devem ser rodadas em ordem no SQL Editor.
+As migrações ficam em `supabase/migrations`, de `0001` a `0015`, e devem ser rodadas em ordem no SQL Editor.
 
 A função `supabase/functions/admin-membros` roda no servidor do Supabase (Edge Functions). Para publicar ou atualizar: painel do Supabase, Edge Functions, abrir `admin-membros` (ou criar com esse nome), colar o conteúdo de `index.ts` e clicar em Deploy. Ela usa a `service_role key` do próprio servidor, que nunca vai para o app.
 

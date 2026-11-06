@@ -128,3 +128,41 @@ export function MapaDoLivro({ marcas, total }: { marcas: { pagina: number | null
     </div>
   )
 }
+
+/** Barras verticais simples com rótulo embaixo e valor em cima (sem nomes de pessoas). */
+export function BarrasRotuladas({ itens, destaqueUltima = false, rotuloAcessivel }: { itens: { rotulo: string; valor: number; detalhe?: string }[]; destaqueUltima?: boolean; rotuloAcessivel: string }) {
+  const max = Math.max(1, ...itens.map((i) => i.valor))
+  return (
+    <div className="flex items-end gap-1.5 h-32" role="img" aria-label={rotuloAcessivel}>
+      {itens.map((it, i) => {
+        const ultima = destaqueUltima && i === itens.length - 1
+        return (
+          <div key={i} className="flex-1 min-w-0 h-full flex flex-col items-center justify-end gap-1" title={`${it.rotulo}: ${it.valor}${it.detalhe ? `, ${it.detalhe}` : ''}`}>
+            <span className="text-[10px] tabular text-texto/55 dark:text-bege/55">{it.valor || ''}</span>
+            <div className={`w-full rounded-[4px] ${it.valor ? (ultima ? 'bg-dourado' : 'bg-dourado/60') : 'bg-marinho/[0.06] dark:bg-bege/[0.07]'}`}
+              style={{ height: it.valor ? `${Math.max(6, (it.valor / max) * 80)}%` : '4px' }} />
+            <span className={`text-[10px] whitespace-nowrap ${ultima ? 'font-bold text-marinho dark:text-bege' : 'text-texto/45 dark:text-bege/45'}`}>{it.rotulo}</span>
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+/** Barras horizontais para distribuições (quantas pessoas em cada faixa). */
+export function BarrasHorizontais({ itens, unidade }: { itens: { rotulo: string; valor: number }[]; unidade: [string, string] }) {
+  const max = Math.max(1, ...itens.map((i) => i.valor))
+  return (
+    <ul className="space-y-2">
+      {itens.map((it) => (
+        <li key={it.rotulo} className="grid grid-cols-[7.5rem_1fr_auto] items-center gap-2 text-sm">
+          <span className="text-texto/70 dark:text-bege/70 truncate">{it.rotulo}</span>
+          <span className="h-2.5 rounded-full bg-marinho/[0.06] dark:bg-bege/[0.07] overflow-hidden">
+            <span className="block h-full rounded-full bg-dourado" style={{ width: `${(it.valor / max) * 100}%` }} />
+          </span>
+          <span className="tabular text-xs text-texto/60 dark:text-bege/60 w-16 text-right">{it.valor} {it.valor === 1 ? unidade[0] : unidade[1]}</span>
+        </li>
+      ))}
+    </ul>
+  )
+}

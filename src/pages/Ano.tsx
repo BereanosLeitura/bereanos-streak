@@ -5,7 +5,8 @@ import { useAviso } from '../components/Toast'
 import Icone from '../components/Icone'
 import { chaveDia, maiorSequencia, paginasEquivalentes } from '../lib/estatisticas'
 import { useContagem } from '../lib/preferencias'
-import { canvasParaArquivo, desenharLeitura, type Formato } from '../lib/cartoes'
+import { buscarConclusoes } from '../lib/pendentes'
+import { canvasParaArquivo, carregarImagem, desenharEstante, desenharLeitura, VERSOES_ESTANTE, type Formato, type LivroEstante } from '../lib/cartoes'
 
 // Seu ano de leitura: retrospectiva anual de cada membro, com imagem pronta.
 
@@ -21,9 +22,17 @@ export default function Ano({ perfil, onVoltar }: { perfil: Perfil; onVoltar: ()
   const [notas, setNotas] = useState<Nota[]>([])
   const [minutos, setMinutos] = useState(0)
   const [sessoes, setSessoes] = useState(0)
+  const [marcados, setMarcados] = useState<Set<string>>(new Set()) // livros que você marcou como terminados
   const [formato, setFormato] = useState<Formato>('story')
   const [imagem, setImagem] = useState<string | null>(null)
   const canvas = useRef<HTMLCanvasElement>(null)
+  // Minha estante: imagem com as capas dos livros
+  const canvasEstante = useRef<HTMLCanvasElement>(null)
+  const [quais, setQuais] = useState<'terminados' | 'todos' | null>(null)
+  const [versaoEstante, setVersaoEstante] = useState(0)
+  const [formatoEstante, setFormatoEstante] = useState<Formato>('story')
+  const [imagemEstante, setImagemEstante] = useState<string | null>(null)
+  const [capas, setCapas] = useState<Map<string, HTMLImageElement | null>>(new Map())
   const contagem = useContagem()
   const avisar = useAviso()
   const ritmo = perfil.ritmo_leitura_min_por_pagina || 2
@@ -37,6 +46,8 @@ export default function Ano({ perfil, onVoltar }: { perfil: Perfil; onVoltar: ()
         supabase.from('sessoes_pomodoro').select('duracao_minutos').eq('membro_id', perfil.id).eq('status', 'concluida').gte('inicio', ini)
       ])
       const manual = await tempoManual(perfil.id, { desde: ini })
+      const conc = await buscarConclusoes({ membroId: perfil.id })
+      setMarcados(new Set([...conc.entries()].filter(([, st]) => st === 'terminou').map(([k]) => k.split(':')[0])))
       setRegs((r.data ?? []) as unknown as Reg[])
       setNotas((n.data ?? []) as Nota[])
       setMinutos((s.data ?? []).reduce((a, x) => a + (x.duracao_minutos ?? 0), 0) + manual)
@@ -56,15 +67,17 @@ export default function Ano({ perfil, onVoltar }: { perfil: Perfil; onVoltar: ()
       porMes[new Date(r.registrado_em).getMonth()] += p
     }
     // livros: lidos no ano e terminados (somando todo o histórico do livro)
-    const porLivro = new Map<string, { titulo: string; autor: string | null; capa: string | null; total: number; noAno: number; tudo: number }>()
+    const porLivro = new Map<string, { id: string; titulo: string; autor: string | null; capa: string | null; total: number; noAno: number; tudo: number }>()
     for (const r of regs) {
       if (!r.livros) continue
-      const l = porLivro.get(r.livro_id) ?? { titulo: r.livros.titulo, autor: r.livros.autor, capa: r.livros.capa_url, total: r.livros.paginas_totais, noAno: 0, tudo: 0 }
+      const l = porLivro.get(r.livro_id) ?? { id: r.livro_id, titulo: r.livros.titulo, autor: r.livros.autor, capa: r.livros.capa_url, total: r.livros.paginas_totais, noAno: 0, tudo: 0 }
       const p = paginasEquivalentes(r, ritmo)
       l.tudo += p
       if (new Date(r.registrado_em).getFullYear() === ano) l.noAno += p
       porLivro.set(r.livro_id, l)
     }
+    // marcado como terminado (pela pessoa ou pelo admin) conta como terminado
+    for (const l of porLivro.values()) if (marcados.has(l.id)) l.tudo = Math.max(l.tudo, l.total)
     const livros = [...porLivro.values()].filter((l) => l.noAno > 0)
     const terminados = livros.filter((l) => l.tudo >= l.total).length
     const melhorMes = porMes.indexOf(Math.max(...porMes))
@@ -85,7 +98,7 @@ export default function Ano({ perfil, onVoltar }: { perfil: Perfil; onVoltar: ()
       inicio: datas[0] ?? null,
       fim: datas[datas.length - 1] ?? null
     }
-  }, [regs, notas, ritmo])
+  }, [regs, notas, ritmo, marcados])
 
   // imagem para compartilhar (modelo Retrospectiva com o ano no lugar do livro)
   useEffect(() => {
@@ -101,6 +114,45 @@ export default function Ano({ perfil, onVoltar }: { perfil: Perfil; onVoltar: ()
       }
     }).then(() => setImagem(canvas.current!.toDataURL('image/jpeg', 0.85))).catch(() => setImagem(null))
   }, [d, formato, minutos, sessoes, contagem])
+
+  // capas dos livros do ano (uma vez); sem capa ou com erro, entra o emblema do clube
+  useEffect(() => {
+    if (!d) return
+    const faltam = d.livros.filter((l) => l.capa && !capas.has(l.capa))
+    if (!faltam.length) return
+    Promise.all(faltam.map((l) => carregarImagem(l.capa!).then((img) => [l.capa!, img] as const).catch(() => [l.capa!, null] as const)))
+      .then((pares) => setCapas((m) => { const n = new Map(m); pares.forEach(([k, v]) => n.set(k, v)); return n }))
+  }, [d])
+  const terminadosLista = d ? d.livros.filter((l) => l.tudo >= l.total) : []
+  const escolha = quais ?? (terminadosLista.length ? 'terminados' : 'todos')
+  const livrosEstante = d ? (escolha === 'terminados' ? terminadosLista : d.livros) : []
+  useEffect(() => {
+    if (!d || !canvasEstante.current || d.paginas === 0) return
+    const lista: LivroEstante[] = livrosEstante.map((l) => ({ titulo: l.titulo, autor: l.autor, capa: l.capa ? capas.get(l.capa) ?? null : null }))
+    const n = lista.length
+    const sub = escolha === 'terminados'
+      ? `${ano} · ${n} ${n === 1 ? 'livro terminado' : 'livros terminados'}`
+      : `${ano} · ${n} ${n === 1 ? 'livro lido' : 'livros lidos'}`
+    desenharEstante(canvasEstante.current, formatoEstante, { livros: lista, titulo: 'Minha estante', subtitulo: sub, nome: perfil.nome_exibicao, versao: versaoEstante })
+      .then(() => setImagemEstante(canvasEstante.current!.toDataURL('image/jpeg', 0.88)))
+      .catch(() => setImagemEstante(null))
+  }, [d, capas, escolha, versaoEstante, formatoEstante])
+
+  async function compartilharEstante(baixar = false) {
+    if (!canvasEstante.current) return
+    const arq = await canvasParaArquivo(canvasEstante.current, `minha-estante-${ano}.png`)
+    const n = livrosEstante.length
+    const legenda = escolha === 'terminados'
+      ? `Minha estante de ${ano}: ${n} ${n === 1 ? 'livro terminado' : 'livros terminados'} com o Clube do Livro Bereanos.`
+      : `Minha estante de ${ano}: ${n} ${n === 1 ? 'livro lido' : 'livros lidos'} com o Clube do Livro Bereanos.`
+    if (!baixar && navigator.canShare?.({ files: [arq] })) {
+      try { await navigator.share({ files: [arq], text: legenda }); return } catch { return }
+    }
+    const a = document.createElement('a')
+    a.href = URL.createObjectURL(arq); a.download = arq.name; a.click()
+    setTimeout(() => URL.revokeObjectURL(a.href), 2000)
+    avisar('Imagem baixada')
+  }
 
   async function compartilhar(baixar = false) {
     if (!canvas.current) return
@@ -196,7 +248,37 @@ export default function Ano({ perfil, onVoltar }: { perfil: Perfil; onVoltar: ()
             )}
 
             <section className="cartao p-5 mt-4">
-              <h2 className="titulo-secao">Imagem para compartilhar</h2>
+              <h2 className="titulo-secao">Minha estante</h2>
+              <p className="legenda mt-0.5">As capas e os nomes dos seus livros, numa imagem para compartilhar.</p>
+              <div className="grid grid-cols-2 p-1 rounded-xl bg-marinho/[0.06] dark:bg-bege/[0.06] mt-3" role="tablist">
+                {([['terminados', `Terminados (${terminadosLista.length})`], ['todos', `Todos do ano (${d.livros.length})`]] as const).map(([v, rot]) => (
+                  <button key={v} role="tab" aria-selected={escolha === v} onClick={() => setQuais(v)}
+                    className={`rounded-lg py-2 text-sm font-semibold transition-colors ${escolha === v ? 'bg-folha dark:bg-noite-cartao text-marinho dark:text-bege shadow-sm' : 'text-texto/55 dark:text-bege/55'}`}>{rot}</button>
+                ))}
+              </div>
+              {escolha === 'terminados' && terminadosLista.length === 0 && (
+                <p className="text-xs text-texto/55 dark:text-bege/55 mt-2">Quando você terminar um livro no app, ele entra aqui. Por enquanto, veja "Todos do ano".</p>
+              )}
+              <div className="flex flex-wrap gap-2 mt-3">
+                {(['story', 'post', 'quadrado'] as Formato[]).map((f) => (
+                  <button key={f} onClick={() => setFormatoEstante(f)} className={`chip ${formatoEstante === f ? 'chip-ativo' : ''}`}>{f === 'story' ? 'Story' : f === 'post' ? 'Post' : 'Quadrado'}</button>
+                ))}
+              </div>
+              <div className="flex flex-wrap gap-2 mt-2">
+                {VERSOES_ESTANTE.map((nome, i) => (
+                  <button key={nome} onClick={() => setVersaoEstante(i)} aria-pressed={versaoEstante === i} className={`chip ${versaoEstante === i ? 'chip-ativo' : ''}`}>{nome}</button>
+                ))}
+              </div>
+              <canvas ref={canvasEstante} className="hidden" />
+              {imagemEstante ? <img src={imagemEstante} alt={`Minha estante de ${ano}`} className="w-52 mx-auto mt-4 rounded-xl shadow-lg" /> : <div className="esqueleto w-52 h-80 mx-auto mt-4" />}
+              <div className="grid grid-cols-2 gap-2 mt-4">
+                <button onClick={() => compartilharEstante()} className="botao-primario">Compartilhar</button>
+                <button onClick={() => compartilharEstante(true)} className="botao-secundario">Baixar</button>
+              </div>
+            </section>
+
+            <section className="cartao p-5 mt-4">
+              <h2 className="titulo-secao">Imagem da retrospectiva</h2>
               <div className="flex gap-2 mt-3">
                 {(['story', 'post', 'quadrado'] as Formato[]).map((f) => (
                   <button key={f} onClick={() => setFormato(f)} className={`chip ${formato === f ? 'chip-ativo' : ''}`}>{f === 'story' ? 'Story' : f === 'post' ? 'Post' : 'Quadrado'}</button>

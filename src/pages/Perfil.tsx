@@ -27,12 +27,13 @@ interface Props {
   onAbrirGuia: () => void
   onAbrirIndicacoes: () => void
   onAbrirAno: () => void
+  onAbrirMetricas: () => void
 }
 
 interface Conquista { id: string; chave: string; nome: string; descricao: string | null; icone: string | null }
 interface Registro { id: string; livro_id: string; origem: 'manual' | 'pomodoro'; paginas_lidas: number | null; minutos_lidos: number | null; registrado_em: string }
 
-export default function Perfil({ perfil, tema, onMudarTema, onPerfilAtualizado, onVoltar, onAbrirAdmin, onAbrirMetas, onAbrirLivro, onAbrirGuia, onAbrirIndicacoes, onAbrirAno }: Props) {
+export default function Perfil({ perfil, tema, onMudarTema, onPerfilAtualizado, onVoltar, onAbrirAdmin, onAbrirMetas, onAbrirLivro, onAbrirGuia, onAbrirIndicacoes, onAbrirAno, onAbrirMetricas }: Props) {
   const [registros, setRegistros] = useState<Registro[] | null>(null)
   const [sessoes, setSessoes] = useState(0)
   const [minutosFoco, setMinutosFoco] = useState(0)
@@ -403,6 +404,7 @@ export default function Perfil({ perfil, tema, onMudarTema, onPerfilAtualizado, 
 
         <nav className="cartao mt-4 divide-y divide-marinho/[0.07] dark:divide-bege/[0.08]" aria-label="Mais opções">
           <ItemMenu icone="calendario" rotulo={`Seu ano de leitura, ${new Date().getFullYear()}`} detalhe="retrospectiva com imagem para compartilhar" onClick={onAbrirAno} />
+          <ItemMenu icone="grafico" rotulo="Métricas" detalhe="seus números e os do grupo" onClick={onAbrirMetricas} />
           <ItemMenu icone="alvo" rotulo="Minhas metas" onClick={onAbrirMetas} />
           <ItemMenu icone="estante" rotulo="Próximas leituras" detalhe="indicar livros e ver o sorteio" onClick={onAbrirIndicacoes} />
           <ItemMenu icone="lampada" rotulo="Como usar o app" onClick={onAbrirGuia} />

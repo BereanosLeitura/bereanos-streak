@@ -6,9 +6,10 @@ export type NomeIcone =
   | 'chama' | 'calendario' | 'livro' | 'mais' | 'lixeira' | 'compartilhar'
   | 'sair' | 'sol' | 'lua' | 'meia-lua' | 'check' | 'cadeado' | 'aspas'
   | 'interrogacao' | 'lampada' | 'seta-esquerda' | 'bolo' | 'grupo' | 'som' | 'pausa'
-  | 'gota' | 'imagem' | 'baixar' | 'copiar' | 'whatsapp' | 'estante' | 'seta-direita' | 'camera' | 'x'
+  | 'gota' | 'imagem' | 'baixar' | 'copiar' | 'whatsapp' | 'estante' | 'seta-direita' | 'camera' | 'x' | 'grafico'
 
 const CAMINHOS: Record<NomeIcone, JSX.Element> = {
+  grafico: (<><path d="M4 20h16" /><path d="M7 16.5v-5M12 16.5V7M17 16.5v-8" /></>),
   casa: <path d="M4 10.5 12 4l8 6.5V19a1 1 0 0 1-1 1h-4.5v-5.5h-5V20H5a1 1 0 0 1-1-1z" />,
   relogio: (<><circle cx="12" cy="13" r="7.5" /><path d="M12 9.5V13l2.5 1.8M9.5 3h5M12 3v2.5" /></>),
   pena: (<><path d="M19.5 4.5c-6 .5-10.5 5-11.5 12l-1.5 3" /><path d="M8.5 15.5c3.5 0 7-1.5 9-5M11 11.5h4.5" /></>),

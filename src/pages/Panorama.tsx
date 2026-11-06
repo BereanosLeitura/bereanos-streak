@@ -10,10 +10,11 @@ interface Props {
   onVoltar: () => void
   onCompartilhar: () => void
   onMural: () => void
+  onMetricas: () => void
 }
 
 // Visão do grupo inteiro no livro do ciclo. Sem ranking: só o que o clube leu junto.
-export default function Panorama({ livro, onVoltar, onCompartilhar, onMural }: Props) {
+export default function Panorama({ livro, onVoltar, onCompartilhar, onMural, onMetricas }: Props) {
   const [p, setP] = useState<TPanorama | null>(null)
   const [erro, setErro] = useState(false)
 
@@ -121,6 +122,15 @@ export default function Panorama({ livro, onVoltar, onCompartilhar, onMural }: P
                 <MapaDeHorarios mapa={p.horarios} />
               </section>
             )}
+
+            <button onClick={onMetricas} className="cartao w-full mt-4 p-4 flex items-center gap-3 text-left hover:border-dourado/50 transition-colors">
+              <span className="w-9 h-9 rounded-full bg-dourado/10 text-dourado-escuro dark:text-dourado flex items-center justify-center shrink-0"><Icone nome="grafico" className="w-[18px] h-[18px]" /></span>
+              <span className="flex-1">
+                <span className="block text-[15px] font-semibold text-marinho dark:text-bege">Métricas do grupo</span>
+                <span className="block text-xs text-texto/50 dark:text-bege/50">semanas, dias de leitura, presença e livros do clube</span>
+              </span>
+              <Icone nome="seta-direita" className="w-4 h-4 text-texto/30 dark:text-bege/30" />
+            </button>
 
             <button onClick={onCompartilhar} className="botao-primario w-full mt-6 flex items-center justify-center gap-2">
               <Icone nome="compartilhar" className="w-4 h-4" /> Compartilhar imagem do clube

@@ -7,7 +7,7 @@ import { baixarIcs, linkGoogleAgenda } from '../lib/agenda'
 import type { LivroAtivo } from './Inicio'
 import { ROTEIRO_PADRAO, type Bloco } from '../lib/roteiro'
 
-// Modo Encontro: o roteiro de cerca de 1h30, as perguntas do mural, a presença
+// Modo Encontro: o roteiro de cerca de 2h30, as perguntas do mural, a presença
 // Admin e o anotador do dia editam; todos podem acompanhar.
 
 interface EncontroRow {
@@ -285,7 +285,7 @@ function Roteiro({ blocos, podeEditar, onSalvar }: { blocos: Bloco[]; podeEditar
       )}
       <ol className="mt-3 space-y-1.5">
         {lista.map((b, i) => (
-          <li key={i} className={`flex items-center gap-3 rounded-lg px-3 py-2 ${atual === i ? 'bg-dourado/10' : ''}`}>
+          <li key={i} className={`flex items-center gap-2 rounded-lg px-2.5 py-2 ${atual === i ? 'bg-dourado/10' : ''}`}>
             <span className="w-5 text-xs text-texto/45 dark:text-bege/45 tabular">{i + 1}.</span>
             {editando ? (
               <>
@@ -294,8 +294,8 @@ function Roteiro({ blocos, podeEditar, onSalvar }: { blocos: Bloco[]; podeEditar
               </>
             ) : (
               <>
-                <span className="flex-1 text-[15px] text-marinho dark:text-bege">{b.titulo}</span>
-                <span className="text-sm tabular text-texto/55 dark:text-bege/55">{b.minutos} min</span>
+                <span className="flex-1 min-w-0 text-[15px] leading-snug text-marinho dark:text-bege">{b.titulo}</span>
+                <span className="text-sm tabular whitespace-nowrap text-texto/55 dark:text-bege/55">{b.minutos} min</span>
                 {atual === null && <button onClick={() => iniciar(i)} aria-label={`Iniciar ${b.titulo}`} className="text-xs font-semibold text-dourado-escuro dark:text-dourado px-1">Iniciar</button>}
               </>
             )}

@@ -4,6 +4,7 @@ import { apagarRegistroLeitura, criarRegistroLeitura } from '../lib/sync'
 import { useMinhaLeitura } from '../lib/leitura'
 import { useContagem } from '../lib/preferencias'
 import PersonalizarInicio, { gravarLayout, layoutSalvo, type IdBlocoInicio, type LayoutInicio } from '../components/PersonalizarInicio'
+import { buscarPendentes, type LivroPendente } from '../lib/pendentes'
 import { useAviso } from '../components/Toast'
 import Logo from '../components/Logo'
 import InstalarApp from '../components/InstalarApp'
@@ -53,10 +54,13 @@ interface Props {
   livro: LivroAtivo
   onIr: (destino: Destino, carga?: PreCarga | null) => void
   onPerfilAtualizado: (p: Perfil) => void
+  onContinuarPendente?: (livroId: string) => void
 }
 
-export default function Inicio({ perfil, livro, onIr, onPerfilAtualizado }: Props) {
+export default function Inicio({ perfil, livro, onIr, onPerfilAtualizado, onContinuarPendente }: Props) {
   const leitura = useMinhaLeitura(perfil, livro)
+  const [pendentes, setPendentes] = useState<LivroPendente[]>([])
+  useEffect(() => { buscarPendentes(perfil).then((l) => setPendentes(l.filter((p) => p.id !== livro.id))).catch(() => setPendentes([])) }, [perfil.id, livro.id])
   const contagem = useContagem()
   const [progresso, setProgresso] = useState<ProgressoMembro[] | null>(null)
   const [aniversariantes, setAniversariantes] = useState<{ nome: string; dias: number; data: string }[]>([])
@@ -404,12 +408,12 @@ export default function Inicio({ perfil, livro, onIr, onPerfilAtualizado }: Prop
       <>
         {/* Próximas leituras e encontro */}
         <section className="grid grid-cols-2 gap-3">
-          <button onClick={() => onIr('indicacoes')} className="cartao p-4 text-left hover:border-dourado/50 transition-colors">
+          <button onClick={() => onIr('indicacoes')} className="cartao p-4 text-left flex flex-col items-start justify-start hover:border-dourado/50 transition-colors">
             <Icone nome="estante" className="w-5 h-5 text-dourado" />
             <p className="font-semibold text-marinho dark:text-bege mt-2">Próximas leituras</p>
             <p className="text-xs text-texto/55 dark:text-bege/55 mt-0.5">Indique um livro para o clube</p>
           </button>
-          <button onClick={() => onIr('encontro')} className="cartao p-4 text-left hover:border-dourado/50 transition-colors">
+          <button onClick={() => onIr('encontro')} className="cartao p-4 text-left flex flex-col items-start justify-start hover:border-dourado/50 transition-colors">
             <Icone nome="calendario" className="w-5 h-5 text-dourado" />
             <p className="font-semibold text-marinho dark:text-bege mt-2">Encontro</p>
             <p className="text-xs text-texto/55 dark:text-bege/55 mt-0.5">Roteiro e perguntas</p>
@@ -556,6 +560,30 @@ export default function Inicio({ perfil, livro, onIr, onPerfilAtualizado }: Prop
             onClick={() => onIr('aplicar')} />
         )}
 
+        {pendentes.length > 0 && onContinuarPendente && (
+          <section className="cartao p-4" aria-label="Leituras pendentes">
+            <p className="text-sm font-semibold text-dourado-escuro dark:text-dourado">{pendentes.length === 1 ? 'Leitura pendente' : 'Leituras pendentes'}</p>
+            <p className="text-xs text-texto/55 dark:text-bege/55">De ciclos já encerrados. Continue no seu ritmo, sem pressa.</p>
+            <ul className="mt-3 space-y-3">
+              {pendentes.map((p) => (
+                <li key={p.id} className="flex items-center gap-3">
+                  {p.capa_url
+                    ? <img src={p.capa_url} alt="" className="w-9 h-[52px] object-cover rounded shadow-sm shrink-0" />
+                    : <span className="w-9 h-[52px] rounded border border-dourado/40 flex items-center justify-center text-dourado shrink-0"><Icone nome="livro" className="w-4 h-4" /></span>}
+                  <div className="flex-1 min-w-0">
+                    <p className="font-serif text-[16px] leading-snug text-marinho dark:text-bege truncate">{p.titulo}</p>
+                    <div className="flex items-center gap-2 mt-1">
+                      <span className="flex-1 h-1.5 rounded-full bg-marinho/[0.08] dark:bg-bege/[0.1] overflow-hidden"><span className="block h-full bg-dourado rounded-full" style={{ width: `${p.pct}%` }} /></span>
+                      <span className="text-xs tabular text-texto/55 dark:text-bege/55">{p.pct}%</span>
+                    </div>
+                  </div>
+                  <button onClick={() => onContinuarPendente(p.id)} className="chip shrink-0">Continuar</button>
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
+
         {verInstalar && (
           <InstalarApp compacto onFechar={() => { setVerInstalar(false); try { localStorage.setItem('bereanos-streak-instalar-dispensado', '1') } catch { /* ok */ } }} />
         )}
@@ -668,7 +696,7 @@ function Marco({ icone, titulo, texto, acao, onClick }: { icone: NomeIcone; titu
 function Dado({ valor, rotulo, meio = false }: { valor: string; rotulo: string; meio?: boolean }) {
   return (
     <div className={`px-3 py-3.5 text-center ${meio ? 'border-x border-bege/10' : ''}`}>
-      <dd className="font-serif tabular text-2xl text-bege leading-none">{valor}</dd>
+      <dd className={`font-serif tabular text-bege leading-none whitespace-nowrap ${valor.length > 5 ? 'text-[19px] pt-[3px] pb-[2px]' : 'text-2xl'}`}>{valor}</dd>
       <dt className="text-xs text-bege/55 mt-1.5">{rotulo}</dt>
     </div>
   )

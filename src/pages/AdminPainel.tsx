@@ -10,7 +10,8 @@ import { chamarAdmin, mensagemAcesso } from '../lib/adminMembros'
 import { buscarPadraoClube } from '../lib/preferencias'
 import { baixarCsv } from '../lib/exportar'
 import { ROTEIRO_PADRAO } from '../lib/roteiro'
-import { formatarData, tempoRelativo } from '../lib/estatisticas'
+import { formatarData, paginasEquivalentes, tempoRelativo } from '../lib/estatisticas'
+import { buscarConclusoes, marcarLeitura } from '../lib/pendentes'
 import type { LivroAtivo } from './Inicio'
 
 interface Props {
@@ -56,7 +57,7 @@ export default function AdminPainel({ adminId, livro, onLivroMudou, onVoltar, on
 
       {aba === 'ciclo' && (
         <>
-          {livro ? <CicloAtual livro={livro} onMudou={onLivroMudou} onAbrirEncontro={onAbrirEncontro} /> : <CadastrarLivro adminId={adminId} onCriado={onLivroMudou} />}
+          {livro ? <CicloAtual livro={livro} adminId={adminId} onMudou={onLivroMudou} onAbrirEncontro={onAbrirEncontro} /> : <CadastrarLivro adminId={adminId} onCriado={onLivroMudou} />}
           <GerenciarCiclos ativoId={livro?.id ?? null} onMudou={onLivroMudou} />
         </>
       )}
@@ -66,7 +67,7 @@ export default function AdminPainel({ adminId, livro, onLivroMudou, onVoltar, on
   )
 }
 
-function CicloAtual({ livro, onMudou, onAbrirEncontro }: { livro: LivroAtivo; onMudou: () => void; onAbrirEncontro?: () => void }) {
+function CicloAtual({ livro, adminId, onMudou, onAbrirEncontro }: { livro: LivroAtivo; adminId: string; onMudou: () => void; onAbrirEncontro?: () => void }) {
   const [editando, setEditando] = useState(false)
   const [confirmando, setConfirmando] = useState(false)
   const [encontro, setEncontro] = useState(paraCampoLocal(livro.encontro_em ?? null))
@@ -94,12 +95,6 @@ function CicloAtual({ livro, onMudou, onAbrirEncontro }: { livro: LivroAtivo; on
     onMudou()
   }
 
-  async function concluir() {
-    const { error } = await supabase.from('livros').update({ status: 'concluido' }).eq('id', livro.id)
-    if (error) return avisar('Não foi possível concluir o ciclo', 'erro')
-    avisar('Ciclo concluído')
-    onMudou()
-  }
 
   return (
     <div className="max-w-md mx-auto px-5 mt-6 space-y-4">
@@ -147,15 +142,11 @@ function CicloAtual({ livro, onMudou, onAbrirEncontro }: { livro: LivroAtivo; on
       <div className="cartao p-5">
         <h2 className="titulo-secao">Encerrar este livro</h2>
         <p className="legenda mt-1">
-          Marca o livro como concluído e libera o cadastro do próximo. Nada é apagado: registros, anotações, mural e conquistas ficam na Estante do clube, no Perfil de cada um.
+          Você marca quem terminou e o livro vai para a Estante do clube. Quem ainda está lendo continua com ele como leitura pendente, no próprio ritmo. Nada é apagado.
         </p>
-        {confirmando ? (
-          <div className="flex gap-2 mt-4">
-            <button onClick={concluir} className="w-full rounded-xl bg-red-800 text-white py-3 font-semibold">Sim, concluir ciclo</button>
-            <button onClick={() => setConfirmando(false)} className="botao-secundario">Cancelar</button>
-          </div>
-        ) : (
-          <button onClick={() => setConfirmando(true)} className="botao-secundario mt-4">Concluir ciclo</button>
+        <button onClick={() => setConfirmando(true)} className="botao-secundario mt-4">Concluir ciclo</button>
+        {confirmando && (
+          <EncerrarCiclo livro={livro} adminId={adminId} onFechar={() => setConfirmando(false)} onConcluido={() => { setConfirmando(false); onMudou() }} />
         )}
       </div>
     </div>
@@ -524,6 +515,101 @@ function GerenciarCiclos({ ativoId, onMudou }: { ativoId: string | null; onMudou
       </div>
       {excluindo && <ExcluirCiclo livro={excluindo} onFechar={() => setExcluindo(null)} onExcluido={() => { setExcluindo(null); carregar(); onMudou() }} />}
     </div>
+  )
+}
+
+interface MembroCiclo { id: string; nome: string; pct: number; marcado: boolean; noApp: boolean }
+
+/** Encerrar o ciclo: o admin confirma quem terminou; quem não terminou fica com a leitura pendente. */
+function EncerrarCiclo({ livro, adminId, onFechar, onConcluido }: { livro: LivroAtivo; adminId: string; onFechar: () => void; onConcluido: () => void }) {
+  const [membros, setMembros] = useState<MembroCiclo[] | null>(null)
+  const [salvando, setSalvando] = useState(false)
+  const avisar = useAviso()
+
+  useEffect(() => {
+    ;(async () => {
+      const [p, r, conclusoes] = await Promise.all([
+        supabase.from('perfis').select('id, nome_exibicao, ritmo_leitura_min_por_pagina').order('nome_exibicao'),
+        supabase.from('registros_leitura').select('membro_id, paginas_lidas, minutos_lidos, registrado_em').eq('livro_id', livro.id),
+        buscarConclusoes({ livroId: livro.id })
+      ])
+      const perfis = (p.data ?? []) as { id: string; nome_exibicao: string; ritmo_leitura_min_por_pagina: number | null }[]
+      const ritmo = new Map(perfis.map((x) => [x.id, x.ritmo_leitura_min_por_pagina || 2]))
+      const soma = new Map<string, number>()
+      for (const x of (r.data ?? []) as { membro_id: string; paginas_lidas: number | null; minutos_lidos: number | null; registrado_em: string }[]) {
+        soma.set(x.membro_id, (soma.get(x.membro_id) ?? 0) + paginasEquivalentes(x, ritmo.get(x.membro_id) ?? 2))
+      }
+      setMembros(perfis.map((m) => {
+        const pct = Math.min(100, Math.round(((soma.get(m.id) ?? 0) / livro.paginas_totais) * 100))
+        return { id: m.id, nome: m.nome_exibicao, pct, noApp: pct >= 100, marcado: pct >= 100 || conclusoes.get(`${livro.id}:${m.id}`) === 'terminou' }
+      }).sort((a, b) => Number(b.marcado) - Number(a.marcado) || b.pct - a.pct))
+    })()
+  }, [livro.id])
+
+  const terminaram = membros?.filter((m) => m.marcado).length ?? 0
+  const continuam = membros?.filter((m) => !m.marcado && m.pct > 0).length ?? 0
+  const naoComecaram = membros?.filter((m) => !m.marcado && m.pct === 0).length ?? 0
+
+  async function concluir() {
+    if (!membros) return
+    setSalvando(true)
+    // quem foi marcado à mão (terminou fora do app) fica registrado; desmarcados perdem a marca
+    for (const m of membros) {
+      if (m.noApp) continue
+      const { error } = await marcarLeitura(livro.id, m.id, m.marcado ? 'terminou' : null, adminId)
+      if (error && m.marcado) {
+        setSalvando(false)
+        return avisar('Não foi possível marcar quem terminou. Rode a atualização 0015 do banco e tente de novo.', 'erro')
+      }
+    }
+    const { error } = await supabase.from('livros').update({ status: 'concluido' }).eq('id', livro.id)
+    setSalvando(false)
+    if (error) return avisar('Não foi possível concluir o ciclo', 'erro')
+    avisar(continuam ? `Ciclo concluído. ${continuam} ${continuam === 1 ? 'pessoa continua' : 'pessoas continuam'} com a leitura pendente.` : 'Ciclo concluído')
+    onConcluido()
+  }
+
+  return createPortal(
+    <div className="fixed inset-0 z-50 bg-black/50 flex items-end sm:items-center justify-center p-4" onClick={onFechar}>
+      <div className="cartao w-full max-w-md p-5 max-h-[88vh] flex flex-col" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-labelledby="titulo-encerrar">
+        <h2 id="titulo-encerrar" className="font-serif text-xl text-marinho dark:text-bege">Concluir {livro.titulo}</h2>
+        <p className="text-sm text-texto/70 dark:text-bege/70 mt-1">
+          Marque quem terminou o livro, inclusive quem leu fora do app. Quem chegou a 100% no app já vem marcado.
+        </p>
+        {!membros ? <div className="esqueleto h-40 mt-4" /> : (
+          <ul className="mt-4 overflow-y-auto -mx-1 px-1 space-y-1.5">
+            {membros.map((m) => (
+              <li key={m.id}>
+                <label className={`flex items-center gap-3 rounded-xl px-3 py-2.5 ${m.noApp ? '' : 'cursor-pointer'} ${m.marcado ? 'bg-dourado/10' : 'bg-marinho/[0.03] dark:bg-bege/[0.04]'}`}>
+                  <input type="checkbox" checked={m.marcado} disabled={m.noApp}
+                    onChange={() => setMembros((l) => l!.map((x) => (x.id === m.id ? { ...x, marcado: !x.marcado } : x)))}
+                    className="w-5 h-5 accent-[#B8912F] shrink-0" />
+                  <Avatar nome={m.nome} tamanho={30} />
+                  <span className="flex-1 min-w-0">
+                    <span className="block text-[15px] text-marinho dark:text-bege truncate">{m.nome}</span>
+                    <span className="block text-xs text-texto/55 dark:text-bege/55">
+                      {m.noApp ? 'terminou no app' : m.marcado ? `terminou (marcado), ${m.pct}% no app` : m.pct > 0 ? `${m.pct}% no app: fica com a leitura pendente` : 'não registrou leitura deste livro'}
+                    </span>
+                  </span>
+                </label>
+              </li>
+            ))}
+          </ul>
+        )}
+        {membros && (
+          <p className="text-sm text-marinho dark:text-bege mt-4">
+            {terminaram} {terminaram === 1 ? 'terminou' : 'terminaram'}
+            {continuam ? `, ${continuam} ${continuam === 1 ? 'continua' : 'continuam'} lendo` : ''}
+            {naoComecaram ? `, ${naoComecaram} sem registro` : ''}.
+          </p>
+        )}
+        <div className="flex gap-2 mt-4">
+          <button onClick={concluir} disabled={!membros || salvando} className="botao-primario">{salvando ? 'Concluindo…' : 'Concluir ciclo'}</button>
+          <button onClick={onFechar} className="botao-secundario">Cancelar</button>
+        </div>
+      </div>
+    </div>,
+    document.body
   )
 }
 
