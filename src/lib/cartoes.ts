@@ -6,7 +6,7 @@
 export type Formato = 'story' | 'post' | 'quadrado'
 export type TipoTexto = 'trecho' | 'reflexao' | 'pergunta' | 'aplicacao'
 export type ModeloTexto = 'pergaminho' | 'marinho' | 'caderno' | 'noturno' | 'debate' | 'polaroid' | 'foto' | 'foto-faixa' | 'foto-dividida' | 'foto-moldura' | 'foto-destaque' | 'minimal'
-export type ModeloLeitura = 'lendo' | 'progresso' | 'anel' | 'semana' | 'constancia' | 'terminei' | 'foto-leitura' | 'retrospectiva' | 'grupo' | 'capa'
+export type ModeloLeitura = 'lendo' | 'progresso' | 'anel' | 'semana' | 'constancia' | 'terminei' | 'foto-leitura' | 'retrospectiva' | 'grupo'
 
 export const FORMATOS: Record<Formato, { w: number; h: number; rotulo: string; dica: string }> = {
   story: { w: 1080, h: 1920, rotulo: 'Story', dica: 'Instagram e WhatsApp Status' },
@@ -30,7 +30,6 @@ export const MODELOS_TEXTO: { id: ModeloTexto; nome: string; cores: [string, str
 ]
 
 export const MODELOS_LEITURA: { id: ModeloLeitura; nome: string; cores: [string, string] }[] = [
-  { id: 'capa', nome: 'Com a capa', cores: ['#3a4a6b', '#B8912F'] },
   { id: 'lendo', nome: 'Estou lendo', cores: ['#1B2A4A', '#F6F1E3'] },
   { id: 'progresso', nome: 'Progresso', cores: ['#F6F1E3', '#8A6D2B'] },
   { id: 'anel', nome: 'Anel', cores: ['#1B2A4A', '#B8912F'] },
@@ -42,8 +41,6 @@ export const MODELOS_LEITURA: { id: ModeloLeitura; nome: string; cores: [string,
   { id: 'grupo', nome: 'O clube', cores: ['#F6F1E3', '#1B2A4A'] }
 ]
 
-/** Modelos que só existem como adesivo sem fundo (com fundo, o "Estou lendo" já mostra a capa). */
-export const SO_SEM_FUNDO: ModeloLeitura[] = ['capa']
 
 /** Modelos de frase que usam foto (a foto é obrigatória neles). */
 export const MODELOS_COM_FOTO: ModeloTexto[] = ['foto', 'foto-faixa', 'foto-dividida', 'foto-moldura', 'foto-destaque']
@@ -70,8 +67,7 @@ export const VERSOES: Record<ModeloTexto | ModeloLeitura, string[]> = {
   terminei: ['Claro', 'Marinho', 'Bege'],
   'foto-leitura': ['Texto embaixo', 'Faixa marinho', 'Faixa bege'],
   retrospectiva: ['Marinho', 'Preto'],
-  grupo: ['Bege', 'Marinho', 'Branco'],
-  capa: ['Capa em cima', 'Capa ao lado']
+  grupo: ['Bege', 'Marinho', 'Branco']
 }
 
 /** Como a foto entra no cartão: enquadramento, giro, filtro. */
@@ -118,6 +114,10 @@ export interface DadosLeitura {
   foto: HTMLImageElement | null
   ajuste?: AjusteFoto
   versao?: number
+  /** mostra a capa do livro no modelo (padrão: sim, quando houver capa) */
+  mostrarCapa?: boolean
+  /** adesivo "Estou lendo": capa ao lado do texto em vez de em cima */
+  capaLado?: boolean
   semana?: { rotulo: string; paginas: number }[]
   retro?: {
     paginas: number; dias: number; maiorSequencia: number; minutos: number; anotacoes: number
@@ -560,6 +560,29 @@ function desenharFoto(ctx: CanvasRenderingContext2D, img: HTMLImageElement, x: n
   ctx.imageSmoothingQuality = 'high'
   ctx.drawImage(fonte, (-fonte.width * esc) / 2, (-fonte.height * esc) / 2, fonte.width * esc, fonte.height * esc)
   ctx.restore()
+}
+
+/** Capa do livro com cantos levemente arredondados e sombra. Devolve a largura usada. */
+function desenharCapa(ctx: CanvasRenderingContext2D, capa: HTMLImageElement, x: number, y: number, h: number, escuro = true, alinhar: 'esq' | 'centro' | 'dir' = 'centro') {
+  const prop = Math.min(0.78, Math.max(0.5, capa.width / capa.height))
+  const w = Math.round(h * prop)
+  const x0 = alinhar === 'esq' ? x : alinhar === 'dir' ? x - w : x - w / 2
+  ctx.save()
+  ctx.shadowColor = escuro ? 'rgba(0,0,0,0.5)' : 'rgba(27,42,74,0.3)'
+  ctx.shadowBlur = Math.round(h * 0.09)
+  ctx.shadowOffsetY = Math.round(h * 0.035)
+  retArredondado(ctx, x0, y, w, h, Math.max(4, h * 0.015))
+  ctx.fillStyle = '#000'
+  ctx.fill()
+  ctx.restore()
+  ctx.save()
+  retArredondado(ctx, x0, y, w, h, Math.max(4, h * 0.015))
+  ctx.clip()
+  ctx.imageSmoothingEnabled = true
+  ctx.imageSmoothingQuality = 'high'
+  cobrirFonte(ctx, capa, x0, y, w, h)
+  ctx.restore()
+  return w
 }
 
 /** Lugar da foto quando ela ainda não foi escolhida. */
@@ -1072,8 +1095,7 @@ async function desenharTextoModelo(canvas: HTMLCanvasElement, modelo: ModeloText
 // Modelos de leitura
 // ======================================================================
 
-export async function desenharLeitura(canvas: HTMLCanvasElement, modeloPedido: ModeloLeitura, formato: Formato, d: DadosLeitura) {
-  const modelo: ModeloLeitura = modeloPedido === 'capa' ? 'lendo' : modeloPedido
+export async function desenharLeitura(canvas: HTMLCanvasElement, modelo: ModeloLeitura, formato: Formato, d: DadosLeitura) {
   await garantirFontes()
   await usarFonte(d.fonteCartao)
   const { w: W, h: H } = FORMATOS[formato]
@@ -1086,13 +1108,16 @@ export async function desenharLeitura(canvas: HTMLCanvasElement, modeloPedido: M
   const aj = d.ajuste ?? AJUSTE_PADRAO
   const pct = Math.max(0, Math.min(100, Math.round(d.pct)))
   const fonteTitulo = (t: number) => `600 ${t}px ${SERIFA}`
+  // capa do livro, quando a pessoa deixou à mostra
+  const cp = d.mostrarCapa === false ? null : d.capa
+  const porFormato = (story: number, post: number, quadrado: number) => (formato === 'story' ? story : formato === 'post' ? post : quadrado)
 
   if (modelo === 'lendo') {
     const P = escolher([PAL.marinho, PAL.preto, PAL.bege], v)
     pintarFundo(ctx, P, W, H, 0.4, 'rgba(255,255,255,0.08)')
     // sem capa, o emblema do clube ocupa o lugar dela (arquivo oficial, sem alteração)
-    const simb = d.capa ? null : await logo('simbolo', P.logo)
-    const visual = d.capa ?? simb!
+    const simb = cp ? null : await logo('simbolo', P.logo)
+    const visual = cp ?? simb!
     const a = ajustar(ctx, d.titulo, W - 200, formato === 'quadrado' ? 150 : 220, fonteTitulo, formato === 'quadrado' ? 64 : 76, 38, 1.15)
     const areaTopo = z.topo
     const areaFim = z.base - (formato === 'quadrado' ? 170 : 150)
@@ -1104,14 +1129,8 @@ export async function desenharLeitura(canvas: HTMLCanvasElement, modeloPedido: M
     let y = areaTopo + Math.max(0, (areaFim - areaTopo - bloco) / 2)
     texto1(ctx, 'Estou lendo', W / 2, y + 30, `600 34px ${SANS}`, P.rotulo)
     y += 50
-    ctx.save()
-    if (d.capa) {
-      ctx.shadowColor = P.escuro ? 'rgba(0,0,0,0.5)' : 'rgba(27,42,74,0.3)'
-      ctx.shadowBlur = 50
-      ctx.shadowOffsetY = 20
-    }
-    ctx.drawImage(visual, W / 2 - wVisual / 2, y, wVisual, hVisual)
-    ctx.restore()
+    if (cp) desenharCapa(ctx, cp, W / 2, y, hVisual, P.escuro)
+    else ctx.drawImage(visual, W / 2 - wVisual / 2, y, wVisual, hVisual)
     y += hVisual + 70
     ctx.fillStyle = P.titulo
     ctx.font = fonteTitulo(a.tam)
@@ -1132,11 +1151,17 @@ export async function desenharLeitura(canvas: HTMLCanvasElement, modeloPedido: M
     const P = escolher([PAL.bege, PAL.marinho, PAL.branco], v)
     pintarFundo(ctx, P, W, H)
     moldura(ctx, W, H)
-    const simb = await logo('simbolo', P.logo)
-    const hS = formato === 'quadrado' ? 110 : 140
-    desenharLogoAltura(ctx, simb, W / 2, z.topo - 20, hS)
-    let y = z.topo - 20 + hS + 60
-    const a = ajustar(ctx, d.titulo, W - 240, formato === 'quadrado' ? 120 : 190, fonteTitulo, 62, 34, 1.15)
+    let hS: number
+    if (cp) {
+      hS = porFormato(360, 250, 170)
+      desenharCapa(ctx, cp, W / 2, z.topo - 20, hS, P.escuro)
+    } else {
+      const simb = await logo('simbolo', P.logo)
+      hS = formato === 'quadrado' ? 110 : 140
+      desenharLogoAltura(ctx, simb, W / 2, z.topo - 20, hS)
+    }
+    let y = z.topo - 20 + hS + (cp ? 50 : 60)
+    const a = ajustar(ctx, d.titulo, W - 240, cp ? porFormato(170, 110, 64) : formato === 'quadrado' ? 120 : 190, fonteTitulo, cp ? porFormato(62, 54, 44) : 62, 32, 1.15)
     ctx.fillStyle = P.titulo
     ctx.font = fonteTitulo(a.tam)
     escrever(ctx, a.linhas, W / 2, y, a.alturaLinha, a.tam)
@@ -1145,8 +1170,8 @@ export async function desenharLeitura(canvas: HTMLCanvasElement, modeloPedido: M
       texto1(ctx, d.autor, W / 2, y + 40, `400 32px ${SANS}`, P.corpo)
       y += 60
     }
-    const tamPct = formato === 'story' ? 300 : formato === 'post' ? 240 : 190
-    const yPct = y + tamPct * 0.95 + (formato === 'story' ? 100 : 30)
+    const tamPct = cp ? porFormato(260, 190, 140) : formato === 'story' ? 300 : formato === 'post' ? 240 : 190
+    const yPct = y + tamPct * 0.95 + (formato === 'story' ? (cp ? 50 : 100) : cp ? 10 : 30)
     ctx.fillStyle = P.escuro ? C.dourado : C.douradoEscuro
     ctx.font = `600 ${tamPct}px ${SERIFA}`
     ctx.textAlign = 'center'
@@ -1171,18 +1196,29 @@ export async function desenharLeitura(canvas: HTMLCanvasElement, modeloPedido: M
     const hor = await logo('horizontal', 'branco')
     const hLogo = formato === 'quadrado' ? 76 : 90
     const yLogo = z.base - hLogo - (formato === 'story' ? 30 : 10)
-    const areaTopo = z.topo
+    let areaTopo = z.topo
+    if (cp && formato !== 'quadrado') {
+      const hC = porFormato(300, 190, 0)
+      desenharCapa(ctx, cp, W / 2, z.topo - 30, hC, true)
+      areaTopo = z.topo - 30 + hC + 30
+    }
     const areaFim = yLogo - (formato === 'quadrado' ? 54 : 66)
     const a = ajustar(ctx, d.titulo, W - 200, formato === 'quadrado' ? 120 : 170, fonteTitulo, formato === 'quadrado' ? 56 : 64, 34, 1.15)
     const hTitulo = d.titulo ? a.alturaTotal : 0
     const hAutor = d.titulo && d.autor ? 58 : 0
     const gap = d.titulo ? (formato === 'quadrado' ? 44 : 70) : 0
     const espacoAnel = areaFim - areaTopo - gap - hTitulo - hAutor
-    const raio = Math.max(150, Math.min(320, (espacoAnel - 40) / 2))
+    const raio = Math.max(cp ? 120 : 150, Math.min(320, (espacoAnel - 40) / 2))
     const altura = raio * 2 + 40 + gap + hTitulo + hAutor
     const y0 = areaTopo + Math.max(0, (areaFim - areaTopo - altura) / 2)
-    const cx = W / 2
+    // no quadrado não sobra altura: a capa vai ao lado do anel
+    const capaAoLado = !!cp && formato === 'quadrado'
+    const cx = capaAoLado ? W / 2 + 130 : W / 2
     const cy = y0 + 20 + raio
+    if (capaAoLado) {
+      const hC = Math.round(raio * 1.5)
+      desenharCapa(ctx, cp!, cx - raio - 70, cy - hC / 2, hC, true, 'dir')
+    }
     ctx.lineCap = 'round'
     ctx.lineWidth = Math.round(raio * 0.105)
     ctx.strokeStyle = 'rgba(246,241,227,0.1)'
@@ -1220,20 +1256,26 @@ export async function desenharLeitura(canvas: HTMLCanvasElement, modeloPedido: M
     const P = escolher([PAL.folha, PAL.marinho, PAL.bege], v)
     pintarFundo(ctx, P, W, H)
     moldura(ctx, W, H)
-    const simb = await logo('simbolo', P.logo)
-    const hS = formato === 'quadrado' ? 100 : 130
-    desenharLogoAltura(ctx, simb, W / 2, z.topo - 20, hS)
-    let y = z.topo - 20 + hS + 70
+    let hS: number
+    if (cp) {
+      hS = porFormato(290, 180, 100)
+      desenharCapa(ctx, cp, W / 2, z.topo - 20, hS, P.escuro)
+    } else {
+      const simb = await logo('simbolo', P.logo)
+      hS = formato === 'quadrado' ? 100 : 130
+      desenharLogoAltura(ctx, simb, W / 2, z.topo - 20, hS)
+    }
+    let y = z.topo - 20 + hS + (cp ? 60 : 70)
     texto1(ctx, 'Minha semana de leitura', W / 2, y, `600 34px ${SANS}`, P.rotulo)
     const semana = d.semana ?? []
     const total = semana.reduce((s, x) => s + x.paginas, 0)
     const dias = semana.filter((x) => x.paginas > 0).length
-    const tamTot = formato === 'quadrado' ? 150 : 200
+    const tamTot = cp ? porFormato(180, 140, 110) : formato === 'quadrado' ? 150 : 200
     y += tamTot * 0.9 + 20
     texto1(ctx, String(total), W / 2, y, `600 ${tamTot}px ${SERIFA}`, P.titulo)
     texto1(ctx, total === 1 ? 'página' : 'páginas', W / 2, y + 56, `600 34px ${SANS}`, P.corpo)
     y += 120
-    const altBarras = formato === 'quadrado' ? 200 : formato === 'post' ? 280 : 420
+    const altBarras = cp ? porFormato(360, 230, 150) : formato === 'quadrado' ? 200 : formato === 'post' ? 280 : 420
     const largArea = W - 280
     const passo = largArea / 7
     const max = Math.max(1, ...semana.map((x) => x.paginas))
@@ -1267,12 +1309,16 @@ export async function desenharLeitura(canvas: HTMLCanvasElement, modeloPedido: M
     ctx.fillRect(0, 0, W, H)
     const centro = formato === 'quadrado' ? H * 0.4 : H * 0.42
     const escala = formato === 'quadrado' ? 11 : 14
-    ctx.save()
-    ctx.translate(W / 2 - 12 * escala, centro - 25 * escala)
-    ctx.scale(escala, escala)
-    ctx.fillStyle = C.dourado
-    ctx.fill(CHAMA)
-    ctx.restore()
+    if (cp) {
+      desenharCapa(ctx, cp, W / 2, centro - 23 * escala, 20 * escala, true)
+    } else {
+      ctx.save()
+      ctx.translate(W / 2 - 12 * escala, centro - 25 * escala)
+      ctx.scale(escala, escala)
+      ctx.fillStyle = C.dourado
+      ctx.fill(CHAMA)
+      ctx.restore()
+    }
     const tamNum = formato === 'quadrado' ? 220 : 280
     texto1(ctx, String(d.sequencia), W / 2, centro + tamNum * 0.75, `600 ${tamNum}px ${SERIFA}`, C.bege)
     texto1(ctx, d.sequencia === 1 ? 'dia seguido de leitura' : 'dias seguidos de leitura', W / 2, centro + tamNum * 0.75 + 80, `600 40px ${SANS}`, C.dourado)
@@ -1287,26 +1333,39 @@ export async function desenharLeitura(canvas: HTMLCanvasElement, modeloPedido: M
     const P = escolher([PAL.folha, PAL.marinho, PAL.bege], v)
     pintarFundo(ctx, P, W, H)
     moldura(ctx, W, H)
-    const vert = await logo('vertical', P.logo)
-    const lV = formato === 'quadrado' ? 260 : 340
-    const hV = desenharLogo(ctx, vert, W / 2, z.topo - 10, lV)
-    let y = z.topo - 10 + hV + (formato === 'quadrado' ? 50 : 90)
+    let hV: number
+    if (cp) {
+      hV = porFormato(500, 300, 190)
+      desenharCapa(ctx, cp, W / 2, z.topo - 10, hV, P.escuro)
+    } else {
+      const vert = await logo('vertical', P.logo)
+      const lV = formato === 'quadrado' ? 260 : 340
+      hV = desenharLogo(ctx, vert, W / 2, z.topo - 10, lV)
+    }
+    let y = z.topo - 10 + hV + (formato === 'quadrado' ? (cp ? 40 : 50) : cp ? 60 : 90)
     ornamento(ctx, W / 2, y, 240)
     y += 80
     texto1(ctx, d.titulo ? 'Terminei de ler' : 'Terminei mais um livro', W / 2, y, `600 40px ${SANS}`, P.rotulo)
     y += 40
-    const a = ajustar(ctx, d.titulo, W - 220, formato === 'quadrado' ? 200 : 360, fonteTitulo, formato === 'story' ? 104 : 84, 40, 1.12)
+    const a = ajustar(ctx, d.titulo, W - 220, cp ? porFormato(260, 180, 110) : formato === 'quadrado' ? 200 : 360, fonteTitulo, cp ? porFormato(88, 66, 50) : formato === 'story' ? 104 : 84, 34, 1.12)
     ctx.fillStyle = P.titulo
     ctx.font = fonteTitulo(a.tam)
     escrever(ctx, a.linhas, W / 2, y, a.alturaLinha, a.tam)
     y += a.alturaTotal + 20
     if (d.autor) {
-      texto1(ctx, d.autor, W / 2, y + 50, `italic 400 44px ${SERIFA}`, P.corpo)
-      y += 80
+      texto1(ctx, d.autor, W / 2, y + (cp ? 40 : 50), `italic 400 ${cp && formato !== 'story' ? 36 : 44}px ${SERIFA}`, P.corpo)
+      y += cp ? 64 : 80
     }
-    texto1(ctx, `${d.total} páginas`, W / 2, y + (d.titulo ? 50 : 70), `600 30px ${SANS}`, P.suave)
-    if (d.nome) texto1(ctx, `Leitura de ${d.nome}`, W / 2, y + 96, `400 28px ${SANS}`, P.fraco)
-    ornamento(ctx, W / 2, z.base + 10, 160)
+    texto1(ctx, `${d.total} páginas`, W / 2, y + (d.titulo ? (cp ? 40 : 50) : 70), `600 30px ${SANS}`, P.suave)
+    if (d.nome) texto1(ctx, `Leitura de ${d.nome}`, W / 2, y + (cp ? 84 : 96), `400 28px ${SANS}`, P.fraco)
+    if (cp) {
+      // sem a logo grande no topo, a logo do clube vai para o pé
+      const txt = await logo('texto', P.logo)
+      const lTxt = formato === 'quadrado' ? 200 : 240
+      desenharLogo(ctx, txt, W / 2, Math.min(z.base - 20, H - 84 - lTxt * (txt.height / txt.width)), lTxt)
+    } else {
+      ornamento(ctx, W / 2, z.base + 10, 160)
+    }
     return
   }
 
@@ -1321,10 +1380,16 @@ export async function desenharLeitura(canvas: HTMLCanvasElement, modeloPedido: M
     ctx.fillStyle = g
     ctx.fillRect(0, 0, W, H)
     const compacto = formato === 'quadrado'
-    const simb = await logo('simbolo', 'branco')
-    const hS = compacto ? 80 : 110
-    desenharLogoAltura(ctx, simb, W / 2, z.topo - 30, hS)
-    let y = z.topo - 30 + hS + (compacto ? 60 : 80)
+    let hS: number
+    if (cp) {
+      hS = porFormato(250, 170, 110)
+      desenharCapa(ctx, cp, W / 2, z.topo - 30, hS, true)
+    } else {
+      const simb = await logo('simbolo', 'branco')
+      hS = compacto ? 80 : 110
+      desenharLogoAltura(ctx, simb, W / 2, z.topo - 30, hS)
+    }
+    let y = z.topo - 30 + hS + (compacto ? (cp ? 50 : 60) : cp ? 60 : 80)
     texto1(ctx, d.titulo ? 'Minha leitura de' : 'Minha retrospectiva', W / 2, y, `600 32px ${SANS}`, C.dourado)
     y += 24
     if (d.titulo) {
@@ -1390,10 +1455,16 @@ export async function desenharLeitura(canvas: HTMLCanvasElement, modeloPedido: M
     pintarFundo(ctx, P, W, H)
     moldura(ctx, W, H)
     const compacto = formato === 'quadrado'
-    const simb = await logo('simbolo', P.logo)
-    const hS = compacto ? 80 : 120
-    desenharLogoAltura(ctx, simb, W / 2, z.topo - 30, hS)
-    let y = z.topo - 30 + hS + (compacto ? 55 : 80)
+    let hS: number
+    if (cp) {
+      hS = porFormato(230, 150, 96)
+      desenharCapa(ctx, cp, W / 2, z.topo - 30, hS, P.escuro)
+    } else {
+      const simb = await logo('simbolo', P.logo)
+      hS = compacto ? 80 : 120
+      desenharLogoAltura(ctx, simb, W / 2, z.topo - 30, hS)
+    }
+    let y = z.topo - 30 + hS + (compacto ? 55 : cp ? 64 : 80)
     texto1(ctx, 'O clube neste livro', W / 2, y, `600 32px ${SANS}`, P.rotulo)
     y += 20
     if (d.titulo) {
@@ -1457,8 +1528,9 @@ export async function desenharLeitura(canvas: HTMLCanvasElement, modeloPedido: M
     barra(ctx, M, yBase, W - 2 * M, 12, pct, 'rgba(255,255,255,0.2)', C.dourado)
     texto1(ctx, `${pct}%`, M, yBase - 40, `600 72px ${SERIFA}`, C.dourado, 'left')
     texto1(ctx, `${Math.round(d.paginas)} de ${d.total} páginas`, W - M, yBase - 44, `600 30px ${SANS}`, 'rgba(255,255,255,0.8)', 'right')
-    const a = ajustar(ctx, d.titulo, W - 2 * M, 260, fonteTitulo, 84, 40, 1.12)
+    const a = ajustar(ctx, d.titulo, W - 2 * M, cp ? porFormato(260, 180, 110) : 260, fonteTitulo, cp && formato === 'quadrado' ? 60 : 84, 40, 1.12)
     const yTit = yBase - 150 - a.alturaTotal - (d.autor ? 50 : 0)
+    if (cp) desenharCapa(ctx, cp, M, yTit - 80 - porFormato(300, 220, 150), porFormato(300, 220, 150), true, 'esq')
     texto1(ctx, 'Lendo agora', M, yTit - 30, `600 32px ${SANS}`, C.dourado, 'left')
     ctx.save()
     ctx.shadowColor = 'rgba(0,0,0,0.45)'
@@ -1494,7 +1566,13 @@ export async function desenharLeitura(canvas: HTMLCanvasElement, modeloPedido: M
   const topoT = yFaixa + 50
   const fimT = yBarra - 100 // o percentual ocupa os ~80 px acima da barra
   const extraT = 54 + (d.autor ? 50 : 0)
-  const a = ajustar(ctx, d.titulo || 'Leitura do clube', W - 2 * M, Math.max(40, fimT - topoT - extraT), fonteTitulo, formato === 'story' ? 68 : 56, 30, 1.12)
+  let largT = W - 2 * M
+  if (cp) {
+    const hC = porFormato(340, 260, 210)
+    const wC = desenharCapa(ctx, cp, W - M, yFaixa - hC * 0.55, hC, true, 'dir')
+    largT = W - 2 * M - wC - 40
+  }
+  const a = ajustar(ctx, d.titulo || 'Leitura do clube', largT, Math.max(40, fimT - topoT - extraT), fonteTitulo, formato === 'story' ? 68 : 56, 28, 1.12)
   let y = topoT + Math.max(0, (fimT - topoT - extraT - a.alturaTotal) / 2) + 30
   texto1(ctx, 'Lendo agora', M, y, `600 28px ${SANS}`, P.rotulo, 'left')
   y += 24
@@ -1502,7 +1580,7 @@ export async function desenharLeitura(canvas: HTMLCanvasElement, modeloPedido: M
   ctx.font = fonteTitulo(a.tam)
   escrever(ctx, a.linhas, M, y, a.alturaLinha, a.tam, 'left')
   y += a.alturaTotal
-  if (d.autor) texto1(ctx, d.autor, M, y + 42, `400 30px ${SANS}`, P.suave, 'left', W - 2 * M)
+  if (d.autor) texto1(ctx, d.autor, M, y + 42, `400 30px ${SANS}`, P.suave, 'left', largT)
   barra(ctx, M, yBarra, W - 2 * M, 12, pct, P.trilho, C.dourado)
   texto1(ctx, `${pct}%`, M, yBarra - 26, `600 52px ${SERIFA}`, P.escuro ? C.dourado : C.douradoEscuro, 'left')
   texto1(ctx, `${Math.round(d.paginas)} de ${d.total} páginas`, W - M, yBarra - 30, `600 26px ${SANS}`, P.suave, 'right')
@@ -1543,10 +1621,17 @@ export async function desenharAdesivo(canvas: HTMLCanvasElement, modelo: ModeloL
   const t = (txt: string, x: number, y: number, fonte: string, c: string, al: CanvasTextAlign = 'center') =>
     comSombra(() => texto1(ctx, txt, x, y, fonte, c, al, W - 120))
   let y = 60
+  const cp = d.mostrarCapa === false ? null : d.capa
+  // modelos que não são o "Estou lendo": a capa entra no topo, acima do conteúdo
+  if (cp && modelo !== 'lendo') {
+    const hC = 440
+    desenharCapa(ctx, cp, W / 2, y, hC, true)
+    y += hC + 50
+  }
 
-  if (modelo === 'capa') {
-    // a capa do livro (ou o emblema do clube, se não houver capa)
-    const visual: HTMLImageElement = d.capa ?? await logo('simbolo', cor === 'claro' ? 'branco' : 'preto')
+  if (modelo === 'lendo' && cp) {
+    // a capa do livro em destaque: em cima ou ao lado do texto
+    const visual: HTMLImageElement = cp
     const desenharCapa = (x: number, yy: number, w: number, h: number) => {
       ctx.save()
       if (d.capa) {
@@ -1565,7 +1650,7 @@ export async function desenharAdesivo(canvas: HTMLCanvasElement, modelo: ModeloL
       }
       ctx.restore()
     }
-    if ((d.versao ?? 0) === 1) {
+    if (d.capaLado) {
       // capa ao lado, texto à direita
       const hC = 560
       const wC = d.capa ? Math.round(hC * Math.min(0.75, Math.max(0.55, visual.width / visual.height))) : hC * (visual.width / visual.height)

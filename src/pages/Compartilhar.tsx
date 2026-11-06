@@ -5,7 +5,7 @@ import { useAviso } from '../components/Toast'
 import Icone, { type NomeIcone } from '../components/Icone'
 import {
   FORMATOS, MODELOS_LEITURA, MODELOS_TEXTO, arquivoParaImagem, canvasParaArquivo, carregarImagem,
-  desenharAdesivo, desenharLeitura, desenharTexto, dividirTexto, limiteDeCaracteres, SO_COM_FUNDO, SO_SEM_FUNDO, FONTES_CARTAO, precarregarFontes, type FonteCartao,
+  desenharAdesivo, desenharLeitura, desenharTexto, dividirTexto, limiteDeCaracteres, SO_COM_FUNDO, FONTES_CARTAO, precarregarFontes, type FonteCartao,
   AJUSTE_PADRAO, MODELOS_COM_FOTO, VERSOES, type AjusteFoto, type FiltroFoto, type FundoCaber,
   type CorAdesivo, type Formato, type ModeloLeitura, type ModeloTexto, type TipoTexto
 } from '../lib/cartoes'
@@ -82,6 +82,12 @@ export default function Compartilhar({ perfil, livro, preCarga }: Props) {
   const [parte, setParte] = useState(0)
   const [foto, setFoto] = useState<HTMLImageElement | null>(null)
   const [ajuste, setAjuste] = useState<AjusteFoto>(AJUSTE_PADRAO)
+  const [mostrarCapa, setMostrarCapa] = useState(() => { try { return localStorage.getItem('bereanos-streak-mostrar-capa') !== '0' } catch { return true } })
+  const [capaLado, setCapaLado] = useState(false)
+  function mudarMostrarCapa(v: boolean) {
+    setMostrarCapa(v)
+    try { localStorage.setItem('bereanos-streak-mostrar-capa', v ? '1' : '0') } catch { /* ok */ }
+  }
   const [versoes, setVersoes] = useState<Record<string, number>>(() => {
     try { return JSON.parse(localStorage.getItem(CHAVE_VERSOES) || '{}') } catch { return {} }
   })
@@ -113,8 +119,7 @@ export default function Compartilhar({ perfil, livro, preCarga }: Props) {
   }, [modo, modeloLeitura, livro.id])
   // adesivo sem fundo não existe para os modelos de página inteira
   useEffect(() => { if (SO_COM_FUNDO.includes(modeloLeitura) && fundo === 'transparente') setFundo('com') }, [modeloLeitura])
-  useEffect(() => { if (fundo === 'transparente' && (SO_COM_FUNDO.includes(modeloLeitura) || modeloLeitura === 'lendo')) setModeloLeitura('capa') }, [fundo])
-  useEffect(() => { if (fundo === 'com' && SO_SEM_FUNDO.includes(modeloLeitura)) setModeloLeitura('lendo') }, [fundo])
+  useEffect(() => { if (fundo === 'transparente' && SO_COM_FUNDO.includes(modeloLeitura)) setModeloLeitura('lendo') }, [fundo])
 
   // rascunho do texto: continua lá se a pessoa sair da tela e voltar
   useEffect(() => {
@@ -158,6 +163,8 @@ export default function Compartilhar({ perfil, livro, preCarga }: Props) {
   useEffect(() => { if (parte > partes.length - 1) setParte(0) }, [partes.length])
 
   const semana = leitura.semana.map((d) => ({ rotulo: d.rotulo, paginas: d.paginas }))
+  const capaVisivel = mostrarCapa && mostrarLivro && !!capa
+  const capaBaixa = !!capa && Math.min(capa.naturalWidth, capa.naturalHeight * 0.66) < 420
   const dadosLeitura = {
     fonteCartao,
     titulo: mostrarLivro ? livro.titulo : '',
@@ -171,6 +178,8 @@ export default function Compartilhar({ perfil, livro, preCarga }: Props) {
     foto,
     ajuste,
     versao,
+    mostrarCapa: capaVisivel,
+    capaLado,
     semana,
     retro: retro ? {
       paginas: retro.paginas,
@@ -277,7 +286,7 @@ export default function Compartilhar({ perfil, livro, preCarga }: Props) {
     }, espera)
     return () => { cancelado = true; clearTimeout(t) }
   }, [modo, formato, modeloTexto, modeloLeitura, tipo, partes, parteAtual, fonte, mostrarNome, autorTexto, mostrarLivro, foto, capa, ajuste, versao,
-      leitura.carregando, leitura.pct, leitura.seq.dias, leitura.paginasSemana, fundo, corAdesivo, retro, panorama, fonteCartao])
+      leitura.carregando, leitura.pct, leitura.seq.dias, leitura.paginasSemana, fundo, corAdesivo, retro, panorama, fonteCartao, capaVisivel, capaLado])
 
   // ----- gestos na prévia: arrastar move a foto, pinça ou rodinha dão zoom -----
   const editandoFoto = aceitaFoto && !!foto && !transparente
@@ -523,7 +532,7 @@ export default function Compartilhar({ perfil, livro, preCarga }: Props) {
           <h2 className="rotulo">Modelo</h2>
           <div className="flex gap-3 overflow-x-auto pb-2 -mx-1 px-1 sem-barra">
             {(modo === 'texto' ? MODELOS_TEXTO : MODELOS_LEITURA)
-              .filter((m) => !(transparente && SO_COM_FUNDO.includes(m.id as ModeloLeitura)) && !(!transparente && SO_SEM_FUNDO.includes(m.id as ModeloLeitura)) && !(!contagem && m.id === 'constancia'))
+              .filter((m) => !(transparente && SO_COM_FUNDO.includes(m.id as ModeloLeitura)) && !(!contagem && m.id === 'constancia'))
               .map((m) => {
                 const ativo = modo === 'texto' ? modeloTexto === m.id : modeloLeitura === m.id
                 return (
@@ -546,8 +555,8 @@ export default function Compartilhar({ perfil, livro, preCarga }: Props) {
                     >
                       {m.id.startsWith('foto') ? (
                         <Icone nome="camera" className="w-6 h-6 mb-7 text-white/80" />
-                      ) : m.id === 'capa' ? (
-                        <span className="w-7 h-10 mb-5 rounded-[3px] shadow-md" style={{ background: 'linear-gradient(160deg, #6b4a3a, #2b1f18)', boxShadow: '0 4px 10px rgba(0,0,0,0.35)' }} />
+                      ) : modo === 'leitura' && capaVisivel ? (
+                        <span className="w-6 h-9 mb-5 rounded-[3px] bg-cover bg-center ring-1 ring-black/10" style={{ backgroundImage: `url(${livro.capa_url})`, boxShadow: '0 3px 8px rgba(0,0,0,0.35)' }} />
                       ) : (
                         <span className="w-8 h-1.5 rounded-full mb-5" style={{ background: transparente ? (corAdesivo === 'claro' ? '#fff' : '#1B2A4A') : m.cores[1] }} />
                       )}
@@ -557,7 +566,22 @@ export default function Compartilhar({ perfil, livro, preCarga }: Props) {
                 )
               })}
           </div>
-          {listaVersoes.length > 1 && (
+          {modo === 'leitura' && (
+            <div className="cartao px-4 py-3 mt-3 space-y-3">
+              <Alternar ligado={capaVisivel} onMudar={(v) => mudarMostrarCapa(v)} titulo="Mostrar a capa do livro"
+                detalhe={!livro.capa_url ? 'Este livro não tem capa cadastrada' : !mostrarLivro ? 'Ligue “Mostrar nome do livro” para a capa aparecer' : capaVisivel ? 'A capa entra no modelo escolhido' : 'O modelo sai com o emblema do clube'} />
+              {capaVisivel && transparente && modeloLeitura === 'lendo' && (
+                <div className="grid grid-cols-2 gap-2">
+                  <button onClick={() => setCapaLado(false)} aria-pressed={!capaLado} className={`chip ${!capaLado ? 'chip-ativo' : ''}`}>Capa em cima</button>
+                  <button onClick={() => setCapaLado(true)} aria-pressed={capaLado} className={`chip ${capaLado ? 'chip-ativo' : ''}`}>Capa ao lado</button>
+                </div>
+              )}
+              {capaVisivel && capaBaixa && (
+                <p className="text-xs text-dourado-escuro dark:text-dourado">A capa deste livro está em baixa resolução e pode sair borrada. O admin pode enviar uma foto maior da capa em Painel do admin, Editar livro e capa.</p>
+              )}
+            </div>
+          )}
+          {listaVersoes.length > 1 && !transparente && (
             <div className="mt-2">
               <h3 className="text-xs font-semibold text-texto/55 dark:text-bege/55 mb-1.5">Versão</h3>
               <div className="flex flex-wrap gap-2">

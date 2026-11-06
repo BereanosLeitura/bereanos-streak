@@ -10,7 +10,8 @@ Protótipo pessoal de Felipe para acompanhar a leitura coletiva do Clube do Livr
 - Anotações (trechos, reflexões e perguntas), mural do grupo e perguntas para o encontro
 - Compartilhar: modelos de imagem para frases e para a leitura, em Story, Post e Quadrado, com opção sem fundo
 - Perfil com conquistas, horários de leitura, Estante (histórico de cada ciclo) e retrospectiva por livro
-- Seu ano de leitura com a imagem "Minha estante" (capas e nomes dos livros) e adesivo sem fundo com a capa
+- Seu ano de leitura com a imagem "Minha estante" (capas e nomes dos livros)
+- Opção "Mostrar a capa do livro" em todos os modelos de leitura, com e sem fundo
 - Panorama do grupo no livro do ciclo
 - Métricas: as suas (só você vê) e as do grupo (totais e distribuições, sem nomes e sem ranking)
 - Painel do admin: livro do ciclo (capa, dados, datas), próximo encontro, concluir ciclo marcando quem terminou, membros
