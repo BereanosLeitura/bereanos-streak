@@ -1,4 +1,5 @@
 import { useEffect, useState, type FormEvent, type ReactNode } from 'react'
+import { marcoAtravessado } from '../components/Celebracao'
 import { buscarPendentes, marcarLeitura, type LivroPendente } from '../lib/pendentes'
 import { apagarRegistroLeitura, criarRegistroLeitura } from '../lib/sync'
 import { supabase, type Perfil } from '../lib/supabase'
@@ -13,7 +14,7 @@ interface Props {
   perfil: Perfil
   livro: LivroAtivo
   pendenteInicial?: string | null // id de uma leitura pendente para abrir já selecionada
-  onRegistrado: (terminouLivro: boolean, livro: LivroAtivo) => void
+  onRegistrado: (terminouLivro: boolean, livro: LivroAtivo, marco?: number | null) => void
   onAnotar: () => void
 }
 
@@ -22,7 +23,7 @@ interface PropsForm {
   livro: LivroAtivo
   seletor?: ReactNode
   pendente?: boolean
-  onRegistrado: (terminouLivro: boolean) => void
+  onRegistrado: (terminouLivro: boolean, marco?: number | null) => void
   onAnotar: () => void
   onMarcar?: (status: 'terminou' | 'deixou') => void
 }
@@ -48,7 +49,6 @@ export default function RegistrarLeitura({ perfil, livro, pendenteInicial, onReg
     setPendentes((l) => l.filter((p) => p.id !== alvo.id))
     setEscolhido(livro.id)
     if (status === 'terminou') {
-      avisar(`Você terminou ${alvo.titulo}.`)
       onRegistrado(true, alvo)
     } else {
       avisar(`${alvo.titulo} saiu das leituras pendentes`, 'ok', {
@@ -85,7 +85,7 @@ export default function RegistrarLeitura({ perfil, livro, pendenteInicial, onReg
       livro={atual}
       seletor={seletor}
       pendente={ehPendente}
-      onRegistrado={(t) => onRegistrado(t, atual)}
+      onRegistrado={(t, m) => onRegistrado(t, atual, m)}
       onAnotar={onAnotar}
       onMarcar={marcar}
     />
@@ -93,7 +93,7 @@ export default function RegistrarLeitura({ perfil, livro, pendenteInicial, onReg
 }
 
 type Modo = 'pagina' | 'quantidade' | 'tempo'
-type Quando = 0 | 1 | 2 // hoje, ontem, anteontem
+type Quando = 0 | 1 | 2 | 'outro' // hoje, ontem, anteontem ou outro dia
 type TipoNota = 'trecho' | 'reflexao' | 'pergunta' | 'aplicacao'
 
 // Uma tela só: "parei na página 64" (o app calcula a diferença) e, se quiser,
@@ -107,6 +107,8 @@ function FormRegistro({ perfil, livro, seletor, pendente, onRegistrado, onAnotar
   const [valor, setValor] = useState('')
   const [tempo, setTempo] = useState('') // minutos, opcional nos modos de página
   const [quando, setQuando] = useState<Quando>(0)
+  const [outroDia, setOutroDia] = useState('') // aaaa-mm-dd, quando "Outro dia"
+  const [hora, setHora] = useState('') // hh:mm, opcional para dias anteriores
   const [comNota, setComNota] = useState(false)
   const [tipoNota, setTipoNota] = useState<TipoNota>('reflexao')
   const [textoNota, setTextoNota] = useState('')
@@ -126,18 +128,30 @@ function FormRegistro({ perfil, livro, seletor, pendente, onRegistrado, onAnotar
   // no modo "Só o tempo" o avanço no livro é estimado pelo seu ritmo
   const paginasEstimadas = soTempo ? Math.round(minutosInformados / ritmo) : paginasDoRegistro
   const minPorPagina = !soTempo && minutosInformados > 0 && paginasDoRegistro > 0 ? minutosInformados / paginasDoRegistro : null
-  const podeSalvar = soTempo ? minutosInformados > 0 : paginasDoRegistro > 0
+  const podeSalvarBase = soTempo ? minutosInformados > 0 : paginasDoRegistro > 0
   const pctDepois = Math.min(100, Math.round(((jaLidas + Math.max(0, paginasEstimadas)) / livro.paginas_totais) * 100))
   const restantes = diasAte(livro.ciclo_fim)
   const faltam = livro.paginas_totais - jaLidas
+  const ontemChave = (() => { const d = new Date(); d.setDate(d.getDate() - 1); return chaveLocal(d) })()
+  const minimoOutroDia = (() => { const d = new Date(); d.setDate(d.getDate() - 90); const lim = chaveLocal(d); return livro.ciclo_inicio && livro.ciclo_inicio > lim ? livro.ciclo_inicio : lim })()
+  const outroDiaValido = quando !== 'outro' || (!!outroDia && outroDia <= ontemChave && outroDia >= minimoOutroDia)
+  const podeSalvar = podeSalvarBase && outroDiaValido
   const porDiaNecessario = restantes && restantes > 0 && faltam > 0 ? Math.ceil(faltam / restantes) : null
 
   function dataDoRegistro(): string {
     if (quando === 0) return new Date().toISOString()
-    const d = new Date()
-    d.setDate(d.getDate() - quando)
-    d.setHours(20, 0, 0, 0)
-    return d.toISOString()
+    let d: Date
+    if (quando === 'outro') {
+      const [a, m, dia] = outroDia.split('-').map(Number)
+      d = new Date(a, m - 1, dia)
+    } else {
+      d = new Date()
+      d.setDate(d.getDate() - quando)
+    }
+    const [h, min] = hora ? hora.split(':').map(Number) : [20, 0]
+    d.setHours(h, min, 0, 0)
+    // nunca no futuro (ex.: hoje mais tarde do que agora)
+    return (d > new Date() ? new Date() : d).toISOString()
   }
 
   function trocarModo(m: Modo) {
@@ -150,6 +164,7 @@ function FormRegistro({ perfil, livro, seletor, pendente, onRegistrado, onAnotar
     e.preventDefault()
     setErro(null)
     if (minutosInformados > 1440) return setErro('O tempo vai até 1.440 minutos (24 horas).')
+    if (!outroDiaValido) return setErro('Escolha o dia da leitura (de ontem para trás).')
     if (soTempo) {
       if (minutosInformados <= 0) return setErro('Informe quantos minutos você leu.')
     } else {
@@ -177,6 +192,7 @@ function FormRegistro({ perfil, livro, seletor, pendente, onRegistrado, onAnotar
     setSalvando(false)
     setValor('')
     setTempo('')
+    setHora('')
     setTextoNota('')
     const terminou = jaLidas < livro.paginas_totais && jaLidas + paginasEstimadas >= livro.paginas_totais
     if (!terminou) {
@@ -189,7 +205,9 @@ function FormRegistro({ perfil, livro, seletor, pendente, onRegistrado, onAnotar
           ? `${formatarTempo(minutosInformados)} de leitura registrados${comAnotacao}`
           : `${paginasDoRegistro} ${paginasDoRegistro === 1 ? 'página registrada' : 'páginas registradas'}${minutosInformados ? ` em ${formatarTempo(minutosInformados)}` : ''}${comAnotacao}`)
     }
-    onRegistrado(terminou)
+    const pctAntes = (jaLidas / livro.paginas_totais) * 100
+    const pctApos = ((jaLidas + Math.max(0, paginasEstimadas)) / livro.paginas_totais) * 100
+    onRegistrado(terminou, terminou ? null : marcoAtravessado(pctAntes, pctApos))
   }
 
   const [ocultos, setOcultos] = useState<Set<string>>(new Set())
@@ -241,6 +259,15 @@ function FormRegistro({ perfil, livro, seletor, pendente, onRegistrado, onAnotar
             <span>{paginasEstimadas > 0 ? `${soTempo ? 'cerca de ' : ''}${pctDepois}% depois deste registro` : `${leitura.pct}%`}</span>
             <span>p. {livro.paginas_totais}</span>
           </div>
+
+          {modo === 'pagina' && jaLidas < livro.paginas_totais && (
+            <input
+              type="range" className="deslizante mt-2" aria-label="Arraste até a página em que parou"
+              min={0} max={livro.paginas_totais} step={1}
+              value={Math.min(Math.max(numero || jaLidas, jaLidas), livro.paginas_totais)}
+              onChange={(e) => { const v = Number(e.target.value); setValor(v <= jaLidas ? '' : String(v)); setErro(null) }}
+            />
+          )}
 
           {modo !== 'pagina' && (
             <div className="flex justify-center gap-2 flex-wrap mt-4">
@@ -311,11 +338,34 @@ function FormRegistro({ perfil, livro, seletor, pendente, onRegistrado, onAnotar
 
           <div className="mt-5">
             <p className="text-sm text-texto/60 dark:text-bege/60 mb-2">Quando foi?</p>
-            <div className="grid grid-cols-3 gap-2">
-              {(['Hoje', 'Ontem', 'Anteontem'] as const).map((r, i) => (
-                <button key={r} type="button" onClick={() => setQuando(i as Quando)} className={`chip ${quando === i ? 'chip-ativo' : ''}`}>{r}</button>
+            <div className="grid grid-cols-4 gap-1.5">
+              {([['Hoje', 0], ['Ontem', 1], ['Anteontem', 2], ['Outro dia', 'outro']] as const).map(([r, q]) => (
+                <button key={r} type="button" onClick={() => setQuando(q)} aria-pressed={quando === q}
+                  className={`chip !px-1 text-[13px] ${quando === q ? 'chip-ativo' : ''}`}>{r}</button>
               ))}
             </div>
+            {quando !== 0 && (
+              <div className="mt-3 flex gap-2 items-end animate-subir-suave">
+                {quando === 'outro' && (
+                  <label className="flex-1 min-w-0">
+                    <span className="block text-xs text-texto/55 dark:text-bege/55 mb-1">Dia</span>
+                    <input type="date" value={outroDia} min={minimoOutroDia} max={ontemChave}
+                      onChange={(e) => setOutroDia(e.target.value)} className="campo w-full !py-2" />
+                  </label>
+                )}
+                <label className={quando === 'outro' ? 'w-[118px] shrink-0' : 'flex-1'}>
+                  <span className="block text-xs text-texto/55 dark:text-bege/55 mb-1">Horário <span className="text-texto/40 dark:text-bege/40">(opcional)</span></span>
+                  <input type="time" value={hora} onChange={(e) => setHora(e.target.value)} className="campo w-full !py-2" />
+                </label>
+              </div>
+            )}
+            {quando !== 0 && (
+              <p className="text-xs text-texto/50 dark:text-bege/50 mt-1.5">
+                {quando === 'outro' && !outroDia
+                  ? 'Escolha o dia da leitura.'
+                  : `${descreverDia(quando === 'outro' ? outroDia : (() => { const d = new Date(); d.setDate(d.getDate() - quando); return chaveLocal(d) })())}${hora ? `, às ${hora}` : ''}.`}
+              </p>
+            )}
           </div>
 
           {/* anotação junto */}
@@ -428,4 +478,14 @@ function FormRegistro({ perfil, livro, seletor, pendente, onRegistrado, onAnotar
       </form>
     </div>
   )
+}
+
+function chaveLocal(d: Date) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
+
+function descreverDia(chave: string) {
+  const [a, m, d] = chave.split('-').map(Number)
+  const txt = new Date(a, m - 1, d).toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' })
+  return txt.charAt(0).toUpperCase() + txt.slice(1)
 }

@@ -1,8 +1,13 @@
 import { Fragment, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { BarraBrilho, useNumeroAnimado } from '../components/BarraBrilho'
+import { formatarTempoEstimado } from '../lib/tempo'
+import { useCorDaCapa } from '../lib/corCapa'
+import Vazio from '../components/Vazio'
+import ProtecaoSpoiler, { aFrente } from '../components/ProtecaoSpoiler'
 import { supabase, type Perfil } from '../lib/supabase'
 import { apagarRegistroLeitura, criarRegistroLeitura } from '../lib/sync'
 import { useMinhaLeitura } from '../lib/leitura'
-import { useContagem } from '../lib/preferencias'
+import { useContagem, usePreferenciaVisual, corDaCapaAtiva } from '../lib/preferencias'
 import PersonalizarInicio, { gravarLayout, layoutSalvo, type IdBlocoInicio, type LayoutInicio } from '../components/PersonalizarInicio'
 import { buscarPendentes, type LivroPendente } from '../lib/pendentes'
 import { useAviso } from '../components/Toast'
@@ -15,7 +20,7 @@ import type { PreCarga } from './Compartilhar'
 import { GraficoRitmo } from '../components/Graficos'
 import { planoCiclo, serieRitmo } from '../lib/infograficos'
 import {
-  chaveDia, diasAte, formatarData, gradeSemanas, paginasEquivalentes, tempoRelativo
+  chaveDia, contar, diasAte, formatarData, gradeSemanas, paginasEquivalentes, tempoRelativo
 } from '../lib/estatisticas'
 
 export interface LivroAtivo {
@@ -40,6 +45,7 @@ interface ProgressoMembro {
 
 interface NotaMural {
   id: string
+  membro_id: string
   texto: string
   tipo: 'trecho' | 'reflexao' | 'pergunta' | 'aplicacao'
   pagina: number | null
@@ -62,6 +68,11 @@ export default function Inicio({ perfil, livro, onIr, onPerfilAtualizado, onCont
   const [pendentes, setPendentes] = useState<LivroPendente[]>([])
   useEffect(() => { buscarPendentes(perfil).then((l) => setPendentes(l.filter((p) => p.id !== livro.id))).catch(() => setPendentes([])) }, [perfil.id, livro.id])
   const contagem = useContagem()
+  const usarCorCapa = usePreferenciaVisual(corDaCapaAtiva)
+  const corCapa = useCorDaCapa(usarCorCapa ? livro.capa_url : null)
+  const paginaMural = leitura.carregando ? 0 : leitura.paginasLivro >= livro.paginas_totais ? null : leitura.paginasLivro
+  const faltamPaginas = Math.max(0, livro.paginas_totais - leitura.paginasLivro)
+  const minutosFaltam = faltamPaginas * (perfil.ritmo_leitura_min_por_pagina || 2)
   const [progresso, setProgresso] = useState<ProgressoMembro[] | null>(null)
   const [aniversariantes, setAniversariantes] = useState<{ nome: string; dias: number; data: string }[]>([])
   const [mural, setMural] = useState<NotaMural[]>([])
@@ -155,7 +166,7 @@ export default function Inicio({ perfil, livro, onIr, onPerfilAtualizado, onCont
   async function carregarMural() {
     const { data } = await supabase
       .from('anotacoes')
-      .select('id, texto, tipo, pagina, created_at, perfis(nome_exibicao)')
+      .select('id, membro_id, texto, tipo, pagina, created_at, perfis(nome_exibicao)')
       .eq('livro_id', livro.id)
       .eq('compartilhada', true)
       .order('created_at', { ascending: false })
@@ -229,7 +240,7 @@ export default function Inicio({ perfil, livro, onIr, onPerfilAtualizado, onCont
               ) : (
                 <p className="legenda mt-0.5">
                   {leitura.paginasHoje >= meta
-                    ? `Meta cumprida: ${leitura.paginasHoje} páginas hoje (meta de ${meta}).`
+                    ? `Meta cumprida: ${contar(leitura.paginasHoje, 'página', 'páginas')} hoje (meta de ${meta}).`
                     : `${leitura.paginasHoje} de ${meta} páginas da meta do dia.`}{' '}
                   <button onClick={() => setEditandoMeta(true)} className="botao-texto">Ajustar meta</button>
                 </p>
@@ -264,7 +275,7 @@ export default function Inicio({ perfil, livro, onIr, onPerfilAtualizado, onCont
             </div>
             {ultimoRapido && (
               <p className="text-sm text-texto/60 dark:text-bege/60 mt-3 animate-subir-suave">
-                {ultimoRapido.paginas} páginas lançadas agora.{' '}
+                {ultimoRapido.paginas === 1 ? '1 página lançada agora.' : `${ultimoRapido.paginas} páginas lançadas agora.`}{' '}
                 <button onClick={desfazer} className="botao-texto">Desfazer</button>
               </p>
             )}
@@ -294,9 +305,14 @@ export default function Inicio({ perfil, livro, onIr, onPerfilAtualizado, onCont
           </div>
           {vista === 'ciclo' ? (
             <RitmoCiclo leitura={leitura} livro={livro} />
+          ) : vista === 'semana' && leitura.paginasSemana === 0 && leitura.minutosSemana === 0 ? (
+            <div className="mt-3 flex items-center gap-3">
+              <span className="w-9 h-9 rounded-full bg-dourado/10 text-dourado flex items-center justify-center shrink-0"><Icone nome="livro" className="w-4 h-4" /></span>
+              <p className="text-sm text-texto/65 dark:text-bege/65 flex-1">Nenhuma leitura nesta semana ainda. Cada página conta.</p>
+              <button onClick={() => onIr('registrar')} className="chip shrink-0">Registrar</button>
+            </div>
           ) : vista === 'semana' ? (
             <>
-              {leitura.paginasSemana === 0 && <p className="legenda mt-3">Nenhuma página nesta semana ainda. Cada página conta.</p>}
               <div className="flex items-end justify-between gap-2 h-28 mt-4" role="img" aria-label="Páginas lidas em cada dia da semana">
                 {leitura.semana.map((d) => {
                   const futuro = d.chave > chaveDia(new Date())
@@ -342,7 +358,7 @@ export default function Inicio({ perfil, livro, onIr, onPerfilAtualizado, onCont
             <button onClick={() => onIr('panorama')} className="botao-texto">Ver panorama</button>
           </div>
           {progresso === null && <div className="space-y-4">{[0, 1, 2].map((i) => <div key={i} className="esqueleto h-10" />)}</div>}
-          {progresso && progresso.length > 0 && <p className="legenda -mt-2 mb-4">{leramHoje.size} {leramHoje.size === 1 ? 'pessoa leu' : 'pessoas leram'} hoje</p>}
+          {progresso && progresso.length > 0 && <p className="legenda -mt-2 mb-4">{leramHoje.size === 0 ? 'Ninguém registrou leitura hoje ainda' : `${leramHoje.size} ${leramHoje.size === 1 ? 'pessoa leu' : 'pessoas leram'} hoje`}</p>}
           {progresso?.length === 0 && <p className="legenda">Ninguém registrou leitura ainda. As primeiras páginas podem ser as suas.</p>}
           <ul className="space-y-4">
             {progresso?.map((p) => {
@@ -384,16 +400,19 @@ export default function Inicio({ perfil, livro, onIr, onPerfilAtualizado, onCont
             <button onClick={() => onIr('notas')} className="botao-texto">Ver anotações</button>
           </div>
           {mural.length === 0 ? (
-            <p className="legenda">Quando alguém puser um trecho, reflexão, pergunta ou aplicação no mural, aparece aqui.</p>
+            <Vazio compacto texto="Quando alguém puser um trecho, reflexão, pergunta ou aplicação no mural, aparece aqui." />
           ) : (
             <ul className="space-y-4">
               {mural.map((n) => (
                 <li key={n.id} className="border-l-2 border-dourado/50 pl-3.5">
+                  <ProtecaoSpoiler compacto pagina={n.pagina} minhaPagina={paginaMural}
+                    ativo={aFrente(n, perfil.id, paginaMural)}>
                   <p className={`texto-nota text-[15px] text-marinho dark:text-bege line-clamp-3 ${n.tipo === 'trecho' ? 'font-serif italic text-[17px]' : ''}`}>
                     {n.tipo === 'pergunta' && <span className="text-dourado-escuro dark:text-dourado font-semibold not-italic">Pergunta: </span>}
                     {n.tipo === 'aplicacao' && <span className="text-dourado-escuro dark:text-dourado font-semibold not-italic">Para aplicar: </span>}
                     {n.texto}
                   </p>
+                  </ProtecaoSpoiler>
                   <p className="text-xs text-texto/45 dark:text-bege/45 mt-1">
                     {n.nome}{n.pagina ? `, p. ${n.pagina}` : ''}, {tempoRelativo(n.created_at)}
                   </p>
@@ -464,7 +483,8 @@ export default function Inicio({ perfil, livro, onIr, onPerfilAtualizado, onCont
         )}
 
         {/* Livro do ciclo, com a fita marcadora mostrando o progresso */}
-        <section className="relative overflow-hidden rounded-3xl bg-marinho text-bege dark:bg-noite-cartao dark:ring-1 dark:ring-dourado/20">
+        <section className="borda-luz relative overflow-hidden rounded-3xl bg-marinho text-bege dark:bg-noite-cartao dark:ring-1 dark:ring-dourado/20 transition-[background-image] duration-700"
+          style={corCapa ? { backgroundImage: `radial-gradient(140% 95% at 0% 0%, ${corCapa.replace(')', ' / 0.9)')} 0%, transparent 72%)` } : undefined}>
           <div className="absolute top-0 right-7 w-6 fita animate-fita-desce shadow-md" style={{ height: `${Math.max(10, pct)}%` }} aria-hidden="true" />
           <div className="p-5 pr-16">
             <div className="flex gap-4">
@@ -487,7 +507,7 @@ export default function Inicio({ perfil, livro, onIr, onPerfilAtualizado, onCont
               ) : (
                 <>
                   <p className="font-serif tabular text-[64px] leading-[0.85] text-bege">
-                    {pct}<span className="text-3xl text-dourado align-top ml-0.5">%</span>
+                    <PctAnimado pct={pct} /><span className="text-3xl text-dourado align-top ml-0.5">%</span>
                   </p>
                   <p className="text-sm text-bege/65 pb-1.5 leading-snug">
                     página {leitura.paginasLivro}<br />de {livro.paginas_totais}
@@ -495,6 +515,14 @@ export default function Inicio({ perfil, livro, onIr, onPerfilAtualizado, onCont
                 </>
               )}
             </div>
+            {!leitura.carregando && (
+              <BarraBrilho pct={pct} altura="h-1.5" trilho="bg-bege/[0.12]" className="mt-4" rotulo={`página ${leitura.paginasLivro} de ${livro.paginas_totais}`} />
+            )}
+            {!leitura.carregando && faltamPaginas > 0 && (
+              <p className="text-xs text-bege/60 mt-2">
+                Faltam {faltamPaginas} {faltamPaginas === 1 ? 'página' : 'páginas'}, cerca de <span className="text-bege/85 font-semibold">{formatarTempoEstimado(minutosFaltam)}</span> de leitura no seu ritmo
+              </p>
+            )}
           </div>
           <dl className="grid grid-cols-3 border-t border-bege/10">
             <Dado valor={restantes === null ? '—' : String(restantes)} rotulo={restantes === null ? 'sem data de fim' : restantes === 1 ? 'dia restante' : 'dias restantes'} />
@@ -551,7 +579,7 @@ export default function Inicio({ perfil, livro, onIr, onPerfilAtualizado, onCont
             onClick={() => onIr('compartilhar', { modo: 'leitura', modeloLeitura: 'terminei' })} />
         )}
         {contagem && !leitura.carregando && pct < 100 && leitura.seq.leuHoje && MARCOS.includes(leitura.seq.dias) && (
-          <Marco icone="chama" titulo={`${leitura.seq.dias} dias seguidos de leitura`} texto="Constância vale mais que velocidade. Quer compartilhar?" acao="Criar imagem"
+          <Marco icone="chama" titulo={`${contar(leitura.seq.dias, 'dia', 'dias')} seguidos de leitura`} texto="Constância vale mais que velocidade. Quer compartilhar?" acao="Criar imagem"
             onClick={() => onIr('compartilhar', { modo: 'leitura', modeloLeitura: 'constancia' })} />
         )}
 
@@ -573,7 +601,7 @@ export default function Inicio({ perfil, livro, onIr, onPerfilAtualizado, onCont
                   <div className="flex-1 min-w-0">
                     <p className="font-serif text-[16px] leading-snug text-marinho dark:text-bege truncate">{p.titulo}</p>
                     <div className="flex items-center gap-2 mt-1">
-                      <span className="flex-1 h-1.5 rounded-full bg-marinho/[0.08] dark:bg-bege/[0.1] overflow-hidden"><span className="block h-full bg-dourado rounded-full" style={{ width: `${p.pct}%` }} /></span>
+                      <BarraBrilho pct={p.pct} altura="h-1.5" className="flex-1" faiscas={false} rotulo={`${p.paginasLidas} de ${p.paginas_totais} páginas`} />
                       <span className="text-xs tabular text-texto/55 dark:text-bege/55">{p.pct}%</span>
                     </div>
                   </div>
@@ -640,6 +668,18 @@ function CartaoMetas({ metas, leitura, livro, onAbrir }: {
     if (m.tipo === 'livro_total') return [leitura.paginasLivro, livro.paginas_totais]
     const soma = leitura.doLivro.filter((r) => dentro(r.registrado_em)).reduce((a, r) => a + paginasEquivalentes(r, ritmo), 0)
     return [Math.round(soma), m.valor_paginas ?? 0]
+  }
+  if (metas !== null && ativas.length === 0) {
+    return (
+      <section className="cartao px-5 py-4 flex items-center gap-3">
+        <span className="w-9 h-9 rounded-full bg-dourado/10 text-dourado flex items-center justify-center shrink-0"><Icone nome="alvo" className="w-4 h-4" /></span>
+        <div className="flex-1 min-w-0">
+          <h2 className="font-serif text-lg leading-tight text-marinho dark:text-bege">Metas</h2>
+          <p className="text-xs text-texto/55 dark:text-bege/55">Uma meta pequena ajuda a manter o ritmo.</p>
+        </div>
+        <button onClick={onAbrir} className="chip shrink-0">Criar meta</button>
+      </section>
+    )
   }
   return (
     <section className="cartao p-5">
@@ -852,4 +892,9 @@ function RitmoCiclo({ leitura, livro }: { leitura: ReturnType<typeof useMinhaLei
       })()}
     </div>
   )
+}
+
+/** Porcentagem que conta até o valor (isolada para não re-renderizar o Início inteiro a cada quadro). */
+function PctAnimado({ pct }: { pct: number }) {
+  return <>{useNumeroAnimado(pct)}</>
 }

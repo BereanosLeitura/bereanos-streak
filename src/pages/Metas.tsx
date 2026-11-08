@@ -9,6 +9,7 @@ interface Props {
   perfil: Perfil
   livro: LivroAtivo
   onVoltar?: () => void
+  rotuloVoltar?: string
 }
 
 type TipoMeta = 'semanal' | 'mensal' | 'livro_total' | 'sessoes_semanais' | 'dias_semanais'
@@ -31,7 +32,7 @@ const RADIO: Record<TipoMeta, string> = {
   dias_semanais: 'Dias de leitura por semana'
 }
 
-export default function Metas({ perfil, livro, onVoltar }: Props) {
+export default function Metas({ perfil, livro, onVoltar, rotuloVoltar = 'Voltar' }: Props) {
   const [metas, setMetas] = useState<MetaRow[]>([])
   const [progresso, setProgresso] = useState<Record<string, number>>({})
   const [carregando, setCarregando] = useState(true)
@@ -188,7 +189,7 @@ export default function Metas({ perfil, livro, onVoltar }: Props) {
       <div className="max-w-md mx-auto">
         {onVoltar && (
           <button onClick={onVoltar} className="flex items-center gap-1.5 text-sm text-texto/60 dark:text-bege/60 -ml-1 p-1 mb-2">
-            <Icone nome="seta-esquerda" className="w-4 h-4" /> Início
+            <Icone nome="seta-esquerda" className="w-4 h-4" /> {rotuloVoltar}
           </button>
         )}
         <div className="mb-6">

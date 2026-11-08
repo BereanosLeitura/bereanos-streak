@@ -1,8 +1,9 @@
 import { lazy, Suspense, useEffect, useRef, useState, type ComponentType } from 'react'
+import { MarcoLeitura, TelaTerminei } from './components/Celebracao'
 import { supabase, buscarPerfilAtual, type Perfil as TPerfil } from './lib/supabase'
 import { sincronizarTudo } from './lib/sync'
 import { aplicarTema, temaSalvoLocal, type TemaPreferido } from './lib/tema'
-import { ProvedorAvisos, useAviso } from './components/Toast'
+import { ProvedorAvisos } from './components/Toast'
 import Icone, { type NomeIcone } from './components/Icone'
 import Login from './pages/Login'
 import CompletarPerfil from './pages/CompletarPerfil'
@@ -10,7 +11,7 @@ import Inicio, { type LivroAtivo, type Destino } from './pages/Inicio'
 import RegistrarLeitura from './pages/RegistrarLeitura'
 import EstadoConexao from './components/EstadoConexao'
 import GuiaBoasVindas from './components/GuiaBoasVindas'
-import { ContagemContext, buscarPadraoClube, padraoClubeLocal, aplicarTamanhoLetra, tamanhoLetraSalvo, aplicarFonteNotas, fonteNotasSalva } from './lib/preferencias'
+import { ContagemContext, buscarPadraoClube, padraoClubeLocal, aplicarTamanhoLetra, tamanhoLetraSalvo, aplicarFonteNotas, fonteNotasSalva, aplicarEfeitos, efeitosAtivos } from './lib/preferencias'
 import type { PreCarga } from './pages/Compartilhar'
 import type { FiltroInicialNotas } from './pages/Notas'
 
@@ -76,6 +77,8 @@ function Aplicativo() {
   const [preCarga, setPreCarga] = useState<PreCarga | null>(null)
   const [focoAtivo, setFocoAtivo] = useState(false) // esconde a navegação durante a sessão de foco
   const [notasInicial, setNotasInicial] = useState<FiltroInicialNotas | null>(null)
+  const [terminado, setTerminado] = useState<LivroAtivo | null>(null)
+  const [marco, setMarco] = useState<{ valor: number; titulo: string } | null>(null)
   const [livroDetalhe, setLivroDetalhe] = useState<string | null>(null)
   const [livroCompartilhar, setLivroCompartilhar] = useState<LivroAtivo | null>(null) // livro da Estante, quando a imagem é de um ciclo passado
   const [verGuia, setVerGuia] = useState(false)
@@ -100,7 +103,6 @@ function Aplicativo() {
     setVerGuia(false)
     try { if (chaveGuia) localStorage.setItem(chaveGuia, '1') } catch { /* ok */ }
   }
-  const avisar = useAviso()
 
   // Ao voltar para o app (depois de um tempo fora), sincroniza e atualiza o Início.
   useEffect(() => {
@@ -169,7 +171,7 @@ function Aplicativo() {
     buscarPadraoClube().then(setContagemPadrao)
   }, [perfil?.id, perfil?.senha_temporaria])
 
-  useEffect(() => { aplicarTamanhoLetra(tamanhoLetraSalvo()); aplicarFonteNotas(fonteNotasSalva()) }, [])
+  useEffect(() => { aplicarTamanhoLetra(tamanhoLetraSalvo()); aplicarFonteNotas(fonteNotasSalva()); aplicarEfeitos(efeitosAtivos()) }, [])
 
   useEffect(() => {
     window.scrollTo({ top: 0 })
@@ -200,6 +202,10 @@ function Aplicativo() {
       setPerfil({ ...perfil, tema_preferido: novo })
     }
   }
+
+  // tela de abertura (index.html): sai quando a primeira tela de verdade está pronta
+  const pronto = sessaoChecada && (!userId || (!!perfil && (!!perfil.senha_temporaria || livro !== undefined)))
+  useEffect(() => { if (pronto) fecharAbertura() }, [pronto])
 
   if (!sessaoChecada) return <TelaCarregando />
   if (!userId) return <Login />
@@ -242,7 +248,7 @@ function Aplicativo() {
     }
     setNotasInicial(null)
     setLivroCompartilhar(null)
-    if (destino === 'encontro' || destino === 'indicacoes') { setLivroEncontro(null); setVoltarDe(aba) }
+    if (destino === 'encontro' || destino === 'indicacoes' || destino === 'metas') { setLivroEncontro(null); setVoltarDe(aba) }
     setPreCarga(carga)
     setAba(destino as Aba)
   }
@@ -256,14 +262,33 @@ function Aplicativo() {
   ]
 
   const contagem = perfil.mostrar_contagem ?? contagemPadrao
+  const ROTULO_ABA: Partial<Record<Aba, string>> = { inicio: 'Início', perfil: 'Perfil', admin: 'Painel do admin', livro: 'Livro', panorama: 'Panorama', notas: 'Anotações', foco: 'Foco', compartilhar: 'Compartilhar', registrar: 'Registrar' }
+  const rotuloVoltar = ROTULO_ABA[voltarDe] ?? 'Voltar'
+  const indiceAtivo = itens.findIndex((i) => i.aba === aba && i.aba !== 'registrar')
 
   return (
     <ContagemContext.Provider value={contagem}>
     <div className="min-h-screen">
       <EstadoConexao />
       {verGuia && <GuiaBoasVindas nome={perfil.nome_exibicao} onFechar={fecharGuia} />}
+      {marco && <MarcoLeitura marco={marco.valor} titulo={marco.titulo} onFechar={() => setMarco(null)} />}
+      {terminado && (
+        <TelaTerminei
+          livro={terminado}
+          doCiclo={terminado.id === livro.id}
+          onFechar={() => setTerminado(null)}
+          onImagem={() => {
+            const t = terminado
+            setTerminado(null)
+            ir('compartilhar', { modo: 'leitura', modeloLeitura: 'terminei' })
+            if (t.id !== livro.id) setLivroCompartilhar(t)
+          }}
+          onAplicacao={() => { setTerminado(null); ir('aplicar') }}
+          onCaderno={() => { setTerminado(null); setNotasInicial({ vista: 'minhas', filtro: 'todas', abrirCaderno: true }); setAba('notas') }}
+        />
+      )}
       <Suspense fallback={<TelaCarregando />}>
-      <div key={aba} className="animate-subir-suave">
+      <div key={aba} className="animate-tela">
         {aba === 'inicio' && <Inicio key={versao} perfil={perfil} livro={livro} onIr={ir} onPerfilAtualizado={setPerfil} onContinuarPendente={(id) => { setPendenteInicial(id); setAba('registrar') }} />}
         {aba === 'foco' && <Pomodoro perfil={perfil} livro={livro} onFocoAtivo={setFocoAtivo} />}
         {aba === 'registrar' && (
@@ -271,14 +296,12 @@ function Aplicativo() {
             perfil={perfil}
             livro={livro}
             pendenteInicial={pendenteInicial}
-            onRegistrado={(terminou, livroUsado) => {
+            onRegistrado={(terminou, livroUsado, marco) => {
               setVersao((v) => v + 1)
               setPendenteInicial(null)
-              if (terminou) {
-                avisar(`Você terminou ${livroUsado.titulo}. Que tal compartilhar?`)
-                ir('compartilhar', { modo: 'leitura', modeloLeitura: 'terminei' })
-                if (livroUsado.id !== livro.id) setLivroCompartilhar(livroUsado)
-              } else setAba('inicio')
+              setAba('inicio')
+              if (terminou) setTerminado(livroUsado)
+              else if (marco) setMarco({ valor: marco, titulo: livroUsado.titulo })
             }}
             onAnotar={() => setAba('notas')}
           />
@@ -290,11 +313,11 @@ function Aplicativo() {
           <Compartilhar key={JSON.stringify(preCarga) + (livroCompartilhar?.id ?? '')} perfil={perfil} livro={livroCompartilhar ?? livro} preCarga={preCarga} />
         )}
         {aba === 'encontro' && (
-          <Encontro perfil={perfil} livro={livroEncontro ?? livro} onVoltar={() => setAba(voltarDe)} />
+          <Encontro perfil={perfil} livro={livroEncontro ?? livro} onVoltar={() => setAba(voltarDe)} rotuloVoltar={rotuloVoltar} />
         )}
         {aba === 'ano' && <Ano perfil={perfil} onVoltar={() => setAba('perfil')} />}
-        {aba === 'metricas' && <Metricas perfil={perfil} livro={livro} inicial={metricasInicial} onVoltar={() => setAba(voltarDe)} />}
-        {aba === 'indicacoes' && <Indicacoes perfil={perfil} onVoltar={() => setAba(voltarDe)} />}
+        {aba === 'metricas' && <Metricas perfil={perfil} livro={livro} inicial={metricasInicial} onVoltar={() => setAba(voltarDe)} rotuloVoltar={rotuloVoltar} />}
+        {aba === 'indicacoes' && <Indicacoes perfil={perfil} onVoltar={() => setAba(voltarDe)} rotuloVoltar={rotuloVoltar} />}
         {aba === 'panorama' && (
           <Panorama
             livro={livro}
@@ -304,7 +327,7 @@ function Aplicativo() {
             onMetricas={() => { setMetricasInicial('grupo'); setVoltarDe('panorama'); setAba('metricas') }}
           />
         )}
-        {aba === 'metas' && <Metas perfil={perfil} livro={livro} onVoltar={() => setAba('inicio')} />}
+        {aba === 'metas' && <Metas perfil={perfil} livro={livro} onVoltar={() => setAba(voltarDe)} rotuloVoltar={rotuloVoltar} />}
         {aba === 'perfil' && (
           <Perfil
             perfil={perfil}
@@ -314,7 +337,7 @@ function Aplicativo() {
             onPerfilAtualizado={setPerfil}
             onVoltar={() => setAba('inicio')}
             onAbrirAdmin={() => setAba('admin')}
-            onAbrirMetas={() => setAba('metas')}
+            onAbrirMetas={() => { setVoltarDe('perfil'); setAba('metas') }}
             onAbrirLivro={(id) => { setLivroDetalhe(id); setAba('livro') }}
             onAbrirGuia={() => setVerGuia(true)}
             onAbrirIndicacoes={() => { setVoltarDe('perfil'); setAba('indicacoes') }}
@@ -358,7 +381,11 @@ function Aplicativo() {
         style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
         aria-label="Navegação principal"
       >
-        <ul className="max-w-md mx-auto grid grid-cols-5 items-end px-2 pt-1.5 pb-2">
+        <ul className="relative max-w-md mx-auto grid grid-cols-5 items-end px-2 pt-1.5 pb-2">
+          {indiceAtivo >= 0 && (
+            <span aria-hidden="true" className="indicador-aba absolute top-0 h-[3px] w-7 rounded-b-full bg-dourado"
+              style={{ left: `calc(0.5rem + (100% - 1rem) * ${(indiceAtivo + 0.5) / itens.length} - 14px)` }} />
+          )}
           {itens.map((item) => {
             const ativo = aba === item.aba
             if (item.aba === 'registrar') {
@@ -382,7 +409,7 @@ function Aplicativo() {
                 <button
                   onClick={() => ir(item.aba)}
                   aria-current={ativo ? 'page' : undefined}
-                  className={`w-full flex flex-col items-center gap-1 py-1.5 rounded-lg transition-colors
+                  className={`w-full flex flex-col items-center gap-1 py-1.5 rounded-lg transition-[color,transform] duration-150 active:scale-95
                               focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dourado
                               ${ativo ? 'text-marinho dark:text-dourado' : 'text-texto/45 dark:text-bege/45 hover:text-texto/70 dark:hover:text-bege/70'}`}
                 >
@@ -406,4 +433,16 @@ function TelaCarregando({ texto }: { texto?: string }) {
       {texto && <p className="legenda">{texto}…</p>}
     </div>
   )
+}
+
+function fecharAbertura() {
+  const el = document.getElementById('abertura')
+  if (!el || el.dataset.saindo) return
+  el.dataset.saindo = '1'
+  const desde = Number(el.dataset.inicio || 0)
+  const espera = Math.max(0, 700 - (performance.now() - desde))
+  setTimeout(() => {
+    el.style.opacity = '0'
+    setTimeout(() => el.remove(), 450)
+  }, espera)
 }

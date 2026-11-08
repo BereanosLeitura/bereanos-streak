@@ -1,5 +1,5 @@
 import { BLOCOS, type MapaHorarios, type PontoRitmo } from '../lib/infograficos'
-import { chaveDia, formatarData } from '../lib/estatisticas'
+import { chaveDia, contar, formatarData } from '../lib/estatisticas'
 
 // Gráficos em SVG puro, nas cores do clube, legíveis nos três temas.
 
@@ -53,7 +53,7 @@ export function MapaDeHorarios({ mapa }: { mapa: MapaHorarios }) {
             {linha.map((v, b) => (
               <span
                 key={b}
-                title={v > 0 ? `${Math.round(v)} páginas` : ''}
+                title={v > 0 ? contar(v, 'página', 'páginas') : ''}
                 className={`h-6 rounded-[5px] ${v > 0 ? '' : 'bg-marinho/[0.05] dark:bg-bege/[0.06]'}`}
                 style={v > 0 ? { backgroundColor: `rgba(184,145,47,${0.2 + 0.8 * (v / max)})` } : undefined}
               />
@@ -73,7 +73,7 @@ export function BarrasDias({ valores, destaqueHoje = true }: { valores: { chave:
       {valores.map((v) => {
         const d = new Date(v.chave + 'T12:00:00')
         return (
-          <div key={v.chave} className="flex-1 flex flex-col items-center gap-1 h-full justify-end" title={`${formatarData(v.chave)}: ${v.paginas} páginas`}>
+          <div key={v.chave} className="flex-1 flex flex-col items-center gap-1 h-full justify-end" title={`${formatarData(v.chave)}: ${contar(v.paginas, 'página', 'páginas')}`}>
             <div className={`w-full rounded-[4px] ${v.paginas ? 'bg-dourado/80' : 'bg-marinho/[0.06] dark:bg-bege/[0.07]'}`}
               style={{ height: v.paginas ? `${Math.max(6, (v.paginas / max) * 100)}%` : '4px' }} />
             <span className={`text-[9px] ${destaqueHoje && v.chave === hoje ? 'font-bold text-marinho dark:text-bege' : 'text-texto/40 dark:text-bege/40'}`}>{LETRAS[d.getDay()]}</span>

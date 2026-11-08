@@ -58,7 +58,8 @@ body {
   }
 
   .cartao {
-    @apply bg-folha dark:bg-noite-cartao border border-dourado/15 dark:border-dourado/10 rounded-2xl;
+    @apply bg-folha dark:bg-noite-cartao border border-dourado/15 dark:border-dourado/10 rounded-2xl
+           shadow-[0_1px_2px_rgba(27,42,74,0.04),0_4px_14px_-6px_rgba(27,42,74,0.08)] dark:shadow-none;
   }
 
   .campo {
@@ -106,7 +107,8 @@ body {
   .chip {
     @apply rounded-full border border-marinho/15 dark:border-bege/15 px-3.5 py-1.5 text-sm font-medium
            text-marinho dark:text-bege hover:border-dourado hover:text-dourado-escuro dark:hover:text-dourado
-           transition-colors;
+           transition-[color,border-color,background-color,transform] duration-150 active:scale-95
+           focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dourado;
   }
   .chip-ativo {
     @apply border-dourado bg-dourado/10 text-dourado-escuro dark:text-dourado;
@@ -125,6 +127,107 @@ body {
 .barra-progresso {
   background-image: linear-gradient(90deg, #8A6D2B, #B8912F);
 }
+
+/* Barra com brilho (BarraBrilho): cresce, um reflexo corre e faíscas sobem da ponta */
+.brilho-faixa {
+  position: relative;
+  overflow: hidden;
+  transition: width 1.1s cubic-bezier(.2, .8, .2, 1);
+  background-image: linear-gradient(90deg, #8A6D2B, #B8912F 70%, #D9B85C);
+}
+.brilho-faixa::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, transparent 0%, rgba(255, 244, 214, .65) 50%, transparent 100%);
+  transform: translateX(-100%);
+  animation: brilho-correr 3.2s ease-in-out 1.2s infinite;
+}
+.brilho-completo {
+  box-shadow: 0 0 10px rgba(217, 184, 92, .55);
+}
+@keyframes brilho-correr {
+  0% { transform: translateX(-100%); }
+  45%, 100% { transform: translateX(100%); }
+}
+.faiscas {
+  position: absolute;
+  top: 50%;
+  width: 0;
+  height: 0;
+  pointer-events: none;
+  transition: left 1.1s cubic-bezier(.2, .8, .2, 1);
+}
+.faiscas > span {
+  position: absolute;
+  left: -2px;
+  top: -2px;
+  width: 4px;
+  height: 4px;
+  border-radius: 9999px;
+  background: #E6C873;
+  box-shadow: 0 0 6px #D9B85C;
+  opacity: 0;
+  animation: faisca-sobe 2.4s ease-out infinite;
+}
+@keyframes faisca-sobe {
+  0% { opacity: 0; transform: translate(0, 0) scale(.6); }
+  15% { opacity: 1; }
+  100% { opacity: 0; transform: translate(var(--dx, 0), -16px) scale(.2); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .brilho-faixa, .faiscas { transition: none; }
+  .brilho-faixa::after, .faiscas > span { animation: none; display: none; }
+}
+
+/* Luz dourada que contorna devagar o card do livro do ciclo */
+@property --angulo-luz {
+  syntax: '<angle>';
+  inherits: false;
+  initial-value: 0deg;
+}
+.borda-luz::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 1.5px;
+  background: conic-gradient(from var(--angulo-luz), transparent 0deg 250deg, rgba(230, 200, 115, .15) 280deg, rgba(240, 214, 140, .95) 330deg, transparent 360deg);
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  animation: girar-luz 7s linear infinite;
+  pointer-events: none;
+  z-index: 3;
+}
+@keyframes girar-luz {
+  to { --angulo-luz: 360deg; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .borda-luz::before { animation: none; display: none; }
+}
+
+/* Controle deslizante de página (Registrar) */
+.deslizante {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 28px;
+  background: transparent;
+  accent-color: #B8912F;
+}
+.deslizante::-webkit-slider-runnable-track { height: 6px; border-radius: 9999px; background: rgba(184, 145, 47, .22); }
+.deslizante::-moz-range-track { height: 6px; border-radius: 9999px; background: rgba(184, 145, 47, .22); }
+.deslizante::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 22px; height: 22px; margin-top: -8px; border-radius: 9999px;
+  background: #B8912F; border: 3px solid #FFFDF6; box-shadow: 0 1px 4px rgba(0, 0, 0, .25);
+}
+.deslizante::-moz-range-thumb {
+  width: 18px; height: 18px; border-radius: 9999px;
+  background: #B8912F; border: 3px solid #FFFDF6; box-shadow: 0 1px 4px rgba(0, 0, 0, .25);
+}
+.deslizante:focus-visible { outline: 2px solid #B8912F; outline-offset: 2px; border-radius: 9999px; }
 
 /* Fita marcadora do livro: o elemento de assinatura do app */
 .fita {
@@ -172,3 +275,65 @@ input[type='number'] {
 /* Legibilidade: textos pequenos esmaecidos ficam um pouco mais fortes (contraste) */
 .text-texto\/35, .text-texto\/40, .text-texto\/45 { color: rgb(34 34 34 / 0.6); }
 .dark .dark\:text-bege\/35, .dark .dark\:text-bege\/40, .dark .dark\:text-bege\/45 { color: rgb(246 241 227 / 0.62); }
+
+/* Caderno de anotações: na impressão sai só a folha */
+@media print {
+  body.imprimindo-caderno > *:not(.caderno-impressao) { display: none !important; }
+  body.imprimindo-caderno { background: #fff !important; }
+  .caderno-impressao { position: static !important; overflow: visible !important; background: #fff !important; }
+  .caderno-impressao .nao-imprimir { display: none !important; }
+  .caderno-impressao .folha-caderno { box-shadow: none !important; margin: 0 auto !important; padding: 0 !important; max-width: none !important; }
+  .caderno-impressao .item-caderno { break-inside: avoid; }
+  .caderno-impressao .secao-caderno h2 { break-after: avoid; }
+  .caderno-impressao .quebra-antes { break-before: page; }
+  @page { size: A4; margin: 18mm 16mm; }
+}
+
+/* Troca de tela: fade curto com leve subida */
+.animate-tela { animation: tela-entra .28s cubic-bezier(.2, .8, .2, 1) both; }
+@keyframes tela-entra { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+
+/* Indicador dourado que desliza para a aba ativa */
+.indicador-aba { transition: left .35s cubic-bezier(.2, .8, .2, 1); }
+
+/* Aviso de marco (25, 50, 75%) */
+.animate-marco { animation: marco-entra .5s cubic-bezier(.2, 1.2, .3, 1) both; }
+@keyframes marco-entra { from { opacity: 0; transform: translateY(-24px) scale(.96); } to { opacity: 1; transform: none; } }
+
+/* Chuva de faíscas douradas (marco e tela de terminei) */
+.chuva-faiscas { position: absolute; inset: 0; overflow: hidden; pointer-events: none; }
+.chuva-faiscas > span {
+  position: absolute;
+  top: -8px;
+  width: 4px;
+  height: 4px;
+  border-radius: 9999px;
+  background: #E6C873;
+  box-shadow: 0 0 8px #D9B85C;
+  opacity: 0;
+  animation-name: faisca-cai;
+  animation-timing-function: ease-in;
+  animation-iteration-count: infinite;
+}
+@keyframes faisca-cai {
+  0% { opacity: 0; transform: translateY(0) scale(.6); }
+  12% { opacity: 1; }
+  100% { opacity: 0; transform: translateY(110vh) scale(1); }
+}
+.brilho-capa { animation: capa-brilha 3.5s ease-in-out infinite; }
+@keyframes capa-brilha {
+  0%, 100% { box-shadow: 0 25px 50px -12px rgba(0, 0, 0, .5), 0 0 0 rgba(217, 184, 92, 0); }
+  50% { box-shadow: 0 25px 50px -12px rgba(0, 0, 0, .5), 0 0 38px rgba(217, 184, 92, .45); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .animate-tela, .animate-marco, .brilho-capa { animation: none; }
+  .chuva-faiscas { display: none; }
+  .indicador-aba { transition: none; }
+}
+
+/* Brilhos e efeitos desligados no Perfil */
+html.sem-efeitos .brilho-faixa::after,
+html.sem-efeitos .faiscas,
+html.sem-efeitos .borda-luz::before,
+html.sem-efeitos .chuva-faiscas { display: none !important; }
+html.sem-efeitos .brilho-capa { animation: none !important; }

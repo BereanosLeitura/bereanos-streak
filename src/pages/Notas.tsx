@@ -6,6 +6,10 @@ import Avatar from '../components/Avatar'
 import { tempoRelativo } from '../lib/estatisticas'
 import type { LivroAtivo } from './Inicio'
 import RespostasMural from '../components/RespostasMural'
+import ProtecaoSpoiler, { aFrente } from '../components/ProtecaoSpoiler'
+import CadernoAnotacoes from '../components/CadernoAnotacoes'
+import Vazio from '../components/Vazio'
+import { useMinhaLeitura } from '../lib/leitura'
 
 // Anotações de leitura: trecho, reflexão, pergunta para o encontro e aplicação
 // (o "Aplicar" do lema). Privadas por padrão; o membro decide o que vai ao mural.
@@ -43,6 +47,7 @@ export interface FiltroInicialNotas {
   vista: Vista
   filtro: Tipo | 'todas'
   novaTipo?: Tipo
+  abrirCaderno?: boolean
 }
 
 type Filtro = Tipo | 'todas' | 'favoritas' | 'escrituras' | 'destaques'
@@ -71,6 +76,17 @@ export default function Notas({ perfil, livro, inicial, onCompartilhar }: Props)
   const [salvando, setSalvando] = useState(false)
   const [erroTabela, setErroTabela] = useState(false)
   const [confirmando, setConfirmando] = useState<string | null>(null)
+  const [caderno, setCaderno] = useState(!!inicial?.abrirCaderno)
+  const [revelarTudo, setRevelarTudo] = useState(false)
+  const [revelados, setRevelados] = useState<Set<string>>(new Set())
+  const [qtdMural, setQtdMural] = useState<number | null>(null)
+  useEffect(() => {
+    supabase.from('anotacoes').select('id', { count: 'exact', head: true }).eq('livro_id', livro.id).eq('compartilhada', true)
+      .then(({ count }) => setQtdMural(count ?? null))
+  }, [livro.id, notas])
+  const leitura = useMinhaLeitura(perfil, livro)
+  // página em que a pessoa está (null enquanto carrega: protege por garantia)
+  const minhaPagina = leitura.carregando ? 0 : leitura.paginasLivro >= livro.paginas_totais ? null : leitura.paginasLivro
   const avisar = useAviso()
 
   useEffect(() => {
@@ -193,6 +209,8 @@ export default function Notas({ perfil, livro, inicial, onCompartilhar }: Props)
     return l
   }, [notas, filtro, busca, ordem, vista, destaques])
 
+  const ocultasAFrente = vista === 'mural' ? visiveis.filter((n) => !revelados.has(n.id) && aFrente(n, perfil.id, minhaPagina)).length : 0
+
   const contagem = useMemo(() => {
     const c = { trecho: 0, reflexao: 0, pergunta: 0, aplicacao: 0 }
     for (const n of notas ?? []) c[n.tipo]++
@@ -206,6 +224,7 @@ export default function Notas({ perfil, livro, inicial, onCompartilhar }: Props)
 
   return (
     <div className="min-h-screen px-5 pt-8 pb-28">
+      {caderno && <CadernoAnotacoes perfil={perfil} livro={livro} paginaAtual={leitura.paginasLivro} onFechar={() => setCaderno(false)} />}
       <div className="max-w-md mx-auto">
         <div className="flex items-end justify-between gap-3">
           <div className="min-w-0">
@@ -266,6 +285,9 @@ export default function Notas({ perfil, livro, inicial, onCompartilhar }: Props)
             <button key={v} role="tab" aria-selected={vista === v} onClick={() => { setVista(v); if (v === 'mural' && filtro === 'favoritas') setFiltro('todas') }}
               className={`rounded-lg py-2 text-sm font-semibold transition-colors ${vista === v ? 'bg-folha dark:bg-noite-cartao text-marinho dark:text-bege shadow-sm' : 'text-texto/55 dark:text-bege/55'}`}>
               {rotulo}
+              {v === 'mural' && !!qtdMural && (
+                <span className={`ml-1.5 inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full text-[11px] tabular align-[1px] ${vista === 'mural' ? 'bg-dourado text-marinho' : 'bg-marinho/10 dark:bg-bege/10'}`}>{qtdMural}</span>
+              )}
             </button>
           ))}
         </div>
@@ -280,9 +302,14 @@ export default function Notas({ perfil, livro, inicial, onCompartilhar }: Props)
                 </div>
               ))}
             </dl>
-            <button onClick={copiarParaEncontro} className="flex items-center gap-1.5 text-sm font-semibold text-dourado-escuro dark:text-dourado shrink-0" title="Copia tudo organizado por tipo e página">
-              <Icone nome="copiar" className="w-4 h-4" /> Levar ao encontro
-            </button>
+            <div className="flex flex-col items-end gap-2 shrink-0">
+              <button onClick={copiarParaEncontro} className="flex items-center gap-1.5 text-sm font-semibold text-dourado-escuro dark:text-dourado" title="Copia tudo organizado por tipo e página">
+                <Icone nome="copiar" className="w-4 h-4" /> Copiar texto
+              </button>
+              <button onClick={() => setCaderno(true)} className="flex items-center gap-1.5 text-sm font-semibold text-dourado-escuro dark:text-dourado" title="Caderno para imprimir ou salvar em PDF">
+                <Icone nome="baixar" className="w-4 h-4" /> Baixar caderno
+              </button>
+            </div>
           </div>
         )}
 
@@ -315,18 +342,25 @@ export default function Notas({ perfil, livro, inicial, onCompartilhar }: Props)
         {notas === null && <div className="space-y-3 mt-5">{[0, 1].map((i) => <div key={i} className="esqueleto h-24" />)}</div>}
 
         {notas !== null && visiveis.length === 0 && !erroTabela && (
-          <div className="text-center py-12">
-            <Icone nome="pena" className="w-8 h-8 mx-auto text-dourado/60" />
-            <p className="legenda mt-3 max-w-[260px] mx-auto">
-              {busca ? 'Nada encontrado com essa busca.' : vista === 'minhas' ? 'Marque o que te chamou atenção na leitura. Isso ajuda muito na hora do encontro.' : 'Ninguém pôs anotações deste livro no mural ainda.'}
-            </p>
-            {vista === 'minhas' && !busca && <button onClick={abrirNova} className="botao-texto mt-3">Criar a primeira</button>}
+          <Vazio
+            titulo={busca ? undefined : vista === 'minhas' ? 'Seu caderno começa aqui' : 'O mural está esperando'}
+            texto={busca ? 'Nada encontrado com essa busca.' : vista === 'minhas' ? 'Marque o que te chamou atenção na leitura. Isso ajuda muito na hora do encontro.' : 'Ninguém pôs anotações deste livro no mural ainda. A primeira pode ser sua.'}
+            acao={vista === 'minhas' && !busca ? <button onClick={abrirNova} className="botao-texto">Criar a primeira</button> : undefined}
+          />
+        )}
+
+        {vista === 'mural' && !revelarTudo && ocultasAFrente > 0 && (
+          <div className="mt-4 flex items-center gap-2 rounded-xl bg-dourado/10 border border-dourado/30 px-3.5 py-2.5 text-sm text-marinho dark:text-bege">
+            <Icone nome="cadeado" className="w-4 h-4 text-dourado shrink-0" />
+            <span className="flex-1">{ocultasAFrente === 1 ? '1 anotação é' : `${ocultasAFrente} anotações são`} de páginas que você ainda não leu.</span>
+            <button onClick={() => setRevelarTudo(true)} className="botao-texto shrink-0">Revelar todas</button>
           </div>
         )}
 
         <ul className="space-y-3 mt-5">
           {visiveis.map((n) => {
             const minha = n.membro_id === perfil.id
+            const protegida = vista === 'mural' && !revelarTudo && !revelados.has(n.id) && aFrente(n, perfil.id, minhaPagina)
             return (
               <li key={n.id} className={`cartao p-4 ${(n.favorita && vista === 'minhas') || (vista === 'mural' && destaques.has(n.id)) ? 'border-dourado/45' : ''}`}>
                 {buscaGeral && n.livro_titulo && <p className="text-[11px] font-semibold text-texto/45 dark:text-bege/45 mb-1 truncate">{n.livro_titulo}</p>}
@@ -345,9 +379,11 @@ export default function Notas({ perfil, livro, inicial, onCompartilhar }: Props)
                     </button>
                   )}
                 </div>
+                <ProtecaoSpoiler ativo={protegida} pagina={n.pagina} minhaPagina={minhaPagina} onRevelar={() => setRevelados((r) => new Set(r).add(n.id))}>
                 <p className={`texto-nota text-marinho dark:text-bege whitespace-pre-line ${n.tipo === 'trecho' ? 'font-serif italic text-[18px] leading-relaxed' : 'text-[15px] leading-relaxed'}`}>
                   {n.tipo === 'trecho' ? `“${n.texto}”` : n.texto}
                 </p>
+                </ProtecaoSpoiler>
                 {n.referencia && (
                   <p className="inline-flex items-center gap-1.5 mt-2 rounded-full bg-marinho/[0.05] dark:bg-bege/[0.07] px-2.5 py-1 text-xs font-semibold text-marinho/80 dark:text-bege/80">
                     <Icone nome="livro" className="w-3.5 h-3.5 text-dourado" /> {n.referencia}
@@ -379,7 +415,7 @@ export default function Notas({ perfil, livro, inicial, onCompartilhar }: Props)
                     ))}
                   </div>
                 </div>
-                {vista === 'mural' && <RespostasMural anotacaoId={n.id} perfil={perfil} autorNota={n.membro_id} />}
+                {vista === 'mural' && !protegida && <RespostasMural anotacaoId={n.id} perfil={perfil} autorNota={n.membro_id} />}
               </li>
             )
           })}

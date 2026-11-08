@@ -3,11 +3,12 @@ import { tempoManual } from '../lib/tempo'
 import { supabase, type Perfil as TPerfil } from '../lib/supabase'
 import { useAviso } from '../components/Toast'
 import Avatar from '../components/Avatar'
+import { BarraBrilho } from '../components/BarraBrilho'
 import InstalarApp from '../components/InstalarApp'
 import { GRUPOS_CONQUISTA, ICONE_CONQUISTA } from '../lib/conquistas'
 import Icone, { type NomeIcone } from '../components/Icone'
 import type { TemaPreferido } from '../lib/tema'
-import { useContagem, aplicarTamanhoLetra, tamanhoLetraSalvo, aplicarFonteNotas, fonteNotasSalva, FONTES_NOTAS, type FonteNotas, type TamanhoLetra } from '../lib/preferencias'
+import { useContagem, aplicarTamanhoLetra, tamanhoLetraSalvo, aplicarFonteNotas, fonteNotasSalva, FONTES_NOTAS, corDaCapaAtiva, definirCorDaCapa, efeitosAtivos, aplicarEfeitos, type FonteNotas, type TamanhoLetra } from '../lib/preferencias'
 import { baixarIcs, linkGoogleAgenda, proximoHorario } from '../lib/agenda'
 import { formatarData, maiorSequencia, paginasEquivalentes, paginasPorDia, sequenciaAtual } from '../lib/estatisticas'
 import type { LivroAtivo } from './Inicio'
@@ -48,6 +49,8 @@ export default function Perfil({ perfil, tema, onMudarTema, onPerfilAtualizado, 
   const contagem = useContagem()
   const [letra, setLetra] = useState<TamanhoLetra>(() => tamanhoLetraSalvo())
   const [fonteNotas, setFonteNotas] = useState<FonteNotas>(() => fonteNotasSalva())
+  const [corCapa, setCorCapa] = useState(() => corDaCapaAtiva())
+  const [efeitos, setEfeitos] = useState(() => efeitosAtivos())
   const [horaLembrete, setHoraLembrete] = useState('21:00')
   const [abertas, setAbertas] = useState<Record<string, boolean>>(() => {
     try { return JSON.parse(localStorage.getItem('bereanos-streak-perfil-secoes') ?? '{}') } catch { return {} }
@@ -166,6 +169,16 @@ export default function Perfil({ perfil, tema, onMudarTema, onPerfilAtualizado, 
           ))}
         </section>
 
+        {/* Atalhos: o que mais se usa fica no topo */}
+        <nav className="cartao mt-4 divide-y divide-marinho/[0.07] dark:divide-bege/[0.08]" aria-label="Mais opções">
+          <ItemMenu icone="calendario" rotulo={`Seu ano de leitura, ${new Date().getFullYear()}`} detalhe="retrospectiva com imagem para compartilhar" onClick={onAbrirAno} />
+          <ItemMenu icone="grafico" rotulo="Métricas" detalhe="seus números e os do grupo" onClick={onAbrirMetricas} />
+          <ItemMenu icone="alvo" rotulo="Minhas metas" onClick={onAbrirMetas} />
+          <ItemMenu icone="estante" rotulo="Próximas leituras" detalhe="indicar livros e ver o sorteio" onClick={onAbrirIndicacoes} />
+          <ItemMenu icone="lampada" rotulo="Como usar o app" onClick={onAbrirGuia} />
+          {perfil.role === 'admin' && <ItemMenu icone="engrenagem" rotulo="Painel do admin" detalhe="ciclo, membros e clube" onClick={onAbrirAdmin} />}
+        </nav>
+
         {/* Horários */}
         {registros !== null && (
           <section className="cartao p-5 mt-6">
@@ -272,9 +285,7 @@ export default function Perfil({ perfil, tema, onMudarTema, onPerfilAtualizado, 
                     <p className="text-xs text-texto/50 dark:text-bege/50 truncate">
                       {l.autor ? `${l.autor}, ` : ''}{l.status === 'ativo' ? 'leitura atual' : 'ciclo concluído'}
                     </p>
-                    <div className="h-1 rounded-full bg-marinho/[0.07] dark:bg-bege/10 mt-2 overflow-hidden">
-                      <div className="h-full barra-progresso rounded-full" style={{ width: `${p}%` }} />
-                    </div>
+                    <BarraBrilho pct={p} altura="h-1" className="mt-2" faiscas={false} />
                   </div>
                   <span className="text-sm tabular text-texto/60 dark:text-bege/60 w-11 text-right">{p >= 100 ? <Icone nome="check" className="w-5 h-5 inline text-dourado" /> : `${p}%`}</span>
                   <Icone nome="seta-direita" className="w-4 h-4 text-texto/30 dark:text-bege/30 shrink-0" />
@@ -326,7 +337,7 @@ export default function Perfil({ perfil, tema, onMudarTema, onPerfilAtualizado, 
         <section className="cartao p-5 mt-4">
           <CabecalhoRecolhivel titulo="Ajustes do app" detalhe="tema, letra, fonte, lembrete" aberto={!!abertas.ajustes} onAlternar={() => alternar('ajustes')} semMargem />
           {abertas.ajustes && <div className="mt-5 animate-subir-suave">
-          <h3 className="titulo-secao">Aparência</h3>
+          <h3 className="titulo-secao">Tema</h3>
           <p className="legenda mt-0.5 mb-3">Auto segue o claro ou escuro do seu celular.</p>
           <div className="grid grid-cols-4 gap-2">
             {([['claro', 'Claro', 'sol'], ['escuro', 'Escuro', 'lua'], ['azul', 'Azul', 'gota'], ['sistema', 'Auto', 'meia-lua']] as [TemaPreferido, string, NomeIcone][]).map(([t, rotulo, icone]) => (
@@ -381,6 +392,18 @@ export default function Perfil({ perfil, tema, onMudarTema, onPerfilAtualizado, 
             ))}
           </div>
 
+          <h3 className="titulo-secao mt-6">Aparência</h3>
+          <div className="mt-2 divide-y divide-marinho/[0.07] dark:divide-bege/[0.08]">
+            <Interruptor
+              rotulo="Card do livro na cor da capa"
+              legenda="O card do Início ganha um tom tirado da capa do livro do mês."
+              ligado={corCapa} onMudar={(v) => { setCorCapa(v); definirCorDaCapa(v) }} />
+            <Interruptor
+              rotulo="Brilhos e efeitos"
+              legenda="Reflexo nas barras, luz no card e faíscas nas comemorações."
+              ligado={efeitos} onMudar={(v) => { setEfeitos(v); aplicarEfeitos(v) }} />
+          </div>
+
           <h3 className="titulo-secao mt-6">Lembrete diário de leitura</h3>
           <p className="legenda mt-0.5 mb-3">O próprio calendário do celular avisa todo dia no horário escolhido.</p>
           <div className="flex items-center gap-2">
@@ -402,14 +425,6 @@ export default function Perfil({ perfil, tema, onMudarTema, onPerfilAtualizado, 
 
         <InstalarApp />
 
-        <nav className="cartao mt-4 divide-y divide-marinho/[0.07] dark:divide-bege/[0.08]" aria-label="Mais opções">
-          <ItemMenu icone="calendario" rotulo={`Seu ano de leitura, ${new Date().getFullYear()}`} detalhe="retrospectiva com imagem para compartilhar" onClick={onAbrirAno} />
-          <ItemMenu icone="grafico" rotulo="Métricas" detalhe="seus números e os do grupo" onClick={onAbrirMetricas} />
-          <ItemMenu icone="alvo" rotulo="Minhas metas" onClick={onAbrirMetas} />
-          <ItemMenu icone="estante" rotulo="Próximas leituras" detalhe="indicar livros e ver o sorteio" onClick={onAbrirIndicacoes} />
-          <ItemMenu icone="lampada" rotulo="Como usar o app" onClick={onAbrirGuia} />
-          {perfil.role === 'admin' && <ItemMenu icone="engrenagem" rotulo="Painel do admin" detalhe="ciclo, membros e clube" onClick={onAbrirAdmin} />}
-        </nav>
         <div className="mt-3"><TrocarSenha /></div>
         <button onClick={sair} className="mt-3 w-full py-3 text-sm font-semibold text-red-700 dark:text-red-400 flex items-center justify-center gap-2 rounded-xl hover:bg-red-50 dark:hover:bg-red-950/30">
           <Icone nome="sair" className="w-4 h-4" /> Sair da conta
@@ -489,6 +504,21 @@ function ItemMenu({ icone, rotulo, detalhe, onClick }: { icone: NomeIcone; rotul
         {detalhe && <span className="block text-xs text-texto/50 dark:text-bege/50">{detalhe}</span>}
       </span>
       <Icone nome="seta-direita" className="w-4 h-4 text-texto/30 dark:text-bege/30" />
+    </button>
+  )
+}
+
+function Interruptor({ rotulo, legenda, ligado, onMudar }: { rotulo: string; legenda?: string; ligado: boolean; onMudar: (v: boolean) => void }) {
+  return (
+    <button type="button" role="switch" aria-checked={ligado} onClick={() => onMudar(!ligado)}
+      className="w-full flex items-center gap-3 py-3 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dourado rounded-lg">
+      <span className="flex-1 min-w-0">
+        <span className="block text-[15px] text-marinho dark:text-bege">{rotulo}</span>
+        {legenda && <span className="block text-xs text-texto/55 dark:text-bege/55 mt-0.5">{legenda}</span>}
+      </span>
+      <span className={`relative w-11 h-6 rounded-full shrink-0 transition-colors ${ligado ? 'bg-dourado' : 'bg-marinho/20 dark:bg-bege/20'}`}>
+        <span className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform ${ligado ? 'translate-x-5' : ''}`} />
+      </span>
     </button>
   )
 }

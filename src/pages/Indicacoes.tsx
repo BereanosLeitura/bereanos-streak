@@ -1,4 +1,5 @@
 import { useEffect, useState, type ReactNode } from 'react'
+import Vazio from '../components/Vazio'
 import { supabase, type Perfil } from '../lib/supabase'
 import { useAviso } from '../components/Toast'
 import Icone from '../components/Icone'
@@ -13,7 +14,8 @@ import TelaSorteio from '../components/TelaSorteio'
 interface Indicacao { id: string; membro_id: string; titulo: string; autor: string | null; motivo: string | null; status: 'aberta' | 'sorteada' | 'lida'; created_at: string; perfis: { nome_exibicao: string } | null }
 interface Sorteio { id: string; indicacao_id: string | null; titulo: string; participantes: number; created_at: string; perfis: { nome_exibicao: string } | null }
 
-export default function Indicacoes({ perfil, onVoltar }: { perfil: Perfil; onVoltar: () => void }) {
+export default function Indicacoes({ perfil, onVoltar, rotuloVoltar = 'Voltar' }: { perfil: Perfil; onVoltar: () => void
+  rotuloVoltar?: string }) {
   const [lista, setLista] = useState<Indicacao[] | null>(null)
   const [sorteios, setSorteios] = useState<Sorteio[]>([])
   const [titulo, setTitulo] = useState('')
@@ -84,7 +86,7 @@ export default function Indicacoes({ perfil, onVoltar }: { perfil: Perfil; onVol
     <div className="min-h-screen px-5 pt-6 pb-28">
       <div className="max-w-md mx-auto">
         <button onClick={onVoltar} className="flex items-center gap-1.5 text-sm text-texto/60 dark:text-bege/60 -ml-1 p-1">
-          <Icone nome="seta-esquerda" className="w-4 h-4" /> Voltar
+          <Icone nome="seta-esquerda" className="w-4 h-4" /> {rotuloVoltar}
         </button>
         <h1 className="font-serif text-[30px] text-marinho dark:text-bege mt-3">Próximas leituras</h1>
         <p className="legenda mt-1">Indique um livro para o clube. O próximo ciclo sai por sorteio entre as indicações, ou por escolha de metade mais 1 do grupo.</p>
@@ -132,7 +134,7 @@ export default function Indicacoes({ perfil, onVoltar }: { perfil: Perfil; onVol
 
         <h2 className="titulo-secao mt-7 mb-3">Indicações abertas</h2>
         {lista === null && <div className="esqueleto h-20" />}
-        {lista && abertas.length === 0 && <p className="legenda">Nenhuma indicação aberta. Que tal a primeira?</p>}
+        {lista && abertas.length === 0 && <Vazio compacto texto="Nenhuma indicação aberta. Que tal a primeira?" />}
         <ul className="space-y-3">
           {abertas.map((i) => <ItemIndicacao key={i.id} i={i} perfil={perfil} onRemover={() => remover(i)} />)}
         </ul>

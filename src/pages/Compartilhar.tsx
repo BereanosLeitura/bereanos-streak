@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type ChangeEvent, type PointerEvent as PE, type ReactNode, type WheelEvent as WE } from 'react'
+import { createPortal } from 'react-dom'
 import { supabase, type Perfil } from '../lib/supabase'
 import { useMinhaLeitura } from '../lib/leitura'
 import { useAviso } from '../components/Toast'
@@ -11,7 +12,7 @@ import {
 } from '../lib/cartoes'
 import type { LivroAtivo } from './Inicio'
 import { calcularPanorama, calcularRetrospectiva, type Panorama, type Retrospectiva } from '../lib/infograficos'
-import { formatarData } from '../lib/estatisticas'
+import { contar, formatarData } from '../lib/estatisticas'
 import { useContagem } from '../lib/preferencias'
 
 export interface PreCarga {
@@ -103,6 +104,15 @@ export default function Compartilhar({ perfil, livro, preCarga }: Props) {
   const modeloVisivel = useRef<string | null>(null)
   const fotoRef = useRef<HTMLInputElement>(null)
   const avisar = useAviso()
+  const acoesRef = useRef<HTMLDivElement>(null)
+  const [acoesVisiveis, setAcoesVisiveis] = useState(true)
+  useEffect(() => {
+    const el = acoesRef.current
+    if (!el || !('IntersectionObserver' in window)) return
+    const obs = new IntersectionObserver(([e]) => setAcoesVisiveis(e.isIntersecting || e.boundingClientRect.top < 0), { rootMargin: '0px 0px -80px 0px' })
+    obs.observe(el)
+    return () => obs.disconnect()
+  }, [])
 
   useEffect(() => {
     supabase.from('anotacoes').select('id, tipo, texto, pagina').eq('membro_id', perfil.id).eq('livro_id', livro.id)
@@ -227,7 +237,7 @@ export default function Compartilhar({ perfil, livro, preCarga }: Props) {
       case 'anel':
         return `${leitura.pct}% lido de${de}: página ${leitura.paginasLivro} de ${livro.paginas_totais}. Seguimos com o Clube do Livro Bereanos.`
       case 'semana':
-        return `Minha semana de leitura: ${leitura.paginasSemana} páginas. Uma página por vez, com o Clube do Livro Bereanos.`
+        return `Minha semana de leitura: ${contar(leitura.paginasSemana, 'página', 'páginas')}. Uma página por vez, com o Clube do Livro Bereanos.`
       case 'constancia':
         return `${s} ${s === 1 ? 'dia seguido' : 'dias seguidos'} de leitura${nomeLivro ? `, lendo ${nomeLivro}` : ''}. Clube do Livro Bereanos.`
       case 'retrospectiva':
@@ -471,7 +481,7 @@ export default function Compartilhar({ perfil, livro, preCarga }: Props) {
           ) : (
             <div
               className={`relative rounded-2xl overflow-hidden shadow-xl shadow-marinho/20 ring-1 ring-black/5 bg-marinho/5 ${editandoFoto ? 'cursor-grab active:cursor-grabbing select-none' : ''}`}
-              style={{ aspectRatio: `${w} / ${h}`, height: formato === 'story' ? 'min(62vh, 560px)' : formato === 'post' ? 'min(50vh, 440px)' : 'min(42vh, 360px)', touchAction: editandoFoto ? 'none' : undefined }}
+              style={{ aspectRatio: `${w} / ${h}`, height: formato === 'story' ? 'min(54vh, 520px)' : formato === 'post' ? 'min(46vh, 420px)' : 'min(40vh, 360px)', touchAction: editandoFoto ? 'none' : undefined }}
               onPointerDown={aoTocar} onPointerMove={aoMover} onPointerUp={aoSoltar} onPointerCancel={aoSoltar} onWheel={aoRolar}
             >
               <canvas ref={canvasRef} className="w-full h-full block" aria-label="Prévia da imagem" />
@@ -721,7 +731,7 @@ export default function Compartilhar({ perfil, livro, preCarga }: Props) {
         </section>
 
         {/* Ações */}
-        <div className="mt-5 space-y-2">
+        <div ref={acoesRef} className="mt-5 space-y-2">
           <button onClick={compartilhar} disabled={!podeGerar || enviando || (precisaFoto && !foto)} className="botao-primario flex items-center justify-center gap-2 text-[17px]">
             <Icone nome="compartilhar" className="w-5 h-5" />
             {enviando ? 'Preparando…' : partes.length > 1 && modo === 'texto' ? `Compartilhar ${partes.length} imagens e legenda` : 'Compartilhar imagem e legenda'}
@@ -738,6 +748,23 @@ export default function Compartilhar({ perfil, livro, preCarga }: Props) {
           </p>
         </div>
       </div>
+
+      {/* Barra fixa: compartilhar sem precisar rolar até o fim */}
+      {!acoesVisiveis && createPortal(
+        <div className="fixed inset-x-0 z-20 px-4 animate-subir-suave" style={{ bottom: 'calc(84px + env(safe-area-inset-bottom))' }}>
+          <div className="max-w-md mx-auto flex gap-2 rounded-2xl bg-folha/95 dark:bg-noite-cartao/95 backdrop-blur shadow-lg shadow-black/15 ring-1 ring-marinho/10 dark:ring-bege/10 p-2">
+            <button onClick={compartilhar} disabled={!podeGerar || enviando || (precisaFoto && !foto)}
+              className="flex-1 rounded-xl bg-dourado text-marinho font-semibold py-2.5 text-sm flex items-center justify-center gap-2 disabled:opacity-50">
+              <Icone nome="compartilhar" className="w-4 h-4" /> {enviando ? 'Preparando…' : 'Compartilhar'}
+            </button>
+            <button onClick={baixar} disabled={!podeGerar || (precisaFoto && !foto)} aria-label="Baixar imagem"
+              className="rounded-xl border border-marinho/15 dark:border-bege/15 px-3.5 text-marinho dark:text-bege disabled:opacity-50">
+              <Icone nome="baixar" className="w-5 h-5" />
+            </button>
+          </div>
+        </div>,
+        document.body
+      )}
     </div>
   )
 }

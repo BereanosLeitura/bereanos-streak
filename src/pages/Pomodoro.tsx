@@ -4,7 +4,7 @@ import { supabase, type Perfil } from '../lib/supabase'
 import { useMinhaLeitura } from '../lib/leitura'
 import { useAviso } from '../components/Toast'
 import Icone, { type NomeIcone } from '../components/Icone'
-import { chaveDia } from '../lib/estatisticas'
+import { chaveDia, contar } from '../lib/estatisticas'
 import { planoCiclo } from '../lib/infograficos'
 import type { LivroAtivo } from './Inicio'
 
@@ -294,7 +294,7 @@ export default function Pomodoro({ perfil, livro, onFocoAtivo }: Props) {
       try { navigator.vibrate?.([200, 120, 200]) } catch { /* sem vibração */ }
       try {
         if ('Notification' in window && Notification.permission === 'granted' && document.hidden) {
-          new Notification('Sessão de leitura concluída', { body: `${minutos} minutos em ${livro.titulo}.` })
+          new Notification('Sessão de leitura concluída', { body: `${contar(minutos, 'minuto', 'minutos')} em ${livro.titulo}.` })
         }
       } catch { /* só via service worker em alguns celulares */ }
     }
@@ -388,7 +388,7 @@ export default function Pomodoro({ perfil, livro, onFocoAtivo }: Props) {
           <span className="w-14 h-14 rounded-full bg-dourado/15 text-dourado-escuro dark:text-dourado mx-auto flex items-center justify-center">
             <Icone nome="check" className="w-7 h-7" traco={2} />
           </span>
-          <h1 className="font-serif text-[26px] text-marinho dark:text-bege mt-4">{terminada.minutos} minutos de leitura</h1>
+          <h1 className="font-serif text-[26px] text-marinho dark:text-bege mt-4">{contar(terminada.minutos, 'minuto', 'minutos')} de leitura</h1>
           <p className="legenda mt-1">
             Você começou na página {leitura.paginasLivro}{sessao.metaPagina ? ` e queria chegar à ${sessao.metaPagina}` : ''}.
             {sessao.notas ? ` ${sessao.notas} ${sessao.notas === 1 ? 'anotação feita' : 'anotações feitas'} nesta sessão.` : ''}

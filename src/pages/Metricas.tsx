@@ -1,8 +1,9 @@
 import { useEffect, useState, type ReactNode } from 'react'
 import Icone from '../components/Icone'
+import { BarraBrilho, useNumeroAnimado } from '../components/BarraBrilho'
 import { BarrasHorizontais, BarrasRotuladas } from '../components/Graficos'
 import { calcularMetricas, type MetricasGrupo, type MetricasVoce, type TipoNota } from '../lib/metricas'
-import { formatarData } from '../lib/estatisticas'
+import { contar, formatarData } from '../lib/estatisticas'
 import { formatarTempo } from '../lib/tempo'
 import type { Perfil } from '../lib/supabase'
 import type { LivroAtivo } from './Inicio'
@@ -12,6 +13,7 @@ interface Props {
   livro: LivroAtivo
   inicial?: 'voce' | 'grupo'
   onVoltar: () => void
+  rotuloVoltar?: string
 }
 
 const TIPOS: [TipoNota, string, string][] = [
@@ -19,7 +21,7 @@ const TIPOS: [TipoNota, string, string][] = [
   ['pergunta', 'pergunta', 'perguntas'], ['aplicacao', 'aplicação', 'aplicações']
 ]
 
-export default function Metricas({ perfil, livro, inicial = 'voce', onVoltar }: Props) {
+export default function Metricas({ perfil, livro, inicial = 'voce', onVoltar, rotuloVoltar = 'Voltar' }: Props) {
   const [aba, setAba] = useState<'voce' | 'grupo'>(inicial)
   const [dados, setDados] = useState<{ voce: MetricasVoce; grupo: MetricasGrupo } | null>(null)
   const [erro, setErro] = useState(false)
@@ -32,7 +34,7 @@ export default function Metricas({ perfil, livro, inicial = 'voce', onVoltar }: 
     <div className="min-h-screen px-5 pt-6 pb-28">
       <div className="max-w-md mx-auto">
         <button onClick={onVoltar} className="flex items-center gap-1.5 text-sm text-texto/60 dark:text-bege/60 -ml-1 p-1">
-          <Icone nome="seta-esquerda" className="w-4 h-4" /> Voltar
+          <Icone nome="seta-esquerda" className="w-4 h-4" /> {rotuloVoltar}
         </button>
         <header className="mt-4">
           <h1 className="font-serif text-[30px] leading-tight text-marinho dark:text-bege">Métricas</h1>
@@ -68,6 +70,7 @@ function Voce({ m, livro }: { m: MetricasVoce; livro: LivroAtivo }) {
   const maxDia = Math.max(1, ...m.calendario.map((d) => d.paginas))
   const diasMes = m.calendario.filter((d) => !d.futuro && d.paginas > 0).length
   const diasPassados = m.calendario.filter((d) => !d.futuro).length
+  const diasFoco = m.calendario.filter((d) => !d.futuro && d.foco > 0).length
   return (
     <>
       <section className="cartao p-5 mt-6">
@@ -95,15 +98,20 @@ function Voce({ m, livro }: { m: MetricasVoce; livro: LivroAtivo }) {
       </Cartao>
 
       <Cartao titulo="Últimas 4 semanas" legenda={`Você leu em ${diasMes} de ${diasPassados} dias.`}>
-        <div className="grid grid-cols-7 gap-1.5" role="img" aria-label={`Calendário: leitura em ${diasMes} de ${diasPassados} dias`}>
+        <div className="grid grid-cols-7 gap-1.5" role="img" aria-label={`Calendário: leitura em ${diasMes} de ${diasPassados} dias, sessões de foco em ${diasFoco} dias`}>
           {['D', 'S', 'T', 'Q', 'Q', 'S', 'S'].map((l, i) => <span key={i} className="text-[10px] text-center text-texto/45 dark:text-bege/45">{l}</span>)}
           {m.calendario.map((d) => (
-            <span key={d.chave} title={`${formatarData(d.chave)}: ${d.paginas} páginas`}
-              className={`aspect-square rounded-md flex items-center justify-center text-[10px] tabular ${d.futuro ? 'opacity-30' : ''} ${d.paginas ? 'text-marinho' : 'bg-marinho/[0.05] dark:bg-bege/[0.06] text-texto/35 dark:text-bege/35'}`}
+            <span key={d.chave} title={`${formatarData(d.chave)}: ${contar(d.paginas, 'página', 'páginas')}`}
+              className={`relative aspect-square rounded-md flex items-center justify-center text-[10px] tabular ${d.futuro ? 'opacity-30' : ''} ${d.paginas ? 'text-marinho' : 'bg-marinho/[0.05] dark:bg-bege/[0.06] text-texto/35 dark:text-bege/35'}`}
               style={d.paginas ? { backgroundColor: `rgba(184,145,47,${0.25 + 0.75 * (d.paginas / maxDia)})` } : undefined}>
               {Number(d.chave.slice(8))}
+              {d.foco > 0 && <span className="absolute top-1 right-1 w-1.5 h-1.5 rounded-full bg-marinho dark:bg-bege ring-1 ring-bege dark:ring-noite-cartao" aria-hidden="true" />}
             </span>
           ))}
+        </div>
+        <div className="flex flex-wrap gap-x-4 gap-y-1 mt-3 text-xs text-texto/55 dark:text-bege/55">
+          <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-sm" style={{ backgroundColor: 'rgba(184,145,47,.7)' }} />Leitura (mais forte, mais páginas)</span>
+          <span className="flex items-center gap-1.5"><span className="w-1.5 h-1.5 rounded-full bg-marinho dark:bg-bege" />Sessão de foco</span>
         </div>
       </Cartao>
 
@@ -143,9 +151,7 @@ function Voce({ m, livro }: { m: MetricasVoce; livro: LivroAtivo }) {
                   <span className="text-marinho dark:text-bege truncate">{l.titulo}</span>
                   <span className="tabular text-texto/55 dark:text-bege/55 shrink-0">{l.pct}%</span>
                 </div>
-                <div className="h-1.5 rounded-full bg-marinho/[0.07] dark:bg-bege/[0.08] mt-1 overflow-hidden">
-                  <div className="h-full rounded-full bg-dourado" style={{ width: `${Math.min(100, l.pct)}%` }} />
-                </div>
+                <BarraBrilho pct={l.pct} altura="h-1.5" className="mt-1" faiscas={false} />
               </li>
             ))}
           </ul>
@@ -160,7 +166,7 @@ function Grupo({ m, livro }: { m: MetricasGrupo; livro: LivroAtivo }) {
   return (
     <>
       <section className="cartao p-6 mt-6 text-center bg-marinho dark:bg-noite-cartao border-transparent">
-        <p className="font-serif tabular text-[56px] leading-none text-bege">{m.paginasCiclo}</p>
+        <p className="font-serif tabular text-[56px] leading-none text-bege"><NumeroAnimado v={m.paginasCiclo} /></p>
         <p className="text-bege/75 mt-2">páginas lidas juntos em {livro.titulo}</p>
         <dl className="grid grid-cols-3 gap-2 mt-6 pt-5 border-t border-dourado/30">
           <NumEscuro v={`${m.ativosCiclo} de ${m.membros}`} r="já leram" />
@@ -249,4 +255,8 @@ function NumEscuro({ v, r }: { v: number | string; r: string }) {
       <dt className="text-xs text-bege/65 mt-1">{r}</dt>
     </div>
   )
+}
+
+function NumeroAnimado({ v }: { v: number }) {
+  return <>{useNumeroAnimado(v)}</>
 }

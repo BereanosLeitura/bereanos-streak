@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
-import { tempoManual } from '../lib/tempo'
+import { BarraBrilho } from '../components/BarraBrilho'
+import { tempoManual, formatarTempo, formatarTempoEstimado } from '../lib/tempo'
 import { supabase, type Perfil } from '../lib/supabase'
 import { apagarComDesfazer, useAviso } from '../components/Toast'
 import Icone, { type NomeIcone } from '../components/Icone'
@@ -192,9 +193,15 @@ export default function LivroDetalhe({ perfil, livroId, onVoltar, onCompartilhar
             <h2 className="titulo-secao">Sua leitura</h2>
             <span className="font-serif tabular text-2xl text-dourado-escuro dark:text-dourado">{pct}%</span>
           </div>
-          <div className="h-2 rounded-full bg-marinho/[0.07] dark:bg-bege/10 overflow-hidden mt-2">
-            <div className="h-full barra-progresso rounded-full" style={{ width: `${pct}%` }} />
-          </div>
+          <BarraBrilho pct={pct} className="mt-2" />
+          {pct < 100 && (livro.status === 'ativo' || dados.paginas > 0) && (() => {
+            const falta = Math.max(0, livro.paginas_totais - Math.min(dados.paginas, livro.paginas_totais))
+            return falta > 0 ? (
+              <p className="text-xs text-texto/55 dark:text-bege/55 mt-1.5">
+                Faltam {falta} {falta === 1 ? 'página' : 'páginas'}, cerca de {formatarTempoEstimado(falta * (perfil.ritmo_leitura_min_por_pagina || 2))} no seu ritmo
+              </p>
+            ) : null
+          })()}
           <dl className="grid grid-cols-4 gap-2 text-center mt-4">
             <Num v={Math.min(dados.paginas, livro.paginas_totais)} r="páginas" />
             <Num v={dados.dias} r="dias" />

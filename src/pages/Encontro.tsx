@@ -22,9 +22,10 @@ interface Props {
   perfil: Perfil
   livro: LivroAtivo
   onVoltar: () => void
+  rotuloVoltar?: string
 }
 
-export default function Encontro({ perfil, livro, onVoltar }: Props) {
+export default function Encontro({ perfil, livro, onVoltar, rotuloVoltar = 'Voltar' }: Props) {
   const [enc, setEnc] = useState<EncontroRow | null | undefined>(undefined)
   const [perguntas, setPerguntas] = useState<Pergunta[]>([])
   const [membros, setMembros] = useState<Membro[]>([])
@@ -92,7 +93,7 @@ export default function Encontro({ perfil, livro, onVoltar }: Props) {
     <div className="min-h-screen px-5 pt-6 pb-28">
       <div className="max-w-md mx-auto">
         <button onClick={onVoltar} className="flex items-center gap-1.5 text-sm text-texto/60 dark:text-bege/60 -ml-1 p-1">
-          <Icone nome="seta-esquerda" className="w-4 h-4" /> Voltar
+          <Icone nome="seta-esquerda" className="w-4 h-4" /> {rotuloVoltar}
         </button>
         <p className="text-sm font-semibold text-dourado-escuro dark:text-dourado mt-4">Encontro do clube</p>
         <h1 className="font-serif text-[28px] leading-tight text-marinho dark:text-bege">{livro.titulo}</h1>

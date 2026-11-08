@@ -31,7 +31,7 @@ export interface MetricasVoce {
   ritmoInformado: number
   plano: { ate: number; fimSemana: string; atual: number } | null
   semanas: Barra[]
-  calendario: { chave: string; paginas: number; futuro: boolean }[]
+  calendario: { chave: string; paginas: number; foco: number; futuro: boolean }[]
   notas: Record<TipoNota, number>
   livros: { titulo: string; pct: number; paginas: number }[]
   geral: { paginas: number; dias: number; terminados: number }
@@ -76,7 +76,7 @@ export async function calcularMetricas(perfil: Perfil, livro: LivroMetricas): Pr
     buscarRegistros(),
     supabase.from('livros').select('id, titulo, paginas_totais, status, created_at').order('created_at', { ascending: false }),
     supabase.from('perfis').select('id'),
-    supabase.from('sessoes_pomodoro').select('livro_id, duracao_minutos').eq('membro_id', perfil.id).eq('status', 'concluida'),
+    supabase.from('sessoes_pomodoro').select('livro_id, duracao_minutos, inicio').eq('membro_id', perfil.id).eq('status', 'concluida'),
     supabase.from('anotacoes').select('tipo, livro_id').eq('membro_id', perfil.id),
     supabase.from('anotacoes').select('tipo').eq('livro_id', livro.id).eq('compartilhada', true),
     supabase.from('encontros').select('id, data, livro_id').lte('data', new Date().toISOString()).order('data', { ascending: false }).limit(12),
@@ -95,7 +95,7 @@ export async function calcularMetricas(perfil: Perfil, livro: LivroMetricas): Pr
   const meusCiclo = meus.filter((r) => r.livro_id === livro.id)
   const pagCiclo = Math.min(livro.paginas_totais, meusCiclo.reduce((s, r) => s + pe(r), 0))
   const diasCiclo = new Set(meusCiclo.map((r) => chaveDia(r.registrado_em)))
-  const sessoes = (sessR.data ?? []) as { livro_id: string; duracao_minutos: number | null }[]
+  const sessoes = (sessR.data ?? []) as { livro_id: string; duracao_minutos: number | null; inicio: string | null }[]
   const minutosCiclo = sessoes.filter((s) => s.livro_id === livro.id).reduce((s, x) => s + (x.duracao_minutos ?? 0), 0)
     + meusCiclo.reduce((s, r) => s + (r.origem === 'manual' ? r.tempo_minutos ?? 0 : 0), 0)
 
@@ -121,11 +121,13 @@ export async function calcularMetricas(perfil: Perfil, livro: LivroMetricas): Pr
   // calendário: 4 semanas terminando no sábado desta semana
   const porDiaMeu = new Map<string, number>()
   for (const r of meus) { const k = chaveDia(r.registrado_em); porDiaMeu.set(k, (porDiaMeu.get(k) ?? 0) + pe(r)) }
+  const focoPorDia = new Map<string, number>()
+  for (const x of sessoes) if (x.inicio) { const k = chaveDia(x.inicio); focoPorDia.set(k, (focoPorDia.get(k) ?? 0) + (x.duracao_minutos ?? 0) + 0.001) }
   const cal0 = new Date(semana0); cal0.setDate(cal0.getDate() - 21)
   const calendario = Array.from({ length: 28 }, (_, i) => {
     const d = new Date(cal0); d.setDate(d.getDate() + i)
     const chave = chaveDia(d)
-    return { chave, paginas: Math.round(porDiaMeu.get(chave) ?? 0), futuro: chave > chaveHoje }
+    return { chave, paginas: Math.round(porDiaMeu.get(chave) ?? 0), foco: focoPorDia.get(chave) ?? 0, futuro: chave > chaveHoje }
   })
 
   const notas: Record<TipoNota, number> = { trecho: 0, reflexao: 0, pergunta: 0, aplicacao: 0 }

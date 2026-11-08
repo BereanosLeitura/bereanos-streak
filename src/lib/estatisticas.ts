@@ -107,3 +107,9 @@ export function tempoRelativo(iso: string): string {
   if (d < 7) return `há ${d} dias`
   return formatarData(iso)
 }
+
+/** "1 página", "3 páginas": número com a palavra concordando. */
+export function contar(n: number, singular: string, plural: string): string {
+  const v = Math.round(n)
+  return `${v.toLocaleString('pt-BR')} ${v === 1 ? singular : plural}`
+}

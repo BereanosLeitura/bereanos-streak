@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react'
 import Icone from '../components/Icone'
+import { useNumeroAnimado } from '../components/BarraBrilho'
 import { BarrasDias, MapaDeHorarios, MapaDoLivro } from '../components/Graficos'
 import { BLOCOS, calcularPanorama, planoCiclo, type Panorama as TPanorama } from '../lib/infograficos'
-import { formatarData } from '../lib/estatisticas'
+import { contar, formatarData } from '../lib/estatisticas'
 import type { LivroAtivo } from './Inicio'
 
 interface Props {
@@ -49,7 +50,7 @@ export default function Panorama({ livro, onVoltar, onCompartilhar, onMural, onM
         {p && (
           <>
             <section className="cartao p-6 mt-6 text-center bg-marinho dark:bg-noite-cartao border-transparent">
-              <p className="font-serif tabular text-[64px] leading-none text-bege">{p.paginasGrupo}</p>
+              <p className="font-serif tabular text-[64px] leading-none text-bege"><Contador v={p.paginasGrupo} /></p>
               <p className="text-bege/75 mt-2">páginas lidas juntos</p>
               <dl className="grid grid-cols-3 gap-2 mt-6 pt-5 border-t border-dourado/30">
                 <Item v={p.leitores} r={p.leitores === 1 ? 'leitor' : 'leitores'} />
@@ -61,7 +62,7 @@ export default function Panorama({ livro, onVoltar, onCompartilhar, onMural, onM
             <section className="cartao p-5 mt-4">
               <div className="flex items-baseline justify-between">
                 <h2 className="titulo-secao">Últimos 14 dias</h2>
-                <span className="legenda">{pags14} páginas</span>
+                <span className="legenda">{contar(pags14, 'página', 'páginas')}</span>
               </div>
               <div className="mt-4"><BarrasDias valores={p.ultimos14} /></div>
               <p className="text-sm text-texto/65 dark:text-bege/65 mt-3">
@@ -159,4 +160,8 @@ function Bloco({ icone, v, r }: { icone: 'aspas' | 'lampada' | 'interrogacao' | 
       <p className="text-xs text-texto/55 dark:text-bege/55">{r}</p>
     </div>
   )
+}
+
+function Contador({ v }: { v: number }) {
+  return <>{useNumeroAnimado(v)}</>
 }

@@ -3,7 +3,7 @@ import { tempoManual } from '../lib/tempo'
 import { supabase, type Perfil } from '../lib/supabase'
 import { useAviso } from '../components/Toast'
 import Icone from '../components/Icone'
-import { chaveDia, maiorSequencia, paginasEquivalentes } from '../lib/estatisticas'
+import { chaveDia, contar, maiorSequencia, paginasEquivalentes } from '../lib/estatisticas'
 import { useContagem } from '../lib/preferencias'
 import { buscarConclusoes } from '../lib/pendentes'
 import { canvasParaArquivo, carregarImagem, desenharEstante, desenharLeitura, VERSOES_ESTANTE, type Formato, type LivroEstante } from '../lib/cartoes'
@@ -199,7 +199,7 @@ export default function Ano({ perfil, onVoltar }: { perfil: Perfil; onVoltar: ()
 
             <section className="cartao p-5 mt-4">
               <h2 className="titulo-secao">Mês a mês</h2>
-              {d.melhorMes !== null && <p className="legenda mt-1">Seu mês mais forte foi {MESES_LONGOS[d.melhorMes]}, com {d.porMes[d.melhorMes]} páginas.</p>}
+              {d.melhorMes !== null && <p className="legenda mt-1">Seu mês mais forte foi {MESES_LONGOS[d.melhorMes]}, com {contar(d.porMes[d.melhorMes], 'página', 'páginas')}.</p>}
               <div className="flex items-end gap-1.5 h-28 mt-4" role="img" aria-label="Páginas por mês">
                 {d.porMes.map((p, i) => (
                   <div key={i} className="flex-1 flex flex-col items-center gap-1 h-full justify-end">
