@@ -75,7 +75,7 @@ export default function CompletarPerfil({ userId, onConcluido }: Props) {
       <form onSubmit={salvar} className="cartao p-6 space-y-4">
         <div>
           <label className="rotulo">Nome completo</label>
-          <input
+          <input aria-label="Nome completo"
             required
             autoFocus
             value={nomeCompleto}
@@ -86,7 +86,7 @@ export default function CompletarPerfil({ userId, onConcluido }: Props) {
 
         <div>
           <label className="rotulo">Nome que aparece para o grupo</label>
-          <input
+          <input aria-label="Nome que aparece para o grupo"
             required
             value={nomeExibicao}
             onChange={(e) => setNomeExibicao(e.target.value)}
@@ -97,20 +97,20 @@ export default function CompletarPerfil({ userId, onConcluido }: Props) {
 
         <div>
           <label className="rotulo">Data de nascimento</label>
-          <input
+          <input aria-label="Data de nascimento"
             type="date"
             value={dataNascimento}
             onChange={(e) => setDataNascimento(e.target.value)}
             className="campo"
           />
-          <p className="text-xs text-texto/50 dark:text-bege/50 mt-1.5">
+          <p className="text-xs text-texto/65 dark:text-bege/55 mt-1.5">
             Usado só para um destaque discreto de aniversário dentro do app.
           </p>
         </div>
 
         <div className="pt-3 border-t border-dourado/15">
           <label className="rotulo">Nova senha (substitui a temporária)</label>
-          <input
+          <input aria-label="Nova senha" autoComplete="new-password"
             type="password"
             required
             minLength={8}
@@ -121,7 +121,7 @@ export default function CompletarPerfil({ userId, onConcluido }: Props) {
         </div>
 
         {erro && (
-          <p className="text-sm text-red-700 dark:text-red-400 bg-red-50 dark:bg-red-950/30 rounded-lg px-3 py-2">
+          <p role="alert" className="text-sm text-red-700 dark:text-red-400 bg-red-50 dark:bg-red-950/30 rounded-lg px-3 py-2">
             {erro}
           </p>
         )}

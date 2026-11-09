@@ -243,24 +243,24 @@ export default function Notas({ perfil, livro, inicial, onCompartilhar }: Props)
           <div className="cartao p-5 mt-5 animate-subir-suave">
             <div className="flex items-center justify-between mb-3">
               <h2 className="titulo-secao">{editor.id ? 'Editar anotação' : 'Nova anotação'}</h2>
-              <button onClick={() => setEditor(null)} aria-label="Fechar" className="p-1 text-texto/50 dark:text-bege/50"><Icone nome="x" /></button>
+              <button onClick={() => setEditor(null)} aria-label="Fechar" className="p-1 text-texto/65 dark:text-bege/55"><Icone nome="x" /></button>
             </div>
             <div className="grid grid-cols-4 gap-1.5 mb-4">
               {(Object.keys(TIPOS) as Tipo[]).map((t) => (
                 <button key={t} type="button" onClick={() => setTipo(t)}
                   className={`rounded-xl border py-2.5 flex flex-col items-center gap-1 text-[13px] font-medium transition-colors ${
-                    tipo === t ? 'border-dourado bg-dourado/10 text-dourado-escuro dark:text-dourado' : 'border-marinho/15 dark:border-bege/15 text-texto/60 dark:text-bege/60'
+                    tipo === t ? 'border-dourado bg-dourado/10 text-dourado-escuro dark:text-dourado' : 'border-marinho/15 dark:border-bege/15 text-texto/70 dark:text-bege/60'
                   }`}>
                   <Icone nome={TIPOS[t].icone} />
                   {TIPOS[t].rotulo}
                 </button>
               ))}
             </div>
-            <textarea value={texto} onChange={(e) => setTexto(e.target.value)} rows={5} maxLength={2000} autoFocus placeholder={TIPOS[tipo].dica}
+            <textarea aria-label="Texto da anotação" value={texto} onChange={(e) => setTexto(e.target.value)} rows={5} maxLength={2000} autoFocus placeholder={TIPOS[tipo].dica}
               className={`campo resize-none ${tipo === 'trecho' ? 'font-serif italic text-[18px]' : ''}`} />
-            <p className="text-xs text-right text-texto/40 dark:text-bege/40 mt-1">{texto.length}/2000</p>
+            <p className="text-xs text-right text-texto/65 dark:text-bege/55 mt-1">{texto.length}/2000</p>
             <label className="block mt-2">
-              <span className="text-sm text-texto/70 dark:text-bege/70">Referência bíblica <span className="text-texto/40 dark:text-bege/40">(opcional)</span></span>
+              <span className="text-sm text-texto/70 dark:text-bege/70">Referência bíblica <span className="text-texto/65 dark:text-bege/55">(opcional)</span></span>
               <input value={referencia} onChange={(e) => setReferencia(e.target.value)} maxLength={80} placeholder="Ex.: Atos 17:11" className="campo mt-1 py-2" />
             </label>
             <div className="flex items-center gap-3 mt-3">
@@ -283,7 +283,7 @@ export default function Notas({ perfil, livro, inicial, onCompartilhar }: Props)
         <div className="grid grid-cols-2 p-1 rounded-xl bg-marinho/[0.06] dark:bg-bege/[0.06] mt-6" role="tablist">
           {([['minhas', 'Minhas'], ['mural', 'Mural do grupo']] as [Vista, string][]).map(([v, rotulo]) => (
             <button key={v} role="tab" aria-selected={vista === v} onClick={() => { setVista(v); if (v === 'mural' && filtro === 'favoritas') setFiltro('todas') }}
-              className={`rounded-lg py-2 text-sm font-semibold transition-colors ${vista === v ? 'bg-folha dark:bg-noite-cartao text-marinho dark:text-bege shadow-sm' : 'text-texto/55 dark:text-bege/55'}`}>
+              className={`rounded-lg py-2 text-sm font-semibold transition-colors ${vista === v ? 'bg-folha dark:bg-noite-cartao text-marinho dark:text-bege shadow-sm' : 'text-texto/65 dark:text-bege/55'}`}>
               {rotulo}
               {v === 'mural' && !!qtdMural && (
                 <span className={`ml-1.5 inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full text-[11px] tabular align-[1px] ${vista === 'mural' ? 'bg-dourado text-marinho' : 'bg-marinho/10 dark:bg-bege/10'}`}>{qtdMural}</span>
@@ -298,7 +298,7 @@ export default function Notas({ perfil, livro, inicial, onCompartilhar }: Props)
               {(Object.keys(TIPOS) as Tipo[]).map((t) => (
                 <div key={t}>
                   <dd className="font-serif tabular text-xl text-marinho dark:text-bege leading-none">{contagem[t]}</dd>
-                  <dt className="text-[10px] text-texto/50 dark:text-bege/50 mt-0.5">{TIPOS[t].plural.toLowerCase()}</dt>
+                  <dt className="text-[10px] text-texto/65 dark:text-bege/55 mt-0.5">{TIPOS[t].plural.toLowerCase()}</dt>
                 </div>
               ))}
             </dl>
@@ -314,7 +314,7 @@ export default function Notas({ perfil, livro, inicial, onCompartilhar }: Props)
         )}
 
         <div className="relative mt-4">
-          <svg viewBox="0 0 24 24" className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-texto/40 dark:text-bege/40" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
+          <svg viewBox="0 0 24 24" className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-texto/65 dark:text-bege/55" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
             <circle cx="11" cy="11" r="6.5" /><path d="m16 16 4 4" />
           </svg>
           <input type="search" value={busca} onChange={(e) => setBusca(e.target.value)} placeholder={vista === 'mural' ? 'Buscar no mural ou por nome' : 'Buscar nas suas anotações'}
@@ -363,14 +363,14 @@ export default function Notas({ perfil, livro, inicial, onCompartilhar }: Props)
             const protegida = vista === 'mural' && !revelarTudo && !revelados.has(n.id) && aFrente(n, perfil.id, minhaPagina)
             return (
               <li key={n.id} className={`cartao p-4 ${(n.favorita && vista === 'minhas') || (vista === 'mural' && destaques.has(n.id)) ? 'border-dourado/45' : ''}`}>
-                {buscaGeral && n.livro_titulo && <p className="text-[11px] font-semibold text-texto/45 dark:text-bege/45 mb-1 truncate">{n.livro_titulo}</p>}
+                {buscaGeral && n.livro_titulo && <p className="text-[11px] font-semibold text-texto/65 dark:text-bege/55 mb-1 truncate">{n.livro_titulo}</p>}
                 {vista === 'mural' && destaques.has(n.id) && <p className="text-[11px] font-semibold text-dourado-escuro dark:text-dourado mb-1">Destaque do clube</p>}
                 <div className="flex items-center gap-2 text-sm text-dourado-escuro dark:text-dourado mb-2">
                   <Icone nome={TIPOS[n.tipo].icone} className="w-4 h-4" />
                   <span className="font-medium">{TIPOS[n.tipo].rotulo}</span>
-                  {n.pagina && <span className="text-texto/45 dark:text-bege/45">p. {n.pagina}</span>}
+                  {n.pagina && <span className="text-texto/65 dark:text-bege/55">p. {n.pagina}</span>}
                   {minha && n.compartilhada && vista === 'minhas' && (
-                    <span className="text-xs text-texto/45 dark:text-bege/45 flex items-center gap-1"><Icone nome="grupo" className="w-3.5 h-3.5" /> no mural</span>
+                    <span className="text-xs text-texto/65 dark:text-bege/55 flex items-center gap-1"><Icone nome="grupo" className="w-3.5 h-3.5" /> no mural</span>
                   )}
                   {minha && vista === 'minhas' && (
                     <button onClick={() => atualizar(n, { favorita: !n.favorita }, '')} aria-label={n.favorita ? 'Tirar das favoritas' : 'Marcar como favorita'} aria-pressed={n.favorita}
@@ -391,7 +391,7 @@ export default function Notas({ perfil, livro, inicial, onCompartilhar }: Props)
                 )}
                 <div className="flex items-center gap-2 mt-3">
                   {vista === 'mural' && <Avatar nome={n.nome} tamanho={22} />}
-                  <span className="text-xs text-texto/45 dark:text-bege/45">{vista === 'mural' ? `${n.nome}, ` : ''}{tempoRelativo(n.created_at)}</span>
+                  <span className="text-xs text-texto/65 dark:text-bege/55">{vista === 'mural' ? `${n.nome}, ` : ''}{tempoRelativo(n.created_at)}</span>
                   <div className="ml-auto flex items-center">
                     <BotaoIcone icone="imagem" rotulo="Criar imagem para compartilhar" onClick={() => onCompartilhar({ ...n, autor: n.membro_id === perfil.id ? perfil.nome_exibicao : n.nome })} />
                     {minha && (
@@ -404,7 +404,7 @@ export default function Notas({ perfil, livro, inicial, onCompartilhar }: Props)
                     )}
                     {vista === 'mural' && perfil.role === 'admin' && (
                       <button onClick={() => alternarDestaque(n)} aria-label={destaques.has(n.id) ? 'Tirar dos destaques' : 'Destacar para o clube'} title={destaques.has(n.id) ? 'Tirar dos destaques' : 'Destacar para o clube'}
-                        className={`p-1.5 ${destaques.has(n.id) ? 'text-dourado' : 'text-texto/40 dark:text-bege/40 hover:text-dourado'}`}>
+                        className={`p-1.5 ${destaques.has(n.id) ? 'text-dourado' : 'text-texto/65 dark:text-bege/55 hover:text-dourado'}`}>
                         <Estrela cheia={destaques.has(n.id)} />
                       </button>
                     )}
@@ -429,7 +429,7 @@ function BotaoIcone({ icone, rotulo, onClick, ativo, perigo }: { icone: NomeIcon
   return (
     <button onClick={onClick} aria-label={rotulo} title={rotulo}
       className={`p-2.5 -m-0.5 rounded-lg transition-colors ${
-        ativo ? 'text-dourado-escuro dark:text-dourado' : perigo ? 'text-texto/40 dark:text-bege/40 hover:text-red-700 dark:hover:text-red-400' : 'text-texto/45 dark:text-bege/45 hover:text-dourado-escuro dark:hover:text-dourado'
+        ativo ? 'text-dourado-escuro dark:text-dourado' : perigo ? 'text-texto/65 dark:text-bege/55 hover:text-red-700 dark:hover:text-red-400' : 'text-texto/65 dark:text-bege/55 hover:text-dourado-escuro dark:hover:text-dourado'
       }`}>
       <Icone nome={icone} className="w-[18px] h-[18px]" />
     </button>

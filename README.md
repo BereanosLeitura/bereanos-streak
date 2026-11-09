@@ -30,7 +30,7 @@ Protótipo pessoal de Felipe para acompanhar a leitura coletiva do Clube do Livr
 
 ## Banco de dados (Supabase)
 
-As migrações ficam em `supabase/migrations`, de `0001` a `0015`, e devem ser rodadas em ordem no SQL Editor.
+As migrações ficam em `supabase/migrations`, de `0001` a `0016`, e devem ser rodadas em ordem no SQL Editor.
 
 A função `supabase/functions/admin-membros` roda no servidor do Supabase (Edge Functions). Para publicar ou atualizar: painel do Supabase, Edge Functions, abrir `admin-membros` (ou criar com esse nome), colar o conteúdo de `index.ts` e clicar em Deploy. Ela usa a `service_role key` do próprio servidor, que nunca vai para o app.
 
@@ -40,13 +40,18 @@ A função `supabase/functions/admin-membros` roda no servidor do Supabase (Edge
 2. `npm install`
 3. `npm run dev` e abra `http://localhost:5173`.
 
-## Publicar (GitHub + Netlify)
+## Verificar antes de publicar
 
-1. Suba a pasta para um repositório no GitHub. O `.gitignore` já deixa de fora `.env`, `node_modules` e `dist`.
-2. No Netlify: Add new site, Import an existing project, GitHub, escolha o repositório.
-3. Build command `npm run build` e publish directory `dist` (já vêm do `netlify.toml`).
-4. Em Environment variables, cadastre `VITE_SUPABASE_URL` e `VITE_SUPABASE_ANON_KEY`.
-5. Deploy. Cada `git push` na branch principal publica uma versão nova sozinha.
+- `npm run typecheck`: checagem de tipos do TypeScript
+- `npm test`: testes das regras do app em `tests/` (datas do registro, marcos, mural sem spoiler, concordância, sequência, roteiro). Usa o próprio Node 22.18+, sem instalar nada
+- `npm run build`: o mesmo build que a Vercel roda
+
+## Publicar (GitHub + Vercel)
+
+1. O app oficial está na Vercel (bereanos-streak.vercel.app), ligado ao GitHub. Cada `git push` na `main` publica em produção.
+2. Melhorias grandes vão primeiro numa branch (ex.: `melhorias/auditoria`). O push da branch gera um link de pré-visualização na Vercel, que usa as mesmas variáveis `VITE_SUPABASE_URL` e `VITE_SUPABASE_ANON_KEY` (cadastradas para Production e Preview).
+3. Depois de testar a pré-visualização, junte a branch na `main` para publicar.
+4. O `netlify.toml` ficou da primeira hospedagem (bereanosleitura.netlify.app) e não é usado pela Vercel.
 
 ## Segurança
 
@@ -54,3 +59,5 @@ A função `supabase/functions/admin-membros` roda no servidor do Supabase (Edge
 - RLS ativo em todas as tabelas
 - A `service_role key` nunca aparece no código do app
 - A `anon key` é pública por natureza; quem protege os dados é o RLS
+- O bucket de capas é público pelo link, mas não permite listar os arquivos (0016)
+- O anotador do encontro só edita roteiro, perguntas discutidas, ata e presença (0016)

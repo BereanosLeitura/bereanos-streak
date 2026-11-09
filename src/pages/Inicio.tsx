@@ -245,7 +245,7 @@ export default function Inicio({ perfil, livro, onIr, onPerfilAtualizado, onCont
                   <button onClick={() => setEditandoMeta(true)} className="botao-texto">Ajustar meta</button>
                 </p>
               )}
-              {contagem && <p className={`flex items-center gap-1 text-sm mt-2 ${leitura.seq.dias > 0 ? 'text-dourado-escuro dark:text-dourado' : 'text-texto/45 dark:text-bege/45'}`}>
+              {contagem && <p className={`flex items-center gap-1 text-sm mt-2 ${leitura.seq.dias > 0 ? 'text-dourado-escuro dark:text-dourado' : 'text-texto/65 dark:text-bege/55'}`}>
                 <Icone nome="chama" className="w-4 h-4" />
                 {leitura.seq.dias === 0
                   ? 'Comece uma sequência hoje'
@@ -257,7 +257,7 @@ export default function Inicio({ perfil, livro, onIr, onPerfilAtualizado, onCont
           </div>
 
           <div className="mt-5">
-            <p className="text-sm text-texto/60 dark:text-bege/60 mb-2">Registro rápido</p>
+            <p className="text-sm text-texto/70 dark:text-bege/60 mb-2">Registro rápido</p>
             <div className="grid grid-cols-4 gap-2">
               {[5, 10, 20].map((n) => (
                 <button
@@ -274,13 +274,13 @@ export default function Inicio({ perfil, livro, onIr, onPerfilAtualizado, onCont
               </button>
             </div>
             {ultimoRapido && (
-              <p className="text-sm text-texto/60 dark:text-bege/60 mt-3 animate-subir-suave">
+              <p className="text-sm text-texto/70 dark:text-bege/60 mt-3 animate-subir-suave">
                 {ultimoRapido.paginas === 1 ? '1 página lançada agora.' : `${ultimoRapido.paginas} páginas lançadas agora.`}{' '}
                 <button onClick={desfazer} className="botao-texto">Desfazer</button>
               </p>
             )}
             {!ultimoRapido && leitura.doLivro.length > 0 && (
-              <button onClick={() => onIr('registrar')} className="text-xs text-texto/50 dark:text-bege/50 underline underline-offset-2 mt-3">
+              <button onClick={() => onIr('registrar')} className="text-xs text-texto/65 dark:text-bege/55 underline underline-offset-2 mt-3">
                 Lançou algo errado? Corrigir registros
               </button>
             )}
@@ -297,7 +297,7 @@ export default function Inicio({ perfil, livro, onIr, onPerfilAtualizado, onCont
             <div className="flex rounded-full bg-marinho/[0.06] dark:bg-bege/[0.08] p-0.5 text-xs" role="tablist">
               {(['semana', 'ciclo', 'meses'] as const).map((v) => (
                 <button key={v} role="tab" aria-selected={vista === v} onClick={() => setVista(v)}
-                  className={`px-2.5 py-1 rounded-full transition-colors ${vista === v ? 'bg-folha dark:bg-noite-cartao text-marinho dark:text-bege font-semibold shadow-sm' : 'text-texto/55 dark:text-bege/55'}`}>
+                  className={`px-2.5 py-1 rounded-full transition-colors ${vista === v ? 'bg-folha dark:bg-noite-cartao text-marinho dark:text-bege font-semibold shadow-sm' : 'text-texto/65 dark:text-bege/55'}`}>
                   {v === 'semana' ? 'Semana' : v === 'ciclo' ? 'Ciclo' : 'Meses'}
                 </button>
               ))}
@@ -319,14 +319,14 @@ export default function Inicio({ perfil, livro, onIr, onPerfilAtualizado, onCont
                   const altura = d.paginas > 0 ? Math.max(8, (d.paginas / maxSemana) * 100) : 0
                   return (
                     <div key={d.chave} className="flex-1 flex flex-col items-center gap-1.5 h-full justify-end">
-                      {d.paginas > 0 && <span className="text-[11px] tabular text-texto/55 dark:text-bege/55">{d.paginas}</span>}
+                      {d.paginas > 0 && <span className="text-[11px] tabular text-texto/65 dark:text-bege/55">{d.paginas}</span>}
                       <div className="w-full max-w-[30px] rounded-md bg-marinho/[0.06] dark:bg-bege/[0.07] relative flex-1 flex items-end overflow-hidden">
                         <div className={`w-full rounded-md transition-all duration-700 ${d.paginas >= meta ? 'barra-progresso' : 'bg-dourado/45'}`} style={{ height: `${altura}%` }} />
                         {!futuro && meta <= maxSemana && (
                           <span className="absolute inset-x-0 border-t border-dashed border-marinho/25 dark:border-bege/25" style={{ bottom: `${(meta / maxSemana) * 100}%` }} />
                         )}
                       </div>
-                      <span className={`text-xs ${d.hoje ? 'font-bold text-marinho dark:text-bege' : 'text-texto/45 dark:text-bege/45'}`}>{d.rotulo}</span>
+                      <span className={`text-xs ${d.hoje ? 'font-bold text-marinho dark:text-bege' : 'text-texto/65 dark:text-bege/55'}`}>{d.rotulo}</span>
                     </div>
                   )
                 })}
@@ -375,14 +375,14 @@ export default function Inicio({ perfil, livro, onIr, onPerfilAtualizado, onCont
                   <div className="flex-1 min-w-0">
                     <div className="flex items-baseline gap-2 mb-1.5">
                       <span className={`text-[15px] truncate ${souEu ? 'font-semibold text-marinho dark:text-bege' : 'text-texto/85 dark:text-bege/85'}`}>
-                        {p.nome_exibicao}{souEu && <span className="font-normal text-texto/45 dark:text-bege/45"> (você)</span>}
+                        {p.nome_exibicao}{souEu && <span className="font-normal text-texto/65 dark:text-bege/55"> (você)</span>}
                       </span>
-                      <span className="ml-auto text-sm tabular text-texto/55 dark:text-bege/55 shrink-0">{pctMembro >= 100 ? 'terminou' : `${pctMembro}%`}</span>
+                      <span className="ml-auto text-sm tabular text-texto/65 dark:text-bege/55 shrink-0">{pctMembro >= 100 ? 'terminou' : `${pctMembro}%`}</span>
                     </div>
                     <div className="h-1.5 rounded-full bg-marinho/[0.07] dark:bg-bege/10 overflow-hidden">
                       <div className={`h-full rounded-full transition-all duration-700 ${souEu || pctMembro >= 100 ? 'barra-progresso' : 'bg-marinho/30 dark:bg-bege/30'}`} style={{ width: `${pctMembro}%` }} />
                     </div>
-                    <p className="text-xs text-texto/40 dark:text-bege/40 mt-1">leu {tempoRelativo(p.ultima)}</p>
+                    <p className="text-xs text-texto/65 dark:text-bege/55 mt-1">leu {tempoRelativo(p.ultima)}</p>
                   </div>
                 </li>
               )
@@ -413,7 +413,7 @@ export default function Inicio({ perfil, livro, onIr, onPerfilAtualizado, onCont
                     {n.texto}
                   </p>
                   </ProtecaoSpoiler>
-                  <p className="text-xs text-texto/45 dark:text-bege/45 mt-1">
+                  <p className="text-xs text-texto/65 dark:text-bege/55 mt-1">
                     {n.nome}{n.pagina ? `, p. ${n.pagina}` : ''}, {tempoRelativo(n.created_at)}
                   </p>
                 </li>
@@ -430,12 +430,12 @@ export default function Inicio({ perfil, livro, onIr, onPerfilAtualizado, onCont
           <button onClick={() => onIr('indicacoes')} className="cartao p-4 text-left flex flex-col items-start justify-start hover:border-dourado/50 transition-colors">
             <Icone nome="estante" className="w-5 h-5 text-dourado" />
             <p className="font-semibold text-marinho dark:text-bege mt-2">Próximas leituras</p>
-            <p className="text-xs text-texto/55 dark:text-bege/55 mt-0.5">Indique um livro para o clube</p>
+            <p className="text-xs text-texto/65 dark:text-bege/55 mt-0.5">Indique um livro para o clube</p>
           </button>
           <button onClick={() => onIr('encontro')} className="cartao p-4 text-left flex flex-col items-start justify-start hover:border-dourado/50 transition-colors">
             <Icone nome="calendario" className="w-5 h-5 text-dourado" />
             <p className="font-semibold text-marinho dark:text-bege mt-2">Encontro</p>
-            <p className="text-xs text-texto/55 dark:text-bege/55 mt-0.5">Roteiro e perguntas</p>
+            <p className="text-xs text-texto/65 dark:text-bege/55 mt-0.5">Roteiro e perguntas</p>
           </button>
         </section>
       </>
@@ -455,7 +455,7 @@ export default function Inicio({ perfil, livro, onIr, onPerfilAtualizado, onCont
         </button>
       </div>
       <header className="px-5 pt-5 pb-5 max-w-md mx-auto">
-        <p className="text-sm text-texto/55 dark:text-bege/55 first-letter:uppercase">
+        <p className="text-sm text-texto/65 dark:text-bege/55 first-letter:uppercase">
           {new Date().toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' })}
         </p>
         <h1 className="font-serif text-[30px] leading-tight text-marinho dark:text-bege">
@@ -564,11 +564,11 @@ export default function Inicio({ perfil, livro, onIr, onPerfilAtualizado, onCont
             <div className="flex-1 min-w-0">
               <p className="text-xs font-semibold text-dourado-escuro dark:text-dourado">Nova conquista</p>
               <p className="font-semibold text-marinho dark:text-bege">{novaConquista.nome}</p>
-              {novaConquista.descricao && <p className="text-xs text-texto/60 dark:text-bege/60">{novaConquista.descricao}</p>}
+              {novaConquista.descricao && <p className="text-xs text-texto/70 dark:text-bege/60">{novaConquista.descricao}</p>}
             </div>
             <div className="flex flex-col gap-1 shrink-0">
               <button onClick={() => { marcarConquistaVista(); onIr('perfil') }} className="rounded-lg bg-marinho dark:bg-dourado text-bege dark:text-noite px-3 py-1.5 text-sm font-semibold">Ver</button>
-              <button onClick={marcarConquistaVista} className="text-xs text-texto/50 dark:text-bege/50">Fechar</button>
+              <button onClick={marcarConquistaVista} className="text-xs text-texto/65 dark:text-bege/55">Fechar</button>
             </div>
           </section>
         )}
@@ -591,7 +591,7 @@ export default function Inicio({ perfil, livro, onIr, onPerfilAtualizado, onCont
         {pendentes.length > 0 && onContinuarPendente && (
           <section className="cartao p-4" aria-label="Leituras pendentes">
             <p className="text-sm font-semibold text-dourado-escuro dark:text-dourado">{pendentes.length === 1 ? 'Leitura pendente' : 'Leituras pendentes'}</p>
-            <p className="text-xs text-texto/55 dark:text-bege/55">De ciclos já encerrados. Continue no seu ritmo, sem pressa.</p>
+            <p className="text-xs text-texto/65 dark:text-bege/55">De ciclos já encerrados. Continue no seu ritmo, sem pressa.</p>
             <ul className="mt-3 space-y-3">
               {pendentes.map((p) => (
                 <li key={p.id} className="flex items-center gap-3">
@@ -602,7 +602,7 @@ export default function Inicio({ perfil, livro, onIr, onPerfilAtualizado, onCont
                     <p className="font-serif text-[16px] leading-snug text-marinho dark:text-bege truncate">{p.titulo}</p>
                     <div className="flex items-center gap-2 mt-1">
                       <BarraBrilho pct={p.pct} altura="h-1.5" className="flex-1" faiscas={false} rotulo={`${p.paginasLidas} de ${p.paginas_totais} páginas`} />
-                      <span className="text-xs tabular text-texto/55 dark:text-bege/55">{p.pct}%</span>
+                      <span className="text-xs tabular text-texto/65 dark:text-bege/55">{p.pct}%</span>
                     </div>
                   </div>
                   <button onClick={() => onContinuarPendente(p.id)} className="chip shrink-0">Continuar</button>
@@ -618,12 +618,12 @@ export default function Inicio({ perfil, livro, onIr, onPerfilAtualizado, onCont
 
         {layout.ordem.filter((id) => !layout.ocultos.includes(id)).map((id) => <Fragment key={id}>{blocos[id]}</Fragment>)}
 
-        <button onClick={() => setPersonalizando(true)} className="w-full flex items-center justify-center gap-2 py-2 text-sm text-texto/55 dark:text-bege/55 hover:text-dourado-escuro dark:hover:text-dourado">
+        <button onClick={() => setPersonalizando(true)} className="w-full flex items-center justify-center gap-2 py-2 text-sm text-texto/65 dark:text-bege/55 hover:text-dourado-escuro dark:hover:text-dourado">
           <Icone nome="engrenagem" className="w-4 h-4" /> Personalizar o Início
         </button>
         {personalizando && <PersonalizarInicio layout={layout} onMudar={salvarLayout} onFechar={() => setPersonalizando(false)} />}
 
-        <p className="text-center font-serif italic text-[15px] text-texto/45 dark:text-bege/40 pt-2 pb-2">
+        <p className="text-center font-serif italic text-[15px] text-texto/65 dark:text-bege/55 pt-2 pb-2">
           Ler. Examinar. Dialogar. Aplicar.
         </p>
       </main>
@@ -675,7 +675,7 @@ function CartaoMetas({ metas, leitura, livro, onAbrir }: {
         <span className="w-9 h-9 rounded-full bg-dourado/10 text-dourado flex items-center justify-center shrink-0"><Icone nome="alvo" className="w-4 h-4" /></span>
         <div className="flex-1 min-w-0">
           <h2 className="font-serif text-lg leading-tight text-marinho dark:text-bege">Metas</h2>
-          <p className="text-xs text-texto/55 dark:text-bege/55">Uma meta pequena ajuda a manter o ritmo.</p>
+          <p className="text-xs text-texto/65 dark:text-bege/55">Uma meta pequena ajuda a manter o ritmo.</p>
         </div>
         <button onClick={onAbrir} className="chip shrink-0">Criar meta</button>
       </section>
@@ -700,7 +700,7 @@ function CartaoMetas({ metas, leitura, livro, onAbrir }: {
               <li key={m.id}>
                 <div className="flex justify-between text-sm mb-1">
                   <span className="text-marinho dark:text-bege">{NOME_META[m.tipo]}</span>
-                  <span className={`tabular ${p >= 100 ? 'font-semibold text-dourado-escuro dark:text-dourado' : 'text-texto/55 dark:text-bege/55'}`}>
+                  <span className={`tabular ${p >= 100 ? 'font-semibold text-dourado-escuro dark:text-dourado' : 'text-texto/65 dark:text-bege/55'}`}>
                     {p >= 100 ? 'batida' : `${atual} de ${alvo}`}
                   </span>
                 </div>
@@ -726,7 +726,7 @@ function Marco({ icone, titulo, texto, acao, onClick }: { icone: NomeIcone; titu
       </span>
       <div className="flex-1 min-w-0">
         <p className="font-semibold text-marinho dark:text-bege">{titulo}</p>
-        <p className="text-xs text-texto/60 dark:text-bege/60">{texto}</p>
+        <p className="text-xs text-texto/70 dark:text-bege/60">{texto}</p>
       </div>
       <button onClick={onClick} className="rounded-lg bg-marinho dark:bg-dourado text-bege dark:text-noite px-3 py-2 text-sm font-semibold shrink-0">{acao}</button>
     </section>
@@ -746,7 +746,7 @@ function Numero({ valor, rotulo }: { valor: number; rotulo: string }) {
   return (
     <div>
       <dd className="font-serif tabular text-2xl text-marinho dark:text-bege leading-none">{valor}</dd>
-      <dt className="text-xs text-texto/50 dark:text-bege/50 mt-1">{rotulo}</dt>
+      <dt className="text-xs text-texto/65 dark:text-bege/55 mt-1">{rotulo}</dt>
     </div>
   )
 }
@@ -769,7 +769,7 @@ function AnelMeta({ pct, paginas }: { pct: number; paginas: number }) {
         ) : (
           <>
             <span className="font-serif tabular text-[28px] leading-none text-marinho dark:text-bege">{paginas}</span>
-            <span className="text-[10px] text-texto/50 dark:text-bege/50">páginas</span>
+            <span className="text-[10px] text-texto/65 dark:text-bege/55">páginas</span>
           </>
         )}
       </div>
@@ -797,7 +797,7 @@ function CartaoEncontro({ em, local, perguntas, onPerguntas, onAbrir }: { em: st
         <p className="text-[15px] text-marinho dark:text-bege first-letter:uppercase">
           {data.toLocaleDateString('pt-BR', { weekday: 'long' })}, às {data.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
         </p>
-        {local && <p className="text-sm text-texto/55 dark:text-bege/55 truncate">{local}</p>}
+        {local && <p className="text-sm text-texto/65 dark:text-bege/55 truncate">{local}</p>}
         <div className="flex flex-wrap gap-x-4 gap-y-1 mt-1">
           <button onClick={onPerguntas} className="botao-texto text-sm">
             {perguntas > 0 ? `${perguntas} ${perguntas === 1 ? 'pergunta' : 'perguntas'} do grupo` : 'Deixar uma pergunta'}
@@ -825,7 +825,7 @@ function MapaAtividade({ porDia }: { porDia: Map<string, number> }) {
     <div>
       <div className="grid grid-rows-7 grid-flow-col gap-1" style={{ gridTemplateColumns: 'auto repeat(15, minmax(0, 1fr))' }}>
         {LETRAS.map((l, i) => (
-          <span key={'l' + i} className="pr-1 text-[10px] text-texto/40 dark:text-bege/40 flex items-center">{i % 2 === 1 ? l : ''}</span>
+          <span key={'l' + i} className="pr-1 text-[10px] text-texto/65 dark:text-bege/55 flex items-center">{i % 2 === 1 ? l : ''}</span>
         ))}
         {grade.flat().map((dia) => {
           const k = chaveDia(dia)
@@ -840,7 +840,7 @@ function MapaAtividade({ porDia }: { porDia: Map<string, number> }) {
           )
         })}
       </div>
-      <div className="flex items-center justify-end gap-1.5 mt-3 text-[11px] text-texto/40 dark:text-bege/40">
+      <div className="flex items-center justify-end gap-1.5 mt-3 text-[11px] text-texto/65 dark:text-bege/55">
         <span>menos</span>
         {[0, 3, 10, 20, 40].map((v) => <span key={v} className={`w-3 h-3 rounded-[3px] ${nivel(v)}`} />)}
         <span>mais</span>
@@ -876,7 +876,7 @@ function RitmoCiclo({ leitura, livro }: { leitura: ReturnType<typeof useMinhaLei
   return (
     <div className="mt-4">
       <GraficoRitmo pontos={pontos} total={livro.paginas_totais} />
-      <div className="flex items-center gap-4 mt-2 text-xs text-texto/55 dark:text-bege/55">
+      <div className="flex items-center gap-4 mt-2 text-xs text-texto/65 dark:text-bege/55">
         <span className="flex items-center gap-1.5"><span className="w-4 h-[3px] rounded bg-dourado" />Sua leitura</span>
         {livro.ciclo_fim && <span className="flex items-center gap-1.5"><span className="w-4 border-t-2 border-dashed border-marinho/45 dark:border-bege/45" />Ritmo do ciclo</span>}
       </div>

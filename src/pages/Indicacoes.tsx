@@ -85,7 +85,7 @@ export default function Indicacoes({ perfil, onVoltar, rotuloVoltar = 'Voltar' }
   return (
     <div className="min-h-screen px-5 pt-6 pb-28">
       <div className="max-w-md mx-auto">
-        <button onClick={onVoltar} className="flex items-center gap-1.5 text-sm text-texto/60 dark:text-bege/60 -ml-1 p-1">
+        <button onClick={onVoltar} className="flex items-center gap-1.5 text-sm text-texto/70 dark:text-bege/60 -ml-1 p-1">
           <Icone nome="seta-esquerda" className="w-4 h-4" /> {rotuloVoltar}
         </button>
         <h1 className="font-serif text-[30px] text-marinho dark:text-bege mt-3">Próximas leituras</h1>
@@ -104,7 +104,7 @@ export default function Indicacoes({ perfil, onVoltar, rotuloVoltar = 'Voltar' }
               <input id="ind-autor" value={autor} maxLength={120} onChange={(e) => setAutor(e.target.value)} className="campo" />
             </div>
             <div>
-              <label className="rotulo" htmlFor="ind-motivo">Por que esse livro? <span className="font-normal text-texto/45 dark:text-bege/45">(opcional)</span></label>
+              <label className="rotulo" htmlFor="ind-motivo">Por que esse livro? <span className="font-normal text-texto/65 dark:text-bege/55">(opcional)</span></label>
               <textarea id="ind-motivo" value={motivo} maxLength={500} rows={3} onChange={(e) => setMotivo(e.target.value)} className="campo resize-none" placeholder="O que o grupo ganharia lendo junto?" />
             </div>
             <div className="flex gap-2">
@@ -121,7 +121,7 @@ export default function Indicacoes({ perfil, onVoltar, rotuloVoltar = 'Voltar' }
             <h2 className="titulo-secao">Sorteio</h2>
             <p className="legenda mt-1">{abertas.length} {abertas.length === 1 ? 'indicação participa' : 'indicações participam'}. O sorteio é feito no servidor e fica registrado para todos verem.</p>
             <button onClick={() => setTelaSorteio(true)} className="botao-primario mt-4">Abrir o sorteio</button>
-            <p className="text-xs text-texto/50 dark:text-bege/50 mt-2">Abre em tela cheia, com contagem regressiva. Bom para mostrar ao grupo no encontro.</p>
+            <p className="text-xs text-texto/65 dark:text-bege/55 mt-2">Abre em tela cheia, com contagem regressiva. Bom para mostrar ao grupo no encontro.</p>
           </section>
         )}
 
@@ -165,11 +165,11 @@ export default function Indicacoes({ perfil, onVoltar, rotuloVoltar = 'Voltar' }
                   <div className="flex items-start gap-2">
                     <div className="flex-1 min-w-0">
                       <p className="text-[15px] text-marinho dark:text-bege">{s.titulo}</p>
-                      <p className="text-xs text-texto/45 dark:text-bege/45">{formatarData(s.created_at, { day: 'numeric', month: 'long', year: 'numeric' })}, entre {s.participantes} {s.participantes === 1 ? 'indicação' : 'indicações'}{s.perfis ? `, por ${s.perfis.nome_exibicao}` : ''}</p>
+                      <p className="text-xs text-texto/65 dark:text-bege/55">{formatarData(s.created_at, { day: 'numeric', month: 'long', year: 'numeric' })}, entre {s.participantes} {s.participantes === 1 ? 'indicação' : 'indicações'}{s.perfis ? `, por ${s.perfis.nome_exibicao}` : ''}</p>
                     </div>
                     {admin && (
                       <button onClick={() => setApagandoSorteio(apagandoSorteio?.id === s.id ? null : s)} aria-label={`Apagar registro do sorteio de ${s.titulo}`}
-                        className="p-2.5 -mr-2 -mt-1 text-texto/40 dark:text-bege/45 hover:text-red-700 dark:hover:text-red-400">
+                        className="p-2.5 -mr-2 -mt-1 text-texto/65 dark:text-bege/55 hover:text-red-700 dark:hover:text-red-400">
                         <Icone nome="lixeira" className="w-4 h-4" />
                       </button>
                     )}
@@ -182,9 +182,9 @@ export default function Indicacoes({ perfil, onVoltar, rotuloVoltar = 'Voltar' }
                         {s.indicacao_id && (
                           <button onClick={() => apagarSorteio(s, true)} className="w-full rounded-xl bg-red-800 text-white py-2.5 text-sm font-semibold">O registro e a indicação do livro</button>
                         )}
-                        <button onClick={() => setApagandoSorteio(null)} className="text-sm text-texto/55 dark:text-bege/55 py-1">Cancelar</button>
+                        <button onClick={() => setApagandoSorteio(null)} className="text-sm text-texto/65 dark:text-bege/55 py-1">Cancelar</button>
                       </div>
-                      <p className="text-[11px] text-texto/50 dark:text-bege/50 mt-2">
+                      <p className="text-[11px] text-texto/65 dark:text-bege/55 mt-2">
                         {s.indicacao_id ? 'Ao apagar só o registro, a indicação continua na lista, como está.' : 'A indicação deste sorteio já foi removida.'}
                       </p>
                     </div>
@@ -208,7 +208,7 @@ function ItemIndicacao({ i, perfil, onRemover, extra }: { i: Indicacao; perfil: 
         <span className="w-9 h-12 rounded border border-dourado/40 flex items-center justify-center shrink-0 text-dourado"><Icone nome="livro" className="w-4 h-4" /></span>
         <div className="flex-1 min-w-0">
           <p className="font-serif text-[17px] leading-snug text-marinho dark:text-bege">{i.titulo}</p>
-          {i.autor && <p className="text-sm text-texto/60 dark:text-bege/60">{i.autor}</p>}
+          {i.autor && <p className="text-sm text-texto/70 dark:text-bege/60">{i.autor}</p>}
           {i.status !== 'aberta' && <span className="selo mt-1 inline-block">{i.status === 'sorteada' ? 'sorteado' : 'lido'}</span>}
         </div>
         {pode && (confirmar
@@ -216,7 +216,7 @@ function ItemIndicacao({ i, perfil, onRemover, extra }: { i: Indicacao; perfil: 
           : <button onClick={() => setConfirmar(true)} aria-label="Remover indicação" className="p-1.5 text-texto/35 dark:text-bege/35 hover:text-red-700"><Icone nome="lixeira" className="w-4 h-4" /></button>)}
       </div>
       {i.motivo && <p className="text-[15px] text-texto/80 dark:text-bege/80 mt-3 whitespace-pre-line">{i.motivo}</p>}
-      <p className="flex items-center gap-2 text-xs text-texto/45 dark:text-bege/45 mt-3">
+      <p className="flex items-center gap-2 text-xs text-texto/65 dark:text-bege/55 mt-3">
         <Avatar nome={i.perfis?.nome_exibicao ?? 'Membro'} tamanho={20} /> {i.perfis?.nome_exibicao ?? 'Membro'}, {tempoRelativo(i.created_at)}
       </p>
       {extra}

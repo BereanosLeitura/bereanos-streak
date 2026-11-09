@@ -411,7 +411,7 @@ function Aplicativo() {
                   aria-current={ativo ? 'page' : undefined}
                   className={`w-full flex flex-col items-center gap-1 py-1.5 rounded-lg transition-[color,transform] duration-150 active:scale-95
                               focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dourado
-                              ${ativo ? 'text-marinho dark:text-dourado' : 'text-texto/45 dark:text-bege/45 hover:text-texto/70 dark:hover:text-bege/70'}`}
+                              ${ativo ? 'text-marinho dark:text-dourado' : 'text-texto/65 dark:text-bege/55 hover:text-texto/70 dark:hover:text-bege/70'}`}
                 >
                   <Icone nome={item.icone} className="w-[22px] h-[22px]" traco={ativo ? 2 : 1.6} />
                   <span className={`text-[11px] ${ativo ? 'font-semibold' : ''}`}>{item.rotulo}</span>

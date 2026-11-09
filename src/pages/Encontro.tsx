@@ -92,7 +92,7 @@ export default function Encontro({ perfil, livro, onVoltar, rotuloVoltar = 'Volt
   return (
     <div className="min-h-screen px-5 pt-6 pb-28">
       <div className="max-w-md mx-auto">
-        <button onClick={onVoltar} className="flex items-center gap-1.5 text-sm text-texto/60 dark:text-bege/60 -ml-1 p-1">
+        <button onClick={onVoltar} className="flex items-center gap-1.5 text-sm text-texto/70 dark:text-bege/60 -ml-1 p-1">
           <Icone nome="seta-esquerda" className="w-4 h-4" /> {rotuloVoltar}
         </button>
         <p className="text-sm font-semibold text-dourado-escuro dark:text-dourado mt-4">Encontro do clube</p>
@@ -128,7 +128,7 @@ export default function Encontro({ perfil, livro, onVoltar, rotuloVoltar = 'Volt
                 : <ul className="mt-3 space-y-2">{perguntas.map((p) => (
                     <li key={p.id} className="rounded-xl p-3 bg-marinho/[0.03] dark:bg-bege/[0.04]">
                       <span className="block text-[15px] text-marinho dark:text-bege">{p.texto}</span>
-                      <span className="block text-xs text-texto/45 dark:text-bege/45 mt-0.5">{p.perfis?.nome_exibicao ?? 'Membro'}{p.pagina ? `, p. ${p.pagina}` : ''}</span>
+                      <span className="block text-xs text-texto/65 dark:text-bege/55 mt-0.5">{p.perfis?.nome_exibicao ?? 'Membro'}{p.pagina ? `, p. ${p.pagina}` : ''}</span>
                     </li>
                   ))}</ul>}
             </section>
@@ -143,8 +143,8 @@ export default function Encontro({ perfil, livro, onVoltar, rotuloVoltar = 'Volt
               </p>
               {enc.local && <p className="legenda mt-0.5">{enc.local}</p>}
               <dl className="grid grid-cols-2 gap-3 mt-4 text-sm">
-                <div><dt className="text-xs text-texto/50 dark:text-bege/50">Mediação</dt><dd className="text-marinho dark:text-bege">{enc.mediador || 'a definir'}</dd></div>
-                <div><dt className="text-xs text-texto/50 dark:text-bege/50">Anotação</dt><dd className="text-marinho dark:text-bege">{membros.find((m) => m.id === enc.anotador_id)?.nome_exibicao ?? 'a definir'}</dd></div>
+                <div><dt className="text-xs text-texto/65 dark:text-bege/55">Mediação</dt><dd className="text-marinho dark:text-bege">{enc.mediador || 'a definir'}</dd></div>
+                <div><dt className="text-xs text-texto/65 dark:text-bege/55">Anotação</dt><dd className="text-marinho dark:text-bege">{membros.find((m) => m.id === enc.anotador_id)?.nome_exibicao ?? 'a definir'}</dd></div>
               </dl>
               {(() => {
                 const ev = { titulo: `Encontro Bereanos: ${livro.titulo}`, local: enc.local ?? undefined, descricao: 'Encontro do Clube do Livro Bereanos.', inicio: new Date(enc.data), duracaoMin: 90 }
@@ -176,8 +176,8 @@ export default function Encontro({ perfil, livro, onVoltar, rotuloVoltar = 'Volt
                           {feita && <Icone nome="check" className="w-3.5 h-3.5" />}
                         </span>
                         <span className="flex-1">
-                          <span className={`block text-[15px] ${feita ? 'text-texto/55 dark:text-bege/55' : 'text-marinho dark:text-bege'}`}>{p.texto}</span>
-                          <span className="block text-xs text-texto/45 dark:text-bege/45 mt-0.5">{p.perfis?.nome_exibicao ?? 'Membro'}{p.pagina ? `, p. ${p.pagina}` : ''}</span>
+                          <span className={`block text-[15px] ${feita ? 'text-texto/65 dark:text-bege/55' : 'text-marinho dark:text-bege'}`}>{p.texto}</span>
+                          <span className="block text-xs text-texto/65 dark:text-bege/55 mt-0.5">{p.perfis?.nome_exibicao ?? 'Membro'}{p.pagina ? `, p. ${p.pagina}` : ''}</span>
                         </span>
                       </button>
                     </li>
@@ -196,7 +196,7 @@ export default function Encontro({ perfil, livro, onVoltar, rotuloVoltar = 'Volt
                   const ok = presentes.has(m.id)
                   return (
                     <button key={m.id} onClick={() => alternarPresenca(m.id)} disabled={!podeEditar} aria-pressed={ok}
-                      className={`flex items-center gap-2 rounded-full border pl-1 pr-3 py-1 text-sm ${ok ? 'border-dourado bg-dourado/10 text-marinho dark:text-bege' : 'border-marinho/15 dark:border-bege/15 text-texto/55 dark:text-bege/55'}`}>
+                      className={`flex items-center gap-2 rounded-full border pl-1 pr-3 py-1 text-sm ${ok ? 'border-dourado bg-dourado/10 text-marinho dark:text-bege' : 'border-marinho/15 dark:border-bege/15 text-texto/65 dark:text-bege/55'}`}>
                       <Avatar nome={m.nome_exibicao} tamanho={24} destaque={ok} />{m.nome_exibicao}
                     </button>
                   )
@@ -287,7 +287,7 @@ function Roteiro({ blocos, podeEditar, onSalvar }: { blocos: Bloco[]; podeEditar
       <ol className="mt-3 space-y-1.5">
         {lista.map((b, i) => (
           <li key={i} className={`flex items-center gap-2 rounded-lg px-2.5 py-2 ${atual === i ? 'bg-dourado/10' : ''}`}>
-            <span className="w-5 text-xs text-texto/45 dark:text-bege/45 tabular">{i + 1}.</span>
+            <span className="w-5 text-xs text-texto/65 dark:text-bege/55 tabular">{i + 1}.</span>
             {editando ? (
               <>
                 <input value={b.titulo} onChange={(e) => setLista((l) => l.map((x, k) => (k === i ? { ...x, titulo: e.target.value } : x)))} className="campo py-1.5 text-sm flex-1" aria-label="Nome do bloco" />
@@ -296,7 +296,7 @@ function Roteiro({ blocos, podeEditar, onSalvar }: { blocos: Bloco[]; podeEditar
             ) : (
               <>
                 <span className="flex-1 min-w-0 text-[15px] leading-snug text-marinho dark:text-bege">{b.titulo}</span>
-                <span className="text-sm tabular whitespace-nowrap text-texto/55 dark:text-bege/55">{b.minutos} min</span>
+                <span className="text-sm tabular whitespace-nowrap text-texto/65 dark:text-bege/55">{b.minutos} min</span>
                 {atual === null && <button onClick={() => iniciar(i)} aria-label={`Iniciar ${b.titulo}`} className="text-xs font-semibold text-dourado-escuro dark:text-dourado px-1">Iniciar</button>}
               </>
             )}

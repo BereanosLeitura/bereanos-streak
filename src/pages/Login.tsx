@@ -35,6 +35,8 @@ export default function Login() {
           <input
             id="email"
             type="email"
+            autoComplete="email"
+            inputMode="email"
             required
             autoFocus
             value={email}
@@ -48,6 +50,7 @@ export default function Login() {
           <input
             id="senha"
             type="password"
+            autoComplete="current-password"
             required
             value={senha}
             onChange={(e) => setSenha(e.target.value)}
@@ -56,7 +59,7 @@ export default function Login() {
         </div>
 
         {erro && (
-          <p className="text-sm text-red-700 dark:text-red-400 bg-red-50 dark:bg-red-950/30 rounded-lg px-3 py-2">
+          <p role="alert" className="text-sm text-red-700 dark:text-red-400 bg-red-50 dark:bg-red-950/30 rounded-lg px-3 py-2">
             {erro}
           </p>
         )}
@@ -66,7 +69,7 @@ export default function Login() {
         </button>
       </form>
 
-      <p className="text-xs text-center text-texto/50 dark:text-bege/50 mt-5">
+      <p className="text-xs text-center text-texto/65 dark:text-bege/55 mt-5">
         Se você recebeu uma senha temporária, vai trocá-la no próximo passo.
       </p>
       <div className="text-center mt-2">

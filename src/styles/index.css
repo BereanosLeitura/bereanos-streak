@@ -79,7 +79,7 @@ body {
   }
 
   .legenda {
-    @apply text-sm text-texto/55 dark:text-bege/55;
+    @apply text-sm text-texto/65 dark:text-bege/55;
   }
 
   .botao-primario {

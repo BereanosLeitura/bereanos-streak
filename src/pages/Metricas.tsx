@@ -33,7 +33,7 @@ export default function Metricas({ perfil, livro, inicial = 'voce', onVoltar, ro
   return (
     <div className="min-h-screen px-5 pt-6 pb-28">
       <div className="max-w-md mx-auto">
-        <button onClick={onVoltar} className="flex items-center gap-1.5 text-sm text-texto/60 dark:text-bege/60 -ml-1 p-1">
+        <button onClick={onVoltar} className="flex items-center gap-1.5 text-sm text-texto/70 dark:text-bege/60 -ml-1 p-1">
           <Icone nome="seta-esquerda" className="w-4 h-4" /> {rotuloVoltar}
         </button>
         <header className="mt-4">
@@ -44,7 +44,7 @@ export default function Metricas({ perfil, livro, inicial = 'voce', onVoltar, ro
         <div className="grid grid-cols-2 p-1 rounded-xl bg-marinho/[0.06] dark:bg-bege/[0.06] mt-5" role="tablist">
           {([['voce', 'Você'], ['grupo', 'Grupo']] as const).map(([v, r]) => (
             <button key={v} role="tab" aria-selected={aba === v} onClick={() => setAba(v)}
-              className={`rounded-lg py-2 text-sm font-semibold transition-colors ${aba === v ? 'bg-folha dark:bg-noite-cartao text-marinho dark:text-bege shadow-sm' : 'text-texto/55 dark:text-bege/55'}`}>
+              className={`rounded-lg py-2 text-sm font-semibold transition-colors ${aba === v ? 'bg-folha dark:bg-noite-cartao text-marinho dark:text-bege shadow-sm' : 'text-texto/65 dark:text-bege/55'}`}>
               {r}
             </button>
           ))}
@@ -88,7 +88,7 @@ function Voce({ m, livro }: { m: MetricasVoce; livro: LivroAtivo }) {
           <p className="text-sm text-texto/70 dark:text-bege/70 mt-5 pt-4 border-t border-marinho/10 dark:border-bege/10">
             O plano do ciclo sugere chegar à página <strong className="text-marinho dark:text-bege">{m.plano.ate}</strong> até {formatarData(m.plano.fimSemana)}.
             {' '}Você está na página <strong className="text-marinho dark:text-bege">{m.plano.atual}</strong>.
-            {' '}<span className="text-texto/50 dark:text-bege/50">É uma referência, não uma cobrança.</span>
+            {' '}<span className="text-texto/65 dark:text-bege/55">É uma referência, não uma cobrança.</span>
           </p>
         )}
       </section>
@@ -99,7 +99,7 @@ function Voce({ m, livro }: { m: MetricasVoce; livro: LivroAtivo }) {
 
       <Cartao titulo="Últimas 4 semanas" legenda={`Você leu em ${diasMes} de ${diasPassados} dias.`}>
         <div className="grid grid-cols-7 gap-1.5" role="img" aria-label={`Calendário: leitura em ${diasMes} de ${diasPassados} dias, sessões de foco em ${diasFoco} dias`}>
-          {['D', 'S', 'T', 'Q', 'Q', 'S', 'S'].map((l, i) => <span key={i} className="text-[10px] text-center text-texto/45 dark:text-bege/45">{l}</span>)}
+          {['D', 'S', 'T', 'Q', 'Q', 'S', 'S'].map((l, i) => <span key={i} className="text-[10px] text-center text-texto/65 dark:text-bege/55">{l}</span>)}
           {m.calendario.map((d) => (
             <span key={d.chave} title={`${formatarData(d.chave)}: ${contar(d.paginas, 'página', 'páginas')}`}
               className={`relative aspect-square rounded-md flex items-center justify-center text-[10px] tabular ${d.futuro ? 'opacity-30' : ''} ${d.paginas ? 'text-marinho' : 'bg-marinho/[0.05] dark:bg-bege/[0.06] text-texto/35 dark:text-bege/35'}`}
@@ -109,7 +109,7 @@ function Voce({ m, livro }: { m: MetricasVoce; livro: LivroAtivo }) {
             </span>
           ))}
         </div>
-        <div className="flex flex-wrap gap-x-4 gap-y-1 mt-3 text-xs text-texto/55 dark:text-bege/55">
+        <div className="flex flex-wrap gap-x-4 gap-y-1 mt-3 text-xs text-texto/65 dark:text-bege/55">
           <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-sm" style={{ backgroundColor: 'rgba(184,145,47,.7)' }} />Leitura (mais forte, mais páginas)</span>
           <span className="flex items-center gap-1.5"><span className="w-1.5 h-1.5 rounded-full bg-marinho dark:bg-bege" />Sessão de foco</span>
         </div>
@@ -120,7 +120,7 @@ function Voce({ m, livro }: { m: MetricasVoce; livro: LivroAtivo }) {
           <p className="text-[15px] text-texto/80 dark:text-bege/80">
             Pelos registros com tempo, você lê em média <strong className="text-marinho dark:text-bege">{String(m.ritmoReal).replace('.', ',')} min por página</strong>.
             {' '}No perfil está {String(m.ritmoInformado).replace('.', ',')} min.
-            {Math.abs(m.ritmoReal - m.ritmoInformado) >= 0.5 && <span className="text-texto/55 dark:text-bege/55"> Se quiser, ajuste em Perfil, Seus dados, para as estimativas ficarem mais certas.</span>}
+            {Math.abs(m.ritmoReal - m.ritmoInformado) >= 0.5 && <span className="text-texto/65 dark:text-bege/55"> Se quiser, ajuste em Perfil, Seus dados, para as estimativas ficarem mais certas.</span>}
           </p>
         ) : (
           <p className="text-[15px] text-texto/70 dark:text-bege/70">Informe o tempo em pelo menos 3 registros e o app calcula quantos minutos você leva por página.</p>
@@ -149,7 +149,7 @@ function Voce({ m, livro }: { m: MetricasVoce; livro: LivroAtivo }) {
               <li key={l.titulo}>
                 <div className="flex justify-between gap-3 text-sm">
                   <span className="text-marinho dark:text-bege truncate">{l.titulo}</span>
-                  <span className="tabular text-texto/55 dark:text-bege/55 shrink-0">{l.pct}%</span>
+                  <span className="tabular text-texto/65 dark:text-bege/55 shrink-0">{l.pct}%</span>
                 </div>
                 <BarraBrilho pct={l.pct} altura="h-1.5" className="mt-1" faiscas={false} />
               </li>
@@ -204,7 +204,7 @@ function Grupo({ m, livro }: { m: MetricasGrupo; livro: LivroAtivo }) {
               <li key={e.data} className="flex items-center justify-between gap-3 py-2.5 text-sm">
                 <span className="min-w-0">
                   <span className="block text-marinho dark:text-bege">{formatarData(e.data, { day: 'numeric', month: 'long' })}</span>
-                  <span className="block text-xs text-texto/50 dark:text-bege/50 truncate">{e.titulo}</span>
+                  <span className="block text-xs text-texto/65 dark:text-bege/55 truncate">{e.titulo}</span>
                 </span>
                 <span className="tabular text-texto/70 dark:text-bege/70 shrink-0">{e.presentes} {e.presentes === 1 ? 'presente' : 'presentes'}</span>
               </li>
@@ -218,7 +218,7 @@ function Grupo({ m, livro }: { m: MetricasGrupo; livro: LivroAtivo }) {
           {m.livros.map((l) => (
             <li key={l.titulo} className="py-2.5">
               <p className="text-[15px] text-marinho dark:text-bege leading-snug">{l.titulo}{l.atual && <span className="text-xs text-dourado-escuro dark:text-dourado font-semibold"> · atual</span>}</p>
-              <p className="text-xs text-texto/55 dark:text-bege/55 mt-0.5">
+              <p className="text-xs text-texto/65 dark:text-bege/55 mt-0.5">
                 {l.paginas} páginas lidas juntos, {l.leitores} {l.leitores === 1 ? 'leitor' : 'leitores'}, {l.terminaram} {l.terminaram === 1 ? 'terminou' : 'terminaram'}
               </p>
             </li>
@@ -243,7 +243,7 @@ function Num({ v, r }: { v: number | string; r: string }) {
   return (
     <div>
       <dd className="font-serif tabular text-2xl text-marinho dark:text-bege leading-none">{v}</dd>
-      <dt className="text-[11px] text-texto/55 dark:text-bege/55 mt-1.5 leading-tight">{r}</dt>
+      <dt className="text-[11px] text-texto/65 dark:text-bege/55 mt-1.5 leading-tight">{r}</dt>
     </div>
   )
 }

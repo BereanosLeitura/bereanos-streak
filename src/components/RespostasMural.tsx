@@ -56,7 +56,7 @@ export default function RespostasMural({ anotacaoId, perfil, autorNota }: { anot
 
   return (
     <div className="mt-3 pt-3 border-t border-marinho/[0.07] dark:border-bege/[0.08]">
-      <button onClick={alternar} aria-expanded={aberto} className="flex items-center gap-1.5 text-xs font-semibold text-texto/55 dark:text-bege/55 hover:text-dourado-escuro dark:hover:text-dourado">
+      <button onClick={alternar} aria-expanded={aberto} className="flex items-center gap-1.5 text-xs font-semibold text-texto/65 dark:text-bege/55 hover:text-dourado-escuro dark:hover:text-dourado">
         <Icone nome="grupo" className="w-3.5 h-3.5" />
         {qtd === 0 ? 'Responder' : `${qtd} ${qtd === 1 ? 'resposta' : 'respostas'}`}
       </button>
@@ -67,7 +67,7 @@ export default function RespostasMural({ anotacaoId, perfil, autorNota }: { anot
             <div key={r.id} className="flex gap-2">
               <Avatar nome={r.perfis?.nome_exibicao ?? 'Membro'} tamanho={24} />
               <div className="flex-1 min-w-0 rounded-xl bg-marinho/[0.04] dark:bg-bege/[0.05] px-3 py-2">
-                <p className="text-xs text-texto/50 dark:text-bege/50">
+                <p className="text-xs text-texto/65 dark:text-bege/55">
                   <span className="font-semibold text-marinho/80 dark:text-bege/80">{r.perfis?.nome_exibicao ?? 'Membro'}</span>
                   {r.membro_id === autorNota && ' (autor)'}, {tempoRelativo(r.created_at)}
                 </p>
@@ -81,7 +81,7 @@ export default function RespostasMural({ anotacaoId, perfil, autorNota }: { anot
             </div>
           ))}
           <div className="flex gap-2">
-            <textarea value={texto} onChange={(e) => setTexto(e.target.value)} rows={2} maxLength={1000}
+            <textarea aria-label="Escreva uma resposta" value={texto} onChange={(e) => setTexto(e.target.value)} rows={2} maxLength={1000}
               placeholder="Escreva com respeito. Concordar e discordar são bem-vindos." className="campo text-sm resize-none flex-1" />
             <button onClick={enviar} disabled={enviando || !texto.trim()} className="self-end rounded-xl bg-marinho dark:bg-dourado text-bege dark:text-noite px-3 py-2 text-sm font-semibold disabled:opacity-40">
               {enviando ? '…' : 'Enviar'}

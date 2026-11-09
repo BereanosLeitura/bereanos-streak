@@ -12,11 +12,7 @@ const FRASES: Record<number, { titulo: string; texto: string }> = {
   75: { titulo: 'Reta final', texto: 'Falta pouco. Continue no seu ritmo.' }
 }
 
-/** Qual marco (25, 50 ou 75) foi atravessado neste registro, se algum. */
-export function marcoAtravessado(antes: number, depois: number): number | null {
-  const m = [75, 50, 25].find((x) => antes < x && depois >= x && depois < 100)
-  return m ?? null
-}
+export { marcoAtravessado } from '../lib/regras'
 
 function Faiscas({ quantidade = 18 }: { quantidade?: number }) {
   return (

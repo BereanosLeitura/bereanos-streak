@@ -47,7 +47,7 @@ export default function CriarAcesso({ onCriado }: { onCriado?: () => void }) {
             <label className="rotulo" htmlFor="novo-email">E-mail que ele vai usar</label>
             <input id="novo-email" type="email" inputMode="email" autoCapitalize="none" value={email} onChange={(e) => setEmail(e.target.value)} className="campo" placeholder="email@exemplo.com" />
           </div>
-          {erro && <p className="text-sm text-red-700 dark:text-red-400">{erro}</p>}
+          {erro && <p role="alert" className="text-sm text-red-700 dark:text-red-400">{erro}</p>}
           <button onClick={criar} disabled={enviando || nome.trim().length < 2 || !email.includes('@')} className="botao-primario">
             {enviando ? 'Criando…' : 'Criar acesso'}
           </button>

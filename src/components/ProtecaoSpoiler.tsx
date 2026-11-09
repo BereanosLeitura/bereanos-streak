@@ -4,11 +4,7 @@ import Icone from './Icone'
 // Mural sem spoiler: anotação de outro membro de uma página que você ainda
 // não leu fica embaçada até você tocar em "Revelar".
 
-/** A anotação está à frente de onde a pessoa parou? (as próprias nunca contam) */
-export function aFrente(n: { pagina: number | null; membro_id?: string }, eu: string, minhaPagina: number | null) {
-  if (minhaPagina === null || !n.pagina || n.membro_id === eu) return false
-  return n.pagina > minhaPagina
-}
+export { aFrente } from '../lib/regras'
 
 interface Props {
   ativo: boolean
@@ -37,7 +33,7 @@ export default function ProtecaoSpoiler({ ativo, pagina, minhaPagina, compacto, 
         <span className="flex items-center gap-1.5 text-sm font-semibold text-marinho dark:text-bege">
           <Icone nome="cadeado" className="w-4 h-4 text-dourado" /> Página {pagina}
         </span>
-        <span className="text-xs text-texto/60 dark:text-bege/60">
+        <span className="text-xs text-texto/70 dark:text-bege/60">
           {minhaPagina ? `Você está na página ${minhaPagina}. ` : ''}Toque para revelar
         </span>
       </button>

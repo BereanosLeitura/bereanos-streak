@@ -46,19 +46,19 @@ export default function InstalarApp({ compacto = false, onFechar }: { compacto?:
       <div className="flex-1 min-w-0">
         <p className="font-semibold text-marinho dark:text-bege">Instalar no celular</p>
         {convite ? (
-          <p className="text-sm text-texto/60 dark:text-bege/60">Abre como aplicativo, em tela cheia, direto da tela inicial.</p>
+          <p className="text-sm text-texto/70 dark:text-bege/60">Abre como aplicativo, em tela cheia, direto da tela inicial.</p>
         ) : ehIphone() ? (
-          <p className="text-sm text-texto/60 dark:text-bege/60">
+          <p className="text-sm text-texto/70 dark:text-bege/60">
             No Safari, toque em <span className="inline-flex align-middle"><Icone nome="compartilhar" className="w-4 h-4" /></span> e depois em
             “Adicionar à Tela de Início”.
           </p>
         ) : (
-          <p className="text-sm text-texto/60 dark:text-bege/60">No Chrome do celular, abra o menu ⋮ e toque em “Instalar app” ou “Adicionar à tela inicial”.</p>
+          <p className="text-sm text-texto/70 dark:text-bege/60">No Chrome do celular, abra o menu ⋮ e toque em “Instalar app” ou “Adicionar à tela inicial”.</p>
         )}
         {convite && <button onClick={instalar} className="mt-2 rounded-lg bg-marinho dark:bg-dourado text-bege dark:text-noite px-4 py-2 text-sm font-semibold">Instalar</button>}
       </div>
       {onFechar && (
-        <button onClick={onFechar} aria-label="Dispensar" className="p-1 text-texto/40 dark:text-bege/40"><Icone nome="x" className="w-4 h-4" /></button>
+        <button onClick={onFechar} aria-label="Dispensar" className="p-1 text-texto/65 dark:text-bege/55"><Icone nome="x" className="w-4 h-4" /></button>
       )}
     </section>
   )

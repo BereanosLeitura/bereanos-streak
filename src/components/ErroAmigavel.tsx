@@ -27,7 +27,7 @@ export default class ErroAmigavel extends Component<{ children: ReactNode }, Est
           Seus registros continuam guardados no aparelho. Recarregue o app para continuar.
         </p>
         <button onClick={() => location.reload()} className="botao-primario mt-6 max-w-[220px]">Recarregar</button>
-        <p className="text-xs text-texto/40 dark:text-bege/40 mt-6 max-w-xs break-words">{this.state.erro.message}</p>
+        <p className="text-xs text-texto/65 dark:text-bege/55 mt-6 max-w-xs break-words">{this.state.erro.message}</p>
       </div>
     )
   }

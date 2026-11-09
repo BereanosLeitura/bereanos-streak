@@ -167,7 +167,7 @@ export default function LivroDetalhe({ perfil, livroId, onVoltar, onCompartilhar
   return (
     <div className="min-h-screen px-5 pt-6 pb-28">
       <div className="max-w-md mx-auto">
-        <button onClick={onVoltar} className="flex items-center gap-1.5 text-sm text-texto/60 dark:text-bege/60 -ml-1 p-1">
+        <button onClick={onVoltar} className="flex items-center gap-1.5 text-sm text-texto/70 dark:text-bege/60 -ml-1 p-1">
           <Icone nome="seta-esquerda" className="w-4 h-4" /> Perfil
         </button>
 
@@ -180,7 +180,7 @@ export default function LivroDetalhe({ perfil, livroId, onVoltar, onCompartilhar
             <h1 className="font-serif text-[26px] leading-tight text-marinho dark:text-bege mt-2">{livro.titulo}</h1>
             {livro.autor && <p className="legenda">{livro.autor}</p>}
             {(livro.ciclo_inicio || livro.ciclo_fim) && (
-              <p className="text-xs text-texto/50 dark:text-bege/50 mt-1">
+              <p className="text-xs text-texto/65 dark:text-bege/55 mt-1">
                 Ciclo {livro.ciclo_inicio ? `de ${formatarData(livro.ciclo_inicio)} ` : ''}{livro.ciclo_fim ? `até ${formatarData(livro.ciclo_fim)}` : ''}
               </p>
             )}
@@ -197,7 +197,7 @@ export default function LivroDetalhe({ perfil, livroId, onVoltar, onCompartilhar
           {pct < 100 && (livro.status === 'ativo' || dados.paginas > 0) && (() => {
             const falta = Math.max(0, livro.paginas_totais - Math.min(dados.paginas, livro.paginas_totais))
             return falta > 0 ? (
-              <p className="text-xs text-texto/55 dark:text-bege/55 mt-1.5">
+              <p className="text-xs text-texto/65 dark:text-bege/55 mt-1.5">
                 Faltam {falta} {falta === 1 ? 'página' : 'páginas'}, cerca de {formatarTempoEstimado(falta * (perfil.ritmo_leitura_min_por_pagina || 2))} no seu ritmo
               </p>
             ) : null
@@ -209,7 +209,7 @@ export default function LivroDetalhe({ perfil, livroId, onVoltar, onCompartilhar
             <Num v={minhas.length} r="anotações" />
           </dl>
           {dados.primeiro && (
-            <p className="text-xs text-texto/50 dark:text-bege/50 mt-4 text-center">
+            <p className="text-xs text-texto/65 dark:text-bege/55 mt-4 text-center">
               {chaveDia(dados.primeiro) === chaveDia(dados.ultimo!)
                 ? `Você leu em ${formatarData(dados.primeiro)}.`
                 : `Você leu de ${formatarData(dados.primeiro)} a ${formatarData(dados.ultimo!)}.`}
@@ -272,7 +272,7 @@ export default function LivroDetalhe({ perfil, livroId, onVoltar, onCompartilhar
               <div className="flex rounded-full bg-marinho/[0.06] dark:bg-bege/[0.08] p-0.5 text-xs" role="tablist">
                 {([['eu', 'Você'], ['grupo', 'Mural']] as const).map(([v, r]) => (
                   <button key={v} role="tab" aria-selected={mapaDe === v} onClick={() => setMapaDe(v)}
-                    className={`px-2.5 py-1 rounded-full ${mapaDe === v ? 'bg-folha dark:bg-noite-cartao text-marinho dark:text-bege font-semibold shadow-sm' : 'text-texto/55 dark:text-bege/55'}`}>{r}</button>
+                    className={`px-2.5 py-1 rounded-full ${mapaDe === v ? 'bg-folha dark:bg-noite-cartao text-marinho dark:text-bege font-semibold shadow-sm' : 'text-texto/65 dark:text-bege/55'}`}>{r}</button>
                 ))}
               </div>
             </div>
@@ -298,7 +298,7 @@ export default function LivroDetalhe({ perfil, livroId, onVoltar, onCompartilhar
         <div className="grid grid-cols-3 p-1 rounded-xl bg-marinho/[0.06] dark:bg-bege/[0.06] mt-5" role="tablist">
           {([['minhas', `Minhas (${minhas.length})`], ['mural', `Mural (${mural.length})`], ['historico', 'Histórico']] as [Aba, string][]).map(([a, r]) => (
             <button key={a} role="tab" aria-selected={aba === a} onClick={() => setAba(a)}
-              className={`rounded-lg py-2 text-sm font-semibold ${aba === a ? 'bg-folha dark:bg-noite-cartao text-marinho dark:text-bege shadow-sm' : 'text-texto/55 dark:text-bege/55'}`}>
+              className={`rounded-lg py-2 text-sm font-semibold ${aba === a ? 'bg-folha dark:bg-noite-cartao text-marinho dark:text-bege shadow-sm' : 'text-texto/65 dark:text-bege/55'}`}>
               {r}
             </button>
           ))}
@@ -320,7 +320,7 @@ export default function LivroDetalhe({ perfil, livroId, onVoltar, onCompartilhar
               {mural.filter((n) => destaques.has(n.id)).map((n) => (
                 <li key={n.id} className="text-[15px] text-marinho dark:text-bege">
                   {n.tipo === 'trecho' ? <em className="font-serif">“{n.texto}”</em> : n.texto}
-                  <span className="text-xs text-texto/45 dark:text-bege/45"> {n.perfis?.nome_exibicao ?? 'Membro'}{n.pagina ? `, p. ${n.pagina}` : ''}</span>
+                  <span className="text-xs text-texto/65 dark:text-bege/55"> {n.perfis?.nome_exibicao ?? 'Membro'}{n.pagina ? `, p. ${n.pagina}` : ''}</span>
                 </li>
               ))}
             </ul>
@@ -343,11 +343,11 @@ export default function LivroDetalhe({ perfil, livroId, onVoltar, onCompartilhar
                     </span>
                     <div className="flex-1">
                       <p className="text-[15px] text-marinho dark:text-bege">{r.paginas_lidas ? `${r.paginas_lidas} páginas` : `${r.minutos_lidos} min de ${r.origem === 'pomodoro' ? 'foco' : 'leitura'}`}</p>
-                      <p className="text-xs text-texto/45 dark:text-bege/45">
+                      <p className="text-xs text-texto/65 dark:text-bege/55">
                         {new Date(r.registrado_em).toLocaleString('pt-BR', { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
                       </p>
                     </div>
-                    <button onClick={() => apagarRegistro(r.id)} aria-label="Apagar registro" className="p-3 -mr-2 text-texto/40 dark:text-bege/45 hover:text-red-700 dark:hover:text-red-400">
+                    <button onClick={() => apagarRegistro(r.id)} aria-label="Apagar registro" className="p-3 -mr-2 text-texto/65 dark:text-bege/55 hover:text-red-700 dark:hover:text-red-400">
                       <Icone nome="lixeira" className="w-4 h-4" />
                     </button>
                   </li>
@@ -374,7 +374,7 @@ function Num({ v, r }: { v: number; r: string }) {
   return (
     <div>
       <dd className="font-serif tabular text-2xl text-marinho dark:text-bege leading-none">{v}</dd>
-      <dt className="text-[11px] text-texto/50 dark:text-bege/50 mt-1">{r}</dt>
+      <dt className="text-[11px] text-texto/65 dark:text-bege/55 mt-1">{r}</dt>
     </div>
   )
 }
@@ -392,7 +392,7 @@ function ListaNotas({ notas, comAutor = false, vazio, onImagem, podeApagar, onAp
           <div className="flex items-center gap-2 text-sm text-dourado-escuro dark:text-dourado mb-2">
             <Icone nome={TIPO[n.tipo].icone} className="w-4 h-4" />
             <span className="font-medium">{TIPO[n.tipo].rotulo}</span>
-            {n.pagina && <span className="text-texto/45 dark:text-bege/45">p. {n.pagina}</span>}
+            {n.pagina && <span className="text-texto/65 dark:text-bege/55">p. {n.pagina}</span>}
             {n.favorita && !comAutor && <span className="ml-auto text-dourado text-xs">favorita</span>}
           </div>
           <p className={`texto-nota text-marinho dark:text-bege whitespace-pre-line ${n.tipo === 'trecho' ? 'font-serif italic text-[18px] leading-relaxed' : 'text-[15px] leading-relaxed'}`}>
@@ -401,11 +401,11 @@ function ListaNotas({ notas, comAutor = false, vazio, onImagem, podeApagar, onAp
           {n.referencia && <p className="text-xs font-semibold text-marinho/70 dark:text-bege/70 mt-2 flex items-center gap-1.5"><Icone nome="livro" className="w-3.5 h-3.5 text-dourado" />{n.referencia}</p>}
           <div className="flex items-center gap-2 mt-3">
             {comAutor && <Avatar nome={n.perfis?.nome_exibicao ?? 'Membro'} tamanho={22} />}
-            <span className="text-xs text-texto/45 dark:text-bege/45">{comAutor ? `${n.perfis?.nome_exibicao ?? 'Membro'}, ` : ''}{tempoRelativo(n.created_at)}</span>
+            <span className="text-xs text-texto/65 dark:text-bege/55">{comAutor ? `${n.perfis?.nome_exibicao ?? 'Membro'}, ` : ''}{tempoRelativo(n.created_at)}</span>
             {confirmando === n.id ? (
               <span className="ml-auto flex items-center gap-1">
                 <button onClick={() => { setConfirmando(null); onApagar?.(n) }} className="text-xs font-semibold text-red-700 dark:text-red-400 px-2 py-1">Apagar</button>
-                <button onClick={() => setConfirmando(null)} className="text-xs text-texto/55 dark:text-bege/55 px-2 py-1">Cancelar</button>
+                <button onClick={() => setConfirmando(null)} className="text-xs text-texto/65 dark:text-bege/55 px-2 py-1">Cancelar</button>
               </span>
             ) : (
               <>
@@ -414,7 +414,7 @@ function ListaNotas({ notas, comAutor = false, vazio, onImagem, podeApagar, onAp
                   <Icone nome="imagem" className="w-4 h-4" /> Imagem
                 </button>
                 {podeApagar?.(n) && onApagar && (
-                  <button onClick={() => onApagar(n)} aria-label="Apagar anotação" className="p-2.5 -mr-1 text-texto/40 dark:text-bege/45 hover:text-red-700 dark:hover:text-red-400">
+                  <button onClick={() => onApagar(n)} aria-label="Apagar anotação" className="p-2.5 -mr-1 text-texto/65 dark:text-bege/55 hover:text-red-700 dark:hover:text-red-400">
                     <Icone nome="lixeira" className="w-4 h-4" />
                   </button>
                 )}

@@ -188,7 +188,7 @@ export default function Metas({ perfil, livro, onVoltar, rotuloVoltar = 'Voltar'
     <div className="min-h-screen px-5 pt-8 pb-28">
       <div className="max-w-md mx-auto">
         {onVoltar && (
-          <button onClick={onVoltar} className="flex items-center gap-1.5 text-sm text-texto/60 dark:text-bege/60 -ml-1 p-1 mb-2">
+          <button onClick={onVoltar} className="flex items-center gap-1.5 text-sm text-texto/70 dark:text-bege/60 -ml-1 p-1 mb-2">
             <Icone nome="seta-esquerda" className="w-4 h-4" /> {rotuloVoltar}
           </button>
         )}
@@ -197,10 +197,10 @@ export default function Metas({ perfil, livro, onVoltar, rotuloVoltar = 'Voltar'
           <p className="legenda mt-0.5">Metas pessoais para {livro.titulo}. Só você e o admin veem.</p>
         </div>
 
-        {carregando && <p className="text-sm text-texto/50 dark:text-bege/50 text-center">Carregando…</p>}
+        {carregando && <p className="text-sm text-texto/65 dark:text-bege/55 text-center">Carregando…</p>}
 
         {!carregando && metas.length === 0 && !formAberto && (
-          <p className="text-sm text-texto/55 dark:text-bege/55 text-center mb-5">
+          <p className="text-sm text-texto/65 dark:text-bege/55 text-center mb-5">
             Você ainda não tem meta pra este livro. Uma meta pequena e realista ajuda mais do que uma ambiciosa que ninguém cumpre.
           </p>
         )}
@@ -216,22 +216,22 @@ export default function Metas({ perfil, livro, onVoltar, rotuloVoltar = 'Voltar'
                 <div className="flex justify-between items-start gap-2 mb-2">
                   <div>
                     <p className="text-[15px] font-semibold text-marinho dark:text-bege">{RADIO[m.tipo]}</p>
-                    <p className="text-xs text-texto/50 dark:text-bege/50">
+                    <p className="text-xs text-texto/65 dark:text-bege/55">
                       {m.periodo_inicio && m.periodo_fim ? `${formatarData(m.periodo_inicio)} a ${formatarData(m.periodo_fim)}` : ''}
                     </p>
                   </div>
                   <button
                     onClick={() => excluirMeta(m.id)}
-                    className="text-xs text-texto/40 dark:text-bege/40 hover:text-red-700 dark:hover:text-red-400 shrink-0"
+                    className="text-xs text-texto/65 dark:text-bege/55 hover:text-red-700 dark:hover:text-red-400 shrink-0"
                   >
                     Remover
                   </button>
                 </div>
                 <div className="flex justify-between items-baseline mb-1">
-                  <span className="text-xs text-texto/60 dark:text-bege/60">
+                  <span className="text-xs text-texto/70 dark:text-bege/60">
                     {Math.round(atual)} / {alvo}
                   </span>
-                  <span className={`text-xs font-medium ${bateu ? 'text-dourado-escuro dark:text-dourado' : 'text-texto/50 dark:text-bege/50'}`}>
+                  <span className={`text-xs font-medium ${bateu ? 'text-dourado-escuro dark:text-dourado' : 'text-texto/65 dark:text-bege/55'}`}>
                     {bateu ? 'Meta batida' : `${pct}%`}
                   </span>
                 </div>
@@ -256,7 +256,7 @@ export default function Metas({ perfil, livro, onVoltar, rotuloVoltar = 'Voltar'
           <div className="cartao p-5 space-y-4">
             <div>
               <label className="rotulo">Tipo de meta</label>
-              <select
+              <select aria-label="Tipo de meta"
                 value={tipo}
                 onChange={(e) => setTipo(e.target.value as TipoMeta)}
                 className="campo"
@@ -270,7 +270,7 @@ export default function Metas({ perfil, livro, onVoltar, rotuloVoltar = 'Voltar'
               <label className="rotulo">
                 {tipo === 'sessoes_semanais' ? 'Quantas sessões' : tipo === 'dias_semanais' ? 'Quantos dias' : 'Quantas páginas'}
               </label>
-              <input
+              <input aria-label={tipo === 'sessoes_semanais' ? 'Quantas sessões' : tipo === 'dias_semanais' ? 'Quantos dias' : 'Quantas páginas'}
                 type="number"
                 min={1}
                 value={tipo === 'livro_total' ? String(livro.paginas_totais) : valor}
@@ -279,13 +279,13 @@ export default function Metas({ perfil, livro, onVoltar, rotuloVoltar = 'Voltar'
                 className="campo"
               />
               {tipo === 'livro_total' && (
-                <p className="text-xs text-texto/50 dark:text-bege/50 mt-1.5">
+                <p className="text-xs text-texto/65 dark:text-bege/55 mt-1.5">
                   Usa o total de páginas do livro ({livro.paginas_totais}), do início ao fim do ciclo.
                 </p>
               )}
             </div>
 
-            {erro && <p className="text-sm text-red-700 dark:text-red-400">{erro}</p>}
+            {erro && <p role="alert" className="text-sm text-red-700 dark:text-red-400">{erro}</p>}
 
             <div className="flex gap-2">
               <button

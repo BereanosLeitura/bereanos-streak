@@ -490,13 +490,13 @@ export default function Compartilhar({ perfil, livro, preCarga }: Props) {
           )}
         </div>
         {editandoFoto && (
-          <p className="text-xs text-center text-texto/50 dark:text-bege/50 mt-2">Arraste a foto na prévia para enquadrar. Dois dedos dão zoom.</p>
+          <p className="text-xs text-center text-texto/65 dark:text-bege/55 mt-2">Arraste a foto na prévia para enquadrar. Dois dedos dão zoom.</p>
         )}
 
         {/* partes de um texto longo */}
         {modo === 'texto' && partes.length > 1 && (
           <div className="mt-3 text-center animate-subir-suave">
-            <p className="text-sm text-texto/60 dark:text-bege/60">Texto longo: dividido em {partes.length} imagens, para a letra continuar legível.</p>
+            <p className="text-sm text-texto/70 dark:text-bege/60">Texto longo: dividido em {partes.length} imagens, para a letra continuar legível.</p>
             <div className="flex justify-center gap-2 mt-2">
               {partes.map((_, i) => (
                 <button key={i} onClick={() => setParte(i)} className={`chip w-11 ${parteAtual === i ? 'chip-ativo' : ''}`}>{i + 1}</button>
@@ -515,7 +515,7 @@ export default function Compartilhar({ perfil, livro, preCarga }: Props) {
                 </button>
               ))}
             </div>
-            <p className="text-xs text-center text-texto/45 dark:text-bege/45 mt-2">{FORMATOS[formato].dica}</p>
+            <p className="text-xs text-center text-texto/65 dark:text-bege/55 mt-2">{FORMATOS[formato].dica}</p>
           </>
         )}
 
@@ -571,7 +571,7 @@ export default function Compartilhar({ perfil, livro, preCarga }: Props) {
                         <span className="w-8 h-1.5 rounded-full mb-5" style={{ background: transparente ? (corAdesivo === 'claro' ? '#fff' : '#1B2A4A') : m.cores[1] }} />
                       )}
                     </span>
-                    <span className={`text-xs ${ativo ? 'font-semibold text-marinho dark:text-bege' : 'text-texto/60 dark:text-bege/60'}`}>{m.nome}</span>
+                    <span className={`text-xs ${ativo ? 'font-semibold text-marinho dark:text-bege' : 'text-texto/70 dark:text-bege/60'}`}>{m.nome}</span>
                   </button>
                 )
               })}
@@ -593,7 +593,7 @@ export default function Compartilhar({ perfil, livro, preCarga }: Props) {
           )}
           {listaVersoes.length > 1 && !transparente && (
             <div className="mt-2">
-              <h3 className="text-xs font-semibold text-texto/55 dark:text-bege/55 mb-1.5">Versão</h3>
+              <h3 className="text-xs font-semibold text-texto/65 dark:text-bege/55 mb-1.5">Versão</h3>
               <div className="flex flex-wrap gap-2">
                 {listaVersoes.map((nome, i) => (
                   <button key={nome} onClick={() => escolherVersao(i)} aria-pressed={versao === i} className={`chip ${versao === i ? 'chip-ativo' : ''}`}>{nome}</button>
@@ -611,7 +611,7 @@ export default function Compartilhar({ perfil, livro, preCarga }: Props) {
               <button key={f.id} onClick={() => setFonteCartao(f.id)} aria-pressed={fonteCartao === f.id}
                 className={`shrink-0 rounded-xl border px-3.5 py-2 text-left transition-colors ${fonteCartao === f.id ? 'border-dourado bg-dourado/10' : 'border-marinho/15 dark:border-bege/15'}`}>
                 <span className="block text-[19px] leading-tight text-marinho dark:text-bege" style={{ fontFamily: f.css }}>Aa</span>
-                <span className={`block text-[11px] ${fonteCartao === f.id ? 'font-semibold text-dourado-escuro dark:text-dourado' : 'text-texto/55 dark:text-bege/55'}`}>{f.nome}</span>
+                <span className={`block text-[11px] ${fonteCartao === f.id ? 'font-semibold text-dourado-escuro dark:text-dourado' : 'text-texto/65 dark:text-bege/55'}`}>{f.nome}</span>
               </button>
             ))}
           </div>
@@ -633,7 +633,7 @@ export default function Compartilhar({ perfil, livro, preCarga }: Props) {
               <button onClick={() => fotoRef.current?.click()} className="rounded-lg bg-marinho dark:bg-dourado text-bege dark:text-noite px-3 py-1.5 text-sm font-semibold">
                 {foto ? 'Trocar' : 'Escolher'}
               </button>
-              {foto && <button onClick={() => setFoto(null)} className="text-xs text-texto/50 dark:text-bege/50">Remover</button>}
+              {foto && <button onClick={() => setFoto(null)} className="text-xs text-texto/65 dark:text-bege/55">Remover</button>}
             </div>
           </section>
         )}
@@ -648,7 +648,7 @@ export default function Compartilhar({ perfil, livro, preCarga }: Props) {
               {TIPOS.map((t) => (
                 <button key={t.id} onClick={() => { setTipo(t.id); setLegendaEditada(false) }}
                   className={`rounded-xl border py-2.5 flex flex-col items-center gap-1 text-sm font-medium transition-colors ${
-                    tipo === t.id ? 'border-dourado bg-dourado/10 text-dourado-escuro dark:text-dourado' : 'border-marinho/15 dark:border-bege/15 text-texto/60 dark:text-bege/60'
+                    tipo === t.id ? 'border-dourado bg-dourado/10 text-dourado-escuro dark:text-dourado' : 'border-marinho/15 dark:border-bege/15 text-texto/70 dark:text-bege/60'
                   }`}>
                   <Icone nome={t.icone} />
                   {t.rotulo}
@@ -679,10 +679,10 @@ export default function Compartilhar({ perfil, livro, preCarga }: Props) {
                 className={`campo resize-y ${tipo === 'trecho' ? 'font-serif italic text-[18px]' : ''}`}
               />
               <div className="flex justify-between text-xs mt-1">
-                <span className="text-texto/45 dark:text-bege/45">
+                <span className="text-texto/65 dark:text-bege/55">
                   {partes.length > 1 ? `Vai em ${partes.length} imagens neste formato` : `Cabe em 1 imagem (até ${limiteDeCaracteres(modeloTexto, formato)} caracteres)`}
                 </span>
-                <span className="text-texto/45 dark:text-bege/45 flex items-center gap-3">
+                <span className="text-texto/65 dark:text-bege/55 flex items-center gap-3">
                   {texto && <button onClick={() => { setTexto(''); setLegendaEditada(false) }} className="underline underline-offset-2">Limpar</button>}
                   {texto.length}/{LIMITE_TEXTO}
                 </span>
@@ -736,14 +736,14 @@ export default function Compartilhar({ perfil, livro, preCarga }: Props) {
             <Icone nome="compartilhar" className="w-5 h-5" />
             {enviando ? 'Preparando…' : partes.length > 1 && modo === 'texto' ? `Compartilhar ${partes.length} imagens e legenda` : 'Compartilhar imagem e legenda'}
           </button>
-          {precisaFoto && !foto && <p className="text-xs text-center text-texto/50 dark:text-bege/50">Escolha uma foto para esse modelo.</p>}
+          {precisaFoto && !foto && <p className="text-xs text-center text-texto/65 dark:text-bege/55">Escolha uma foto para esse modelo.</p>}
           <div className="grid grid-cols-3 gap-2">
             <BotaoAcao icone="baixar" rotulo={transparente ? 'Baixar PNG' : 'Baixar'} onClick={baixar} desativado={!podeGerar || (precisaFoto && !foto)} />
             <BotaoAcao icone="copiar" rotulo="Copiar legenda" onClick={() => copiarTexto(legenda)} desativado={!legenda} />
             <BotaoAcao icone="whatsapp" rotulo="WhatsApp" desativado={!legenda}
               onClick={() => window.open(`https://wa.me/?text=${encodeURIComponent(legenda)}`, '_blank', 'noopener')} />
           </div>
-          <p className="text-xs text-center text-texto/40 dark:text-bege/40 pt-1">
+          <p className="text-xs text-center text-texto/65 dark:text-bege/55 pt-1">
             No celular, “Compartilhar” abre o Instagram, WhatsApp e outros apps com a imagem. O botão do WhatsApp envia só o texto.
           </p>
         </div>
@@ -806,7 +806,7 @@ function EditorFoto({ ajuste, onMudar, comEscurecer }: { ajuste: AjusteFoto; onM
         </div>
         {ajuste.modo === 'caber' && (
           <div className="flex flex-wrap gap-2 mt-2">
-            <span className="text-xs text-texto/55 dark:text-bege/55 self-center mr-1">Fundo:</span>
+            <span className="text-xs text-texto/65 dark:text-bege/55 self-center mr-1">Fundo:</span>
             {FUNDOS_CABER.map(([id, nome]) => (
               <button key={id} onClick={() => mudar({ fundo: id })} aria-pressed={ajuste.fundo === id} className={`chip ${ajuste.fundo === id ? 'chip-ativo' : ''}`}>{nome}</button>
             ))}
@@ -831,7 +831,7 @@ function EditorFoto({ ajuste, onMudar, comEscurecer }: { ajuste: AjusteFoto; onM
           </div>
           <input id="escurecer-foto" type="range" min={0} max={100} step={5} value={ajuste.escurecer}
             onChange={(e) => mudar({ escurecer: Number(e.target.value) })} className="w-full accent-[#B8912F]" />
-          <p className="text-xs text-texto/45 dark:text-bege/45 mt-1">Mais escuro deixa o texto mais fácil de ler sobre a foto.</p>
+          <p className="text-xs text-texto/65 dark:text-bege/55 mt-1">Mais escuro deixa o texto mais fácil de ler sobre a foto.</p>
         </div>
       )}
     </section>
@@ -843,7 +843,7 @@ function Segmentado<T extends string>({ valor, opcoes, onMudar, className = '' }
     <div className={`grid p-1 rounded-xl bg-marinho/[0.06] dark:bg-bege/[0.06] ${className}`} style={{ gridTemplateColumns: `repeat(${opcoes.length}, 1fr)` }} role="tablist">
       {opcoes.map(([v, rotulo]) => (
         <button key={v} role="tab" aria-selected={valor === v} onClick={() => onMudar(v)}
-          className={`rounded-lg py-2 text-sm font-semibold transition-colors ${valor === v ? 'bg-folha dark:bg-noite-cartao text-marinho dark:text-bege shadow-sm' : 'text-texto/55 dark:text-bege/55'}`}>
+          className={`rounded-lg py-2 text-sm font-semibold transition-colors ${valor === v ? 'bg-folha dark:bg-noite-cartao text-marinho dark:text-bege shadow-sm' : 'text-texto/65 dark:text-bege/55'}`}>
           {rotulo}
         </button>
       ))}
@@ -856,7 +856,7 @@ function Alternar({ ligado, onMudar, titulo, detalhe }: { ligado: boolean; onMud
     <button onClick={() => onMudar(!ligado)} role="switch" aria-checked={ligado} className="w-full flex items-center gap-3 text-left">
       <span className="flex-1 min-w-0">
         <span className="block text-[15px] font-medium text-marinho dark:text-bege">{titulo}</span>
-        <span className="block text-xs text-texto/50 dark:text-bege/50 truncate">{detalhe}</span>
+        <span className="block text-xs text-texto/65 dark:text-bege/55 truncate">{detalhe}</span>
       </span>
       <span className={`w-11 h-6 rounded-full p-0.5 transition-colors shrink-0 ${ligado ? 'bg-dourado' : 'bg-marinho/20 dark:bg-bege/20'}`}>
         <span className={`block w-5 h-5 rounded-full bg-white shadow transition-transform ${ligado ? 'translate-x-5' : ''}`} />
@@ -869,7 +869,7 @@ function Num({ valor, rotulo }: { valor: string | number; rotulo: string }) {
   return (
     <div>
       <dd className="font-serif tabular text-2xl text-marinho dark:text-bege">{valor}</dd>
-      <dt className="text-[11px] text-texto/50 dark:text-bege/50">{rotulo}</dt>
+      <dt className="text-[11px] text-texto/65 dark:text-bege/55">{rotulo}</dt>
     </div>
   )
 }

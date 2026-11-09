@@ -46,10 +46,10 @@ export function MapaDeHorarios({ mapa }: { mapa: MapaHorarios }) {
     <div>
       <div className="grid gap-1" style={{ gridTemplateColumns: `16px repeat(${BLOCOS.length}, minmax(0, 1fr))` }}>
         <span />
-        {BLOCOS.map((b) => <span key={b.curto} className="text-[9px] text-center text-texto/45 dark:text-bege/45">{b.curto}</span>)}
+        {BLOCOS.map((b) => <span key={b.curto} className="text-[9px] text-center text-texto/65 dark:text-bege/55">{b.curto}</span>)}
         {mapa.grade.map((linha, d) => (
           <div key={d} className="contents">
-            <span className="text-[10px] text-texto/45 dark:text-bege/45 flex items-center">{LETRAS[d]}</span>
+            <span className="text-[10px] text-texto/65 dark:text-bege/55 flex items-center">{LETRAS[d]}</span>
             {linha.map((v, b) => (
               <span
                 key={b}
@@ -76,7 +76,7 @@ export function BarrasDias({ valores, destaqueHoje = true }: { valores: { chave:
           <div key={v.chave} className="flex-1 flex flex-col items-center gap-1 h-full justify-end" title={`${formatarData(v.chave)}: ${contar(v.paginas, 'página', 'páginas')}`}>
             <div className={`w-full rounded-[4px] ${v.paginas ? 'bg-dourado/80' : 'bg-marinho/[0.06] dark:bg-bege/[0.07]'}`}
               style={{ height: v.paginas ? `${Math.max(6, (v.paginas / max) * 100)}%` : '4px' }} />
-            <span className={`text-[9px] ${destaqueHoje && v.chave === hoje ? 'font-bold text-marinho dark:text-bege' : 'text-texto/40 dark:text-bege/40'}`}>{LETRAS[d.getDay()]}</span>
+            <span className={`text-[9px] ${destaqueHoje && v.chave === hoje ? 'font-bold text-marinho dark:text-bege' : 'text-texto/65 dark:text-bege/55'}`}>{LETRAS[d.getDay()]}</span>
           </div>
         )
       })}
@@ -117,10 +117,10 @@ export function MapaDoLivro({ marcas, total }: { marcas: { pagina: number | null
           </div>
         ))}
       </div>
-      <div className="flex justify-between text-[10px] text-texto/45 dark:text-bege/45 mt-1"><span>p. 1</span><span>p. {Math.round(total / 2)}</span><span>p. {total}</span></div>
+      <div className="flex justify-between text-[10px] text-texto/65 dark:text-bege/55 mt-1"><span>p. 1</span><span>p. {Math.round(total / 2)}</span><span>p. {total}</span></div>
       <div className="flex flex-wrap gap-x-3 gap-y-1 mt-2">
         {tipos.map((t) => (
-          <span key={t} className="flex items-center gap-1.5 text-xs text-texto/60 dark:text-bege/60">
+          <span key={t} className="flex items-center gap-1.5 text-xs text-texto/70 dark:text-bege/60">
             <span className="w-2.5 h-2.5 rounded-sm dark:ring-1 dark:ring-bege/30" style={{ background: COR_TIPO[t] }} />{ROTULO_TIPO[t]}
           </span>
         ))}
@@ -138,10 +138,10 @@ export function BarrasRotuladas({ itens, destaqueUltima = false, rotuloAcessivel
         const ultima = destaqueUltima && i === itens.length - 1
         return (
           <div key={i} className="flex-1 min-w-0 h-full flex flex-col items-center justify-end gap-1" title={`${it.rotulo}: ${it.valor}${it.detalhe ? `, ${it.detalhe}` : ''}`}>
-            <span className="text-[10px] tabular text-texto/55 dark:text-bege/55">{it.valor || ''}</span>
+            <span className="text-[10px] tabular text-texto/65 dark:text-bege/55">{it.valor || ''}</span>
             <div className={`w-full rounded-[4px] ${it.valor ? (ultima ? 'bg-dourado' : 'bg-dourado/60') : 'bg-marinho/[0.06] dark:bg-bege/[0.07]'}`}
               style={{ height: it.valor ? `${Math.max(6, (it.valor / max) * 80)}%` : '4px' }} />
-            <span className={`text-[10px] whitespace-nowrap ${ultima ? 'font-bold text-marinho dark:text-bege' : 'text-texto/45 dark:text-bege/45'}`}>{it.rotulo}</span>
+            <span className={`text-[10px] whitespace-nowrap ${ultima ? 'font-bold text-marinho dark:text-bege' : 'text-texto/65 dark:text-bege/55'}`}>{it.rotulo}</span>
           </div>
         )
       })}
@@ -160,7 +160,7 @@ export function BarrasHorizontais({ itens, unidade }: { itens: { rotulo: string;
           <span className="h-2.5 rounded-full bg-marinho/[0.06] dark:bg-bege/[0.07] overflow-hidden">
             <span className="block h-full rounded-full bg-dourado" style={{ width: `${(it.valor / max) * 100}%` }} />
           </span>
-          <span className="tabular text-xs text-texto/60 dark:text-bege/60 w-16 text-right">{it.valor} {it.valor === 1 ? unidade[0] : unidade[1]}</span>
+          <span className="tabular text-xs text-texto/70 dark:text-bege/60 w-16 text-right">{it.valor} {it.valor === 1 ? unidade[0] : unidade[1]}</span>
         </li>
       ))}
     </ul>

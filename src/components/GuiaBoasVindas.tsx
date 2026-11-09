@@ -57,7 +57,7 @@ export default function GuiaBoasVindas({ nome, onFechar }: { nome: string; onFec
               <span key={k} className={`h-1.5 rounded-full transition-all ${k === i ? 'w-6 bg-dourado' : 'w-1.5 bg-marinho/15 dark:bg-bege/20'}`} />
             ))}
           </div>
-          <button onClick={onFechar} className="text-sm text-texto/55 dark:text-bege/55 p-1">Pular</button>
+          <button onClick={onFechar} className="text-sm text-texto/65 dark:text-bege/55 p-1">Pular</button>
         </div>
         <span className="w-14 h-14 rounded-full bg-dourado/15 text-dourado-escuro dark:text-dourado flex items-center justify-center mt-6">
           <Icone nome={p.icone} className="w-7 h-7" />

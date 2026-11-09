@@ -52,7 +52,7 @@ export default function CadernoAnotacoes({ perfil, livro, paginaAtual, onFechar 
           <Icone nome="baixar" className="w-4 h-4" /> Salvar PDF ou imprimir
         </button>
       </div>
-      <div className="nao-imprimir max-w-[720px] mx-auto px-4 pt-3 text-xs text-texto/60 dark:text-bege/60 flex items-center justify-between gap-3">
+      <div className="nao-imprimir max-w-[720px] mx-auto px-4 pt-3 text-xs text-texto/70 dark:text-bege/60 flex items-center justify-between gap-3">
         <span>No celular, escolha "Salvar como PDF" na tela de impressão.</span>
         <label className="flex items-center gap-1.5 shrink-0 cursor-pointer select-none">
           <input type="checkbox" checked={comLinhas} onChange={(e) => setComLinhas(e.target.checked)} className="w-4 h-4 accent-[#B8912F]" />
@@ -70,7 +70,7 @@ export default function CadernoAnotacoes({ perfil, livro, paginaAtual, onFechar 
           <p className="text-[13px] text-[#666]">{hoje}, na página {paginaAtual} de {livro.paginas_totais} ({pct}%)</p>
         </header>
 
-        {notas === null && <p className="text-center mt-10 text-[#888]">Carregando…</p>}
+        {notas === null && <p className="text-center mt-10 text-[#6b6b6b]">Carregando…</p>}
         {vazio && <p className="text-center mt-10 text-[#666]">Você ainda não tem anotações neste livro.</p>}
 
         {notas && SECOES.map((s) => {
@@ -79,7 +79,7 @@ export default function CadernoAnotacoes({ perfil, livro, paginaAtual, onFechar 
           return (
             <section key={s.tipo} className="mt-9 secao-caderno">
               <h2 className="text-[13px] tracking-[.2em] font-semibold text-[#1B2A4A] border-b border-[#B8912F] pb-1">{s.titulo.toUpperCase()}</h2>
-              <p className="text-[12px] italic text-[#888] mt-1">{s.legenda}</p>
+              <p className="text-[12px] italic text-[#6b6b6b] mt-1">{s.legenda}</p>
               <ul className="mt-3 space-y-3.5">
                 {lista.map((n, i) => (
                   <li key={i} className="grid grid-cols-[52px_1fr] gap-2 item-caderno">
@@ -101,7 +101,7 @@ export default function CadernoAnotacoes({ perfil, livro, paginaAtual, onFechar 
         {notas && !vazio && comLinhas && (
           <section className="mt-10 secao-caderno quebra-antes">
             <h2 className="text-[13px] tracking-[.2em] font-semibold text-[#1B2A4A] border-b border-[#B8912F] pb-1">NO ENCONTRO</h2>
-            <p className="text-[12px] italic text-[#888] mt-1">O que ouvi, o que examinei e o que vou aplicar</p>
+            <p className="text-[12px] italic text-[#6b6b6b] mt-1">O que ouvi, o que examinei e o que vou aplicar</p>
             <div className="mt-2" aria-hidden="true">
               {Array.from({ length: 14 }, (_, i) => <div key={i} className="h-8 border-b border-[#ddd]" />)}
             </div>

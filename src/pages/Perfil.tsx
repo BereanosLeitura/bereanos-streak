@@ -136,7 +136,7 @@ export default function Perfil({ perfil, tema, onMudarTema, onPerfilAtualizado, 
   return (
     <div className="min-h-screen px-5 pt-6 pb-28">
       <div className="max-w-md mx-auto">
-        <button onClick={onVoltar} className="flex items-center gap-1.5 text-sm text-texto/60 dark:text-bege/60 hover:text-marinho dark:hover:text-bege -ml-1 p-1">
+        <button onClick={onVoltar} className="flex items-center gap-1.5 text-sm text-texto/70 dark:text-bege/60 hover:text-marinho dark:hover:text-bege -ml-1 p-1">
           <Icone nome="seta-esquerda" className="w-4 h-4" /> Início
         </button>
 
@@ -164,7 +164,7 @@ export default function Perfil({ perfil, tema, onMudarTema, onPerfilAtualizado, 
               {registros === null
                 ? <div className="esqueleto h-7 w-10 mx-auto" />
                 : <p className="font-serif tabular text-[26px] leading-none text-marinho dark:text-bege">{String(v).replace('.', ',')}</p>}
-              <p className="text-xs text-texto/50 dark:text-bege/50 mt-1.5">{rotulo}</p>
+              <p className="text-xs text-texto/65 dark:text-bege/55 mt-1.5">{rotulo}</p>
             </div>
           ))}
         </section>
@@ -192,7 +192,7 @@ export default function Perfil({ perfil, tema, onMudarTema, onPerfilAtualizado, 
                   {horarios.melhorDia !== null && <>, e {horarios.melhorDia === 0 || horarios.melhorDia === 6 ? 'o' : 'a'} <strong className="text-marinho dark:text-bege">{DIAS_SEMANA[horarios.melhorDia]}</strong> é seu dia mais forte</>}.
                 </p>
                 <MapaDeHorarios mapa={horarios} />
-                <p className="text-xs text-texto/45 dark:text-bege/45 mt-3">Cor mais forte, mais páginas. Leituras lançadas para dias anteriores ficam de fora, porque não dizem a hora.</p>
+                <p className="text-xs text-texto/65 dark:text-bege/55 mt-3">Cor mais forte, mais páginas. Leituras lançadas para dias anteriores ficam de fora, porque não dizem a hora.</p>
               </>
             )}
           </section>
@@ -208,7 +208,7 @@ export default function Perfil({ perfil, tema, onMudarTema, onPerfilAtualizado, 
             <div className="cartao p-4">
               {recentes.length > 0 ? (
                 <>
-                  <p className="text-xs text-texto/50 dark:text-bege/50 mb-3">{recentes.length === 1 ? 'Sua conquista mais recente' : 'Suas conquistas mais recentes'}</p>
+                  <p className="text-xs text-texto/65 dark:text-bege/55 mb-3">{recentes.length === 1 ? 'Sua conquista mais recente' : 'Suas conquistas mais recentes'}</p>
                   <ul className="space-y-2.5">
                     {recentes.map((c) => (
                       <li key={c.id} className="flex items-center gap-3">
@@ -225,7 +225,7 @@ export default function Perfil({ perfil, tema, onMudarTema, onPerfilAtualizado, 
                 <p className="legenda">Nenhuma conquista ainda. Elas chegam com a leitura, sem pressa.</p>
               )}
               {proxima && (
-                <p className="text-xs text-texto/55 dark:text-bege/55 mt-3 pt-3 border-t border-marinho/[0.07] dark:border-bege/[0.08]">
+                <p className="text-xs text-texto/65 dark:text-bege/55 mt-3 pt-3 border-t border-marinho/[0.07] dark:border-bege/[0.08]">
                   Próxima: <span className="font-semibold">{proxima.nome}</span>{proxima.descricao ? `, ${proxima.descricao.charAt(0).toLowerCase()}${proxima.descricao.slice(1)}` : ''}
                 </p>
               )}
@@ -239,7 +239,7 @@ export default function Perfil({ perfil, tema, onMudarTema, onPerfilAtualizado, 
             return (
               <div key={g.titulo} className="mb-5">
                 <p className="text-sm font-semibold text-marinho/80 dark:text-bege/80 mb-2">
-                  {g.titulo} <span className="font-normal text-texto/45 dark:text-bege/45">{feitas}/{itens.length}</span>
+                  {g.titulo} <span className="font-normal text-texto/65 dark:text-bege/55">{feitas}/{itens.length}</span>
                 </p>
                 <ul className="grid grid-cols-3 gap-2.5">
                   {itens.map((c) => {
@@ -247,11 +247,11 @@ export default function Perfil({ perfil, tema, onMudarTema, onPerfilAtualizado, 
                     return (
                       <li key={c.id} title={c.descricao ?? ''}
                         className={`rounded-2xl border p-3 text-center flex flex-col items-center ${quando ? 'border-dourado/50 bg-dourado/[0.08]' : 'border-marinho/10 dark:border-bege/10 opacity-55'}`}>
-                        <span className={`w-10 h-10 rounded-full flex items-center justify-center ${quando ? 'bg-dourado text-marinho' : 'bg-marinho/[0.06] dark:bg-bege/[0.08] text-texto/40 dark:text-bege/40'}`}>
+                        <span className={`w-10 h-10 rounded-full flex items-center justify-center ${quando ? 'bg-dourado text-marinho' : 'bg-marinho/[0.06] dark:bg-bege/[0.08] text-texto/65 dark:text-bege/55'}`}>
                           <Icone nome={quando ? ICONE_CONQUISTA[c.icone ?? ''] ?? 'check' : 'cadeado'} className="w-5 h-5" />
                         </span>
                         <p className="text-[13px] font-semibold text-marinho dark:text-bege mt-2 leading-tight">{c.nome}</p>
-                        <p className="text-[11px] text-texto/50 dark:text-bege/50 mt-1 leading-snug">{c.descricao}</p>
+                        <p className="text-[11px] text-texto/65 dark:text-bege/55 mt-1 leading-snug">{c.descricao}</p>
                         {quando && <p className="text-[11px] text-dourado-escuro dark:text-dourado mt-1">{formatarData(quando)}</p>}
                       </li>
                     )
@@ -282,12 +282,12 @@ export default function Perfil({ perfil, tema, onMudarTema, onPerfilAtualizado, 
                     : <span className="w-10 h-14 rounded border border-dourado/30 flex items-center justify-center text-dourado"><Icone nome="livro" className="w-4 h-4" /></span>}
                   <div className="flex-1 min-w-0">
                     <p className="font-serif text-[17px] leading-snug text-marinho dark:text-bege truncate">{l.titulo}</p>
-                    <p className="text-xs text-texto/50 dark:text-bege/50 truncate">
+                    <p className="text-xs text-texto/65 dark:text-bege/55 truncate">
                       {l.autor ? `${l.autor}, ` : ''}{l.status === 'ativo' ? 'leitura atual' : 'ciclo concluído'}
                     </p>
                     <BarraBrilho pct={p} altura="h-1" className="mt-2" faiscas={false} />
                   </div>
-                  <span className="text-sm tabular text-texto/60 dark:text-bege/60 w-11 text-right">{p >= 100 ? <Icone nome="check" className="w-5 h-5 inline text-dourado" /> : `${p}%`}</span>
+                  <span className="text-sm tabular text-texto/70 dark:text-bege/60 w-11 text-right">{p >= 100 ? <Icone nome="check" className="w-5 h-5 inline text-dourado" /> : `${p}%`}</span>
                   <Icone nome="seta-direita" className="w-4 h-4 text-texto/30 dark:text-bege/30 shrink-0" />
                   </button>
                 </li>
@@ -321,7 +321,7 @@ export default function Perfil({ perfil, tema, onMudarTema, onPerfilAtualizado, 
               <div>
                 <label className="rotulo" htmlFor="p-ritmo">Minutos por página</label>
                 <input id="p-ritmo" inputMode="decimal" value={ritmo} onChange={(e) => setRitmo(e.target.value)} className="campo" />
-                <p className="text-xs text-texto/50 dark:text-bege/50 mt-1.5">
+                <p className="text-xs text-texto/65 dark:text-bege/55 mt-1.5">
                   Usado para converter sessões de foco sem páginas informadas em páginas.
                 </p>
               </div>
@@ -348,7 +348,7 @@ export default function Perfil({ perfil, tema, onMudarTema, onPerfilAtualizado, 
                 className={`rounded-xl border py-3 flex flex-col items-center gap-1.5 text-sm font-medium transition-colors ${
                   tema === t
                     ? 'border-dourado bg-dourado/10 text-dourado-escuro dark:text-dourado'
-                    : 'border-marinho/15 dark:border-bege/15 text-texto/60 dark:text-bege/60'
+                    : 'border-marinho/15 dark:border-bege/15 text-texto/70 dark:text-bege/60'
                 }`}
               >
                 <Icone nome={icone} />
@@ -364,7 +364,7 @@ export default function Perfil({ perfil, tema, onMudarTema, onPerfilAtualizado, 
           <div className="grid grid-cols-3 gap-2">
             {([[null, 'Padrão do clube'], [true, 'Mostrar'], [false, 'Esconder']] as [boolean | null, string][]).map(([v, rotulo]) => (
               <button key={rotulo} onClick={() => mudarContagem(v)} aria-pressed={(perfil.mostrar_contagem ?? null) === v}
-                className={`rounded-xl border py-2.5 text-sm font-medium ${(perfil.mostrar_contagem ?? null) === v ? 'border-dourado bg-dourado/10 text-dourado-escuro dark:text-dourado' : 'border-marinho/15 dark:border-bege/15 text-texto/60 dark:text-bege/60'}`}>
+                className={`rounded-xl border py-2.5 text-sm font-medium ${(perfil.mostrar_contagem ?? null) === v ? 'border-dourado bg-dourado/10 text-dourado-escuro dark:text-dourado' : 'border-marinho/15 dark:border-bege/15 text-texto/70 dark:text-bege/60'}`}>
                 {rotulo}
               </button>
             ))}
@@ -374,7 +374,7 @@ export default function Perfil({ perfil, tema, onMudarTema, onPerfilAtualizado, 
           <div className="grid grid-cols-3 gap-2 mt-3">
             {([['normal', 'Normal', 'text-sm'], ['grande', 'Grande', 'text-base'], ['maior', 'Maior', 'text-lg']] as [TamanhoLetra, string, string][]).map(([t, rotulo, cls]) => (
               <button key={t} onClick={() => { setLetra(t); aplicarTamanhoLetra(t) }} aria-pressed={letra === t}
-                className={`rounded-xl border py-2.5 font-medium ${cls} ${letra === t ? 'border-dourado bg-dourado/10 text-dourado-escuro dark:text-dourado' : 'border-marinho/15 dark:border-bege/15 text-texto/60 dark:text-bege/60'}`}>
+                className={`rounded-xl border py-2.5 font-medium ${cls} ${letra === t ? 'border-dourado bg-dourado/10 text-dourado-escuro dark:text-dourado' : 'border-marinho/15 dark:border-bege/15 text-texto/70 dark:text-bege/60'}`}>
                 {rotulo}
               </button>
             ))}
@@ -385,7 +385,7 @@ export default function Perfil({ perfil, tema, onMudarTema, onPerfilAtualizado, 
           <div className="grid grid-cols-4 gap-2">
             {FONTES_NOTAS.map((f) => (
               <button key={f.id} onClick={() => { setFonteNotas(f.id); aplicarFonteNotas(f.id) }} aria-pressed={fonteNotas === f.id}
-                className={`rounded-xl border py-2 ${fonteNotas === f.id ? 'border-dourado bg-dourado/10 text-dourado-escuro dark:text-dourado' : 'border-marinho/15 dark:border-bege/15 text-texto/60 dark:text-bege/60'}`}>
+                className={`rounded-xl border py-2 ${fonteNotas === f.id ? 'border-dourado bg-dourado/10 text-dourado-escuro dark:text-dourado' : 'border-marinho/15 dark:border-bege/15 text-texto/70 dark:text-bege/60'}`}>
                 <span className="block text-lg leading-tight" style={f.css ? { fontFamily: f.css } : undefined}>Aa</span>
                 <span className="block text-[11px] font-medium">{f.nome}</span>
               </button>
@@ -437,7 +437,7 @@ export default function Perfil({ perfil, tema, onMudarTema, onPerfilAtualizado, 
 function Linha({ rotulo, valor }: { rotulo: string; valor: string }) {
   return (
     <div className="flex justify-between gap-4">
-      <dt className="text-texto/55 dark:text-bege/55">{rotulo}</dt>
+      <dt className="text-texto/65 dark:text-bege/55">{rotulo}</dt>
       <dd className="text-marinho dark:text-bege text-right">{valor}</dd>
     </div>
   )
@@ -501,7 +501,7 @@ function ItemMenu({ icone, rotulo, detalhe, onClick }: { icone: NomeIcone; rotul
       <span className="w-9 h-9 rounded-full bg-dourado/10 text-dourado-escuro dark:text-dourado flex items-center justify-center shrink-0"><Icone nome={icone} className="w-[18px] h-[18px]" /></span>
       <span className="flex-1 min-w-0">
         <span className="block text-[15px] font-semibold text-marinho dark:text-bege">{rotulo}</span>
-        {detalhe && <span className="block text-xs text-texto/50 dark:text-bege/50">{detalhe}</span>}
+        {detalhe && <span className="block text-xs text-texto/65 dark:text-bege/55">{detalhe}</span>}
       </span>
       <Icone nome="seta-direita" className="w-4 h-4 text-texto/30 dark:text-bege/30" />
     </button>
@@ -514,7 +514,7 @@ function Interruptor({ rotulo, legenda, ligado, onMudar }: { rotulo: string; leg
       className="w-full flex items-center gap-3 py-3 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dourado rounded-lg">
       <span className="flex-1 min-w-0">
         <span className="block text-[15px] text-marinho dark:text-bege">{rotulo}</span>
-        {legenda && <span className="block text-xs text-texto/55 dark:text-bege/55 mt-0.5">{legenda}</span>}
+        {legenda && <span className="block text-xs text-texto/65 dark:text-bege/55 mt-0.5">{legenda}</span>}
       </span>
       <span className={`relative w-11 h-6 rounded-full shrink-0 transition-colors ${ligado ? 'bg-dourado' : 'bg-marinho/20 dark:bg-bege/20'}`}>
         <span className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform ${ligado ? 'translate-x-5' : ''}`} />

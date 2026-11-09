@@ -148,7 +148,7 @@ export default function CadastrarLivro({ adminId, onCriado }: Props) {
         {modo === 'busca' && (
           <div className="cartao p-5 space-y-3">
             <div className="flex gap-2">
-              <input
+              <input aria-label="Buscar livro por título ou autor"
                 value={termoBusca}
                 onChange={(e) => setTermoBusca(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && buscarGoogleBooks()}
@@ -164,7 +164,7 @@ export default function CadastrarLivro({ adminId, onCriado }: Props) {
               </button>
             </div>
 
-            {erro && <p className="text-sm text-red-700 dark:text-red-400">{erro}</p>}
+            {erro && <p role="alert" className="text-sm text-red-700 dark:text-red-400">{erro}</p>}
 
             <ul className="space-y-2">
               {candidatos.map((c, i) => (
@@ -180,7 +180,7 @@ export default function CadastrarLivro({ adminId, onCriado }: Props) {
                     )}
                     <div className="min-w-0">
                       <p className="text-sm font-medium text-marinho dark:text-bege truncate">{c.titulo}</p>
-                      <p className="text-xs text-texto/50 dark:text-bege/50 truncate">
+                      <p className="text-xs text-texto/65 dark:text-bege/55 truncate">
                         {c.autor}{c.paginas ? ` · ${c.paginas} pág.` : ''}
                       </p>
                     </div>
@@ -188,7 +188,7 @@ export default function CadastrarLivro({ adminId, onCriado }: Props) {
                 </li>
               ))}
             </ul>
-            <p className="text-xs text-texto/45 dark:text-bege/45 text-center pt-1">
+            <p className="text-xs text-texto/65 dark:text-bege/55 text-center pt-1">
               Não achou a edição certa? Use "Preencher manual".
             </p>
           </div>
@@ -198,15 +198,15 @@ export default function CadastrarLivro({ adminId, onCriado }: Props) {
           <div className="cartao p-5 space-y-4">
             <div>
               <label className="rotulo">Título</label>
-              <input value={titulo} onChange={(e) => setTitulo(e.target.value)} className="campo" />
+              <input aria-label="Título" value={titulo} onChange={(e) => setTitulo(e.target.value)} className="campo" />
             </div>
             <div>
               <label className="rotulo">Autor</label>
-              <input value={autor} onChange={(e) => setAutor(e.target.value)} className="campo" />
+              <input aria-label="Autor" value={autor} onChange={(e) => setAutor(e.target.value)} className="campo" />
             </div>
             <div>
               <label className="rotulo">Páginas totais</label>
-              <input
+              <input aria-label="Páginas totais"
                 type="number"
                 min={1}
                 value={paginas}
@@ -229,7 +229,7 @@ export default function CadastrarLivro({ adminId, onCriado }: Props) {
             <div className="flex gap-3">
               <div className="flex-1">
                 <label className="rotulo">Início do ciclo</label>
-                <input
+                <input aria-label="Início do ciclo"
                   type="date"
                   value={cicloInicio}
                   onChange={(e) => setCicloInicio(e.target.value)}
@@ -238,7 +238,7 @@ export default function CadastrarLivro({ adminId, onCriado }: Props) {
               </div>
               <div className="flex-1">
                 <label className="rotulo">Fim do ciclo</label>
-                <input
+                <input aria-label="Fim do ciclo"
                   type="date"
                   value={cicloFim}
                   onChange={(e) => setCicloFim(e.target.value)}
@@ -248,7 +248,7 @@ export default function CadastrarLivro({ adminId, onCriado }: Props) {
             </div>
 
             {erro && (
-              <p className="text-sm text-red-700 dark:text-red-400 bg-red-50 dark:bg-red-950/30 rounded-lg px-3 py-2">
+              <p role="alert" className="text-sm text-red-700 dark:text-red-400 bg-red-50 dark:bg-red-950/30 rounded-lg px-3 py-2">
                 {erro}
               </p>
             )}

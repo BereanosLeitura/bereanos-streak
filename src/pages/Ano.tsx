@@ -173,7 +173,7 @@ export default function Ano({ perfil, onVoltar }: { perfil: Perfil; onVoltar: ()
   return (
     <div className="min-h-screen px-5 pt-6 pb-28">
       <div className="max-w-md mx-auto">
-        <button onClick={onVoltar} className="flex items-center gap-1.5 text-sm text-texto/60 dark:text-bege/60 -ml-1 p-1">
+        <button onClick={onVoltar} className="flex items-center gap-1.5 text-sm text-texto/70 dark:text-bege/60 -ml-1 p-1">
           <Icone nome="seta-esquerda" className="w-4 h-4" /> Perfil
         </button>
         <p className="text-sm font-semibold text-dourado-escuro dark:text-dourado mt-4">Retrospectiva</p>
@@ -203,10 +203,10 @@ export default function Ano({ perfil, onVoltar }: { perfil: Perfil; onVoltar: ()
               <div className="flex items-end gap-1.5 h-28 mt-4" role="img" aria-label="Páginas por mês">
                 {d.porMes.map((p, i) => (
                   <div key={i} className="flex-1 flex flex-col items-center gap-1 h-full justify-end">
-                    {p > 0 && <span className="text-[9px] tabular text-texto/55 dark:text-bege/55">{p}</span>}
+                    {p > 0 && <span className="text-[9px] tabular text-texto/65 dark:text-bege/55">{p}</span>}
                     <div className={`w-full rounded-[4px] ${p ? (i === d.melhorMes ? 'bg-dourado' : 'bg-dourado/55') : 'bg-marinho/[0.06] dark:bg-bege/[0.07]'}`}
                       style={{ height: p ? `${Math.max(6, (p / maxMes) * 100)}%` : '4px', opacity: i > mesAtual ? 0.4 : 1 }} />
-                    <span className={`text-[10px] ${i === mesAtual ? 'font-bold text-marinho dark:text-bege' : 'text-texto/50 dark:text-bege/50'}`}>{MESES[i]}</span>
+                    <span className={`text-[10px] ${i === mesAtual ? 'font-bold text-marinho dark:text-bege' : 'text-texto/65 dark:text-bege/55'}`}>{MESES[i]}</span>
                   </div>
                 ))}
               </div>
@@ -220,7 +220,7 @@ export default function Ano({ perfil, onVoltar }: { perfil: Perfil; onVoltar: ()
                     {l.capa ? <img src={l.capa} alt="" className="w-9 h-12 object-cover rounded shadow-sm" /> : <span className="w-9 h-12 rounded border border-dourado/40 flex items-center justify-center text-dourado"><Icone nome="livro" className="w-4 h-4" /></span>}
                     <div className="flex-1 min-w-0">
                       <p className="font-serif text-[16px] leading-snug text-marinho dark:text-bege truncate">{l.titulo}</p>
-                      <p className="text-xs text-texto/55 dark:text-bege/55">{Math.round(Math.min(l.noAno, l.total))} páginas no ano{l.tudo >= l.total ? ', terminado' : ''}</p>
+                      <p className="text-xs text-texto/65 dark:text-bege/55">{Math.round(Math.min(l.noAno, l.total))} páginas no ano{l.tudo >= l.total ? ', terminado' : ''}</p>
                     </div>
                     {l.tudo >= l.total && <Icone nome="check" className="w-5 h-5 text-dourado" />}
                   </li>
@@ -253,11 +253,11 @@ export default function Ano({ perfil, onVoltar }: { perfil: Perfil; onVoltar: ()
               <div className="grid grid-cols-2 p-1 rounded-xl bg-marinho/[0.06] dark:bg-bege/[0.06] mt-3" role="tablist">
                 {([['terminados', `Terminados (${terminadosLista.length})`], ['todos', `Todos do ano (${d.livros.length})`]] as const).map(([v, rot]) => (
                   <button key={v} role="tab" aria-selected={escolha === v} onClick={() => setQuais(v)}
-                    className={`rounded-lg py-2 text-sm font-semibold transition-colors ${escolha === v ? 'bg-folha dark:bg-noite-cartao text-marinho dark:text-bege shadow-sm' : 'text-texto/55 dark:text-bege/55'}`}>{rot}</button>
+                    className={`rounded-lg py-2 text-sm font-semibold transition-colors ${escolha === v ? 'bg-folha dark:bg-noite-cartao text-marinho dark:text-bege shadow-sm' : 'text-texto/65 dark:text-bege/55'}`}>{rot}</button>
                 ))}
               </div>
               {escolha === 'terminados' && terminadosLista.length === 0 && (
-                <p className="text-xs text-texto/55 dark:text-bege/55 mt-2">Quando você terminar um livro no app, ele entra aqui. Por enquanto, veja "Todos do ano".</p>
+                <p className="text-xs text-texto/65 dark:text-bege/55 mt-2">Quando você terminar um livro no app, ele entra aqui. Por enquanto, veja "Todos do ano".</p>
               )}
               <div className="flex flex-wrap gap-2 mt-3">
                 {(['story', 'post', 'quadrado'] as Formato[]).map((f) => (

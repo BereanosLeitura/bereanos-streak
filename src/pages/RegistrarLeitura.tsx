@@ -1,5 +1,5 @@
 import { useEffect, useState, type FormEvent, type ReactNode } from 'react'
-import { marcoAtravessado } from '../components/Celebracao'
+import { marcoAtravessado, dataDoRegistro as calcularDataRegistro, type Quando } from '../lib/regras'
 import { buscarPendentes, marcarLeitura, type LivroPendente } from '../lib/pendentes'
 import { apagarRegistroLeitura, criarRegistroLeitura } from '../lib/sync'
 import { supabase, type Perfil } from '../lib/supabase'
@@ -67,7 +67,7 @@ export default function RegistrarLeitura({ perfil, livro, pendenteInicial, onReg
           return (
             <button key={l.id} type="button" role="radio" aria-checked={ativo} onClick={() => setEscolhido(l.id)}
               className={`shrink-0 max-w-[15rem] rounded-xl border px-3 py-2 text-left transition-colors ${ativo ? 'border-dourado bg-dourado/10' : 'border-marinho/15 dark:border-bege/15'}`}>
-              <span className={`block text-[11px] font-semibold ${ativo ? 'text-dourado-escuro dark:text-dourado' : 'text-texto/50 dark:text-bege/50'}`}>
+              <span className={`block text-[11px] font-semibold ${ativo ? 'text-dourado-escuro dark:text-dourado' : 'text-texto/65 dark:text-bege/55'}`}>
                 {i === 0 ? 'Leitura atual' : `Pendente, ${p?.pct ?? 0}%`}
               </span>
               <span className="block text-sm text-marinho dark:text-bege truncate">{l.titulo}</span>
@@ -93,7 +93,6 @@ export default function RegistrarLeitura({ perfil, livro, pendenteInicial, onReg
 }
 
 type Modo = 'pagina' | 'quantidade' | 'tempo'
-type Quando = 0 | 1 | 2 | 'outro' // hoje, ontem, anteontem ou outro dia
 type TipoNota = 'trecho' | 'reflexao' | 'pergunta' | 'aplicacao'
 
 // Uma tela só: "parei na página 64" (o app calcula a diferença) e, se quiser,
@@ -139,19 +138,7 @@ function FormRegistro({ perfil, livro, seletor, pendente, onRegistrado, onAnotar
   const porDiaNecessario = restantes && restantes > 0 && faltam > 0 ? Math.ceil(faltam / restantes) : null
 
   function dataDoRegistro(): string {
-    if (quando === 0) return new Date().toISOString()
-    let d: Date
-    if (quando === 'outro') {
-      const [a, m, dia] = outroDia.split('-').map(Number)
-      d = new Date(a, m - 1, dia)
-    } else {
-      d = new Date()
-      d.setDate(d.getDate() - quando)
-    }
-    const [h, min] = hora ? hora.split(':').map(Number) : [20, 0]
-    d.setHours(h, min, 0, 0)
-    // nunca no futuro (ex.: hoje mais tarde do que agora)
-    return (d > new Date() ? new Date() : d).toISOString()
+    return calcularDataRegistro(quando, outroDia, hora).toISOString()
   }
 
   function trocarModo(m: Modo) {
@@ -174,6 +161,7 @@ function FormRegistro({ perfil, livro, seletor, pendente, onRegistrado, onAnotar
       }
     }
     setSalvando(true)
+    try {
     await criarRegistroLeitura({
       membro_id: perfil.id, livro_id: livro.id, origem: 'manual',
       // só o tempo: entra como minutos (o app converte em páginas pelo seu ritmo)
@@ -188,6 +176,10 @@ function FormRegistro({ perfil, livro, seletor, pendente, onRegistrado, onAnotar
         pagina: Math.max(1, Math.min(livro.paginas_totais, jaLidas + paginasEstimadas)), compartilhada: notaNoMural
       })
       if (error) avisar('Leitura salva, mas a anotação não', 'erro')
+    }
+    } catch {
+      setSalvando(false)
+      return setErro('Não foi possível salvar neste aparelho. Tente de novo.')
     }
     setSalvando(false)
     setValor('')
@@ -244,7 +236,7 @@ function FormRegistro({ perfil, livro, seletor, pendente, onRegistrado, onAnotar
             placeholder={modo === 'pagina' ? String(jaLidas + 1) : '0'}
           />
           {soTempo && minutosInformados >= 60 && (
-            <p className="text-center text-sm text-texto/55 dark:text-bege/55 -mt-1">{formatarTempo(minutosInformados)}</p>
+            <p className="text-center text-sm text-texto/65 dark:text-bege/55 -mt-1">{formatarTempo(minutosInformados)}</p>
           )}
 
           {/* barra mostrando de onde para onde */}
@@ -254,7 +246,7 @@ function FormRegistro({ perfil, livro, seletor, pendente, onRegistrado, onAnotar
               <div className="absolute inset-y-0 bg-dourado/40 transition-all" style={{ left: `${(jaLidas / livro.paginas_totais) * 100}%`, width: `${(Math.min(paginasEstimadas, faltam) / livro.paginas_totais) * 100}%` }} />
             )}
           </div>
-          <div className="flex justify-between text-xs text-texto/45 dark:text-bege/45 mt-1.5">
+          <div className="flex justify-between text-xs text-texto/65 dark:text-bege/55 mt-1.5">
             <span>p. {jaLidas}</span>
             <span>{paginasEstimadas > 0 ? `${soTempo ? 'cerca de ' : ''}${pctDepois}% depois deste registro` : `${leitura.pct}%`}</span>
             <span>p. {livro.paginas_totais}</span>
@@ -277,7 +269,7 @@ function FormRegistro({ perfil, livro, seletor, pendente, onRegistrado, onAnotar
             </div>
           )}
           {soTempo && (
-            <p className="text-xs text-center text-texto/50 dark:text-bege/50 mt-3">
+            <p className="text-xs text-center text-texto/65 dark:text-bege/55 mt-3">
               {minutosInformados > 0
                 ? `Pelo seu ritmo (${String(ritmo).replace('.', ',')} min por página), isso conta como cerca de ${paginasEstimadas} ${paginasEstimadas === 1 ? 'página' : 'páginas'}. Se souber a página, prefira "Onde parei".`
                 : 'Para quando você não lembra a página. O avanço no livro é estimado pelo seu ritmo.'}
@@ -287,7 +279,7 @@ function FormRegistro({ perfil, livro, seletor, pendente, onRegistrado, onAnotar
           {/* caminho principal é a página; as outras formas ficam escondidas */}
           <div className="mt-3 text-center">
             {modo === 'pagina' ? (
-              <button type="button" onClick={() => trocarModo('quantidade')} className="text-sm text-texto/55 dark:text-bege/55 underline underline-offset-2">
+              <button type="button" onClick={() => trocarModo('quantidade')} className="text-sm text-texto/65 dark:text-bege/55 underline underline-offset-2">
                 Não sei a página
               </button>
             ) : (
@@ -298,7 +290,7 @@ function FormRegistro({ perfil, livro, seletor, pendente, onRegistrado, onAnotar
                       className={`chip whitespace-nowrap ${modo === m ? 'chip-ativo' : ''}`}>{rotulo}</button>
                   ))}
                 </div>
-                <button type="button" onClick={() => trocarModo('pagina')} className="block mx-auto text-sm text-texto/55 dark:text-bege/55 underline underline-offset-2">
+                <button type="button" onClick={() => trocarModo('pagina')} className="block mx-auto text-sm text-texto/65 dark:text-bege/55 underline underline-offset-2">
                   Voltar para a página
                 </button>
               </div>
@@ -309,9 +301,9 @@ function FormRegistro({ perfil, livro, seletor, pendente, onRegistrado, onAnotar
           {!soTempo && (
             <div className="mt-5">
               <div className="flex items-baseline justify-between mb-2">
-                <label htmlFor="tempo" className="text-sm text-texto/60 dark:text-bege/60">Quanto tempo você leu? <span className="text-texto/40 dark:text-bege/40">(opcional)</span></label>
+                <label htmlFor="tempo" className="text-sm text-texto/70 dark:text-bege/60">Quanto tempo você leu? <span className="text-texto/65 dark:text-bege/55">(opcional)</span></label>
                 {minutosInformados > 0 && (
-                  <button type="button" onClick={() => setTempo('')} className="text-xs text-texto/50 dark:text-bege/50 underline underline-offset-2">limpar</button>
+                  <button type="button" onClick={() => setTempo('')} className="text-xs text-texto/65 dark:text-bege/55 underline underline-offset-2">limpar</button>
                 )}
               </div>
               <div className="flex items-center gap-2">
@@ -325,11 +317,11 @@ function FormRegistro({ perfil, livro, seletor, pendente, onRegistrado, onAnotar
                   <input id="tempo" type="number" inputMode="numeric" min={1} max={1440} value={tempo}
                     onChange={(e) => { setTempo(e.target.value); setErro(null) }}
                     className={`campo !px-2 text-center tabular ${tempo ? '!pr-8' : ''}`} placeholder="outro" aria-label="Minutos de leitura" />
-                  {tempo && <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs text-texto/45 dark:text-bege/45 pointer-events-none">min</span>}
+                  {tempo && <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs text-texto/65 dark:text-bege/55 pointer-events-none">min</span>}
                 </div>
               </div>
               {minPorPagina && (
-                <p className="text-xs text-texto/50 dark:text-bege/50 mt-2">
+                <p className="text-xs text-texto/65 dark:text-bege/55 mt-2">
                   {formatarTempo(minutosInformados)} para {paginasDoRegistro} {paginasDoRegistro === 1 ? 'página' : 'páginas'}: cerca de {String(Math.round(minPorPagina * 10) / 10).replace('.', ',')} min por página.
                 </p>
               )}
@@ -337,7 +329,7 @@ function FormRegistro({ perfil, livro, seletor, pendente, onRegistrado, onAnotar
           )}
 
           <div className="mt-5">
-            <p className="text-sm text-texto/60 dark:text-bege/60 mb-2">Quando foi?</p>
+            <p className="text-sm text-texto/70 dark:text-bege/60 mb-2">Quando foi?</p>
             <div className="grid grid-cols-4 gap-1.5">
               {([['Hoje', 0], ['Ontem', 1], ['Anteontem', 2], ['Outro dia', 'outro']] as const).map(([r, q]) => (
                 <button key={r} type="button" onClick={() => setQuando(q)} aria-pressed={quando === q}
@@ -348,19 +340,19 @@ function FormRegistro({ perfil, livro, seletor, pendente, onRegistrado, onAnotar
               <div className="mt-3 flex gap-2 items-end animate-subir-suave">
                 {quando === 'outro' && (
                   <label className="flex-1 min-w-0">
-                    <span className="block text-xs text-texto/55 dark:text-bege/55 mb-1">Dia</span>
+                    <span className="block text-xs text-texto/65 dark:text-bege/55 mb-1">Dia</span>
                     <input type="date" value={outroDia} min={minimoOutroDia} max={ontemChave}
                       onChange={(e) => setOutroDia(e.target.value)} className="campo w-full !py-2" />
                   </label>
                 )}
                 <label className={quando === 'outro' ? 'w-[118px] shrink-0' : 'flex-1'}>
-                  <span className="block text-xs text-texto/55 dark:text-bege/55 mb-1">Horário <span className="text-texto/40 dark:text-bege/40">(opcional)</span></span>
+                  <span className="block text-xs text-texto/65 dark:text-bege/55 mb-1">Horário <span className="text-texto/65 dark:text-bege/55">(opcional)</span></span>
                   <input type="time" value={hora} onChange={(e) => setHora(e.target.value)} className="campo w-full !py-2" />
                 </label>
               </div>
             )}
             {quando !== 0 && (
-              <p className="text-xs text-texto/50 dark:text-bege/50 mt-1.5">
+              <p className="text-xs text-texto/65 dark:text-bege/55 mt-1.5">
                 {quando === 'outro' && !outroDia
                   ? 'Escolha o dia da leitura.'
                   : `${descreverDia(quando === 'outro' ? outroDia : (() => { const d = new Date(); d.setDate(d.getDate() - quando); return chaveLocal(d) })())}${hora ? `, às ${hora}` : ''}.`}
@@ -381,7 +373,7 @@ function FormRegistro({ perfil, livro, seletor, pendente, onRegistrado, onAnotar
                     <button key={t} type="button" onClick={() => setTipoNota(t)} className={`chip ${tipoNota === t ? 'chip-ativo' : ''}`}>{r}</button>
                   ))}
                 </div>
-                <textarea rows={3} value={textoNota} onChange={(e) => setTextoNota(e.target.value)} maxLength={2000}
+                <textarea aria-label="Texto da anotação" rows={3} value={textoNota} onChange={(e) => setTextoNota(e.target.value)} maxLength={2000}
                   className={`campo resize-none ${tipoNota === 'trecho' ? 'font-serif italic text-[18px]' : ''}`}
                   placeholder={tipoNota === 'trecho' ? 'A frase que marcou.' : tipoNota === 'reflexao' ? 'O que ficou dessa leitura?' : tipoNota === 'aplicacao' ? 'O que você quer praticar?' : 'Uma dúvida para o encontro.'} />
                 <label className="flex items-center gap-2 text-sm text-texto/70 dark:text-bege/70">
@@ -392,7 +384,7 @@ function FormRegistro({ perfil, livro, seletor, pendente, onRegistrado, onAnotar
             )}
           </div>
 
-          {erro && <p className="text-sm text-center text-red-700 dark:text-red-400 mt-4">{erro}</p>}
+          {erro && <p role="alert" className="text-sm text-center text-red-700 dark:text-red-400 mt-4">{erro}</p>}
 
           <button type="submit" disabled={salvando || !podeSalvar} className="botao-primario mt-5">
             {salvando ? 'Salvando…'
@@ -404,16 +396,16 @@ function FormRegistro({ perfil, livro, seletor, pendente, onRegistrado, onAnotar
         {/* ritmo */}
         <section className="grid grid-cols-2 gap-3 mt-4">
           <div className="cartao p-4">
-            <p className="text-xs text-texto/50 dark:text-bege/50">Seu ritmo (14 dias)</p>
+            <p className="text-xs text-texto/65 dark:text-bege/55">Seu ritmo (14 dias)</p>
             <p className="font-serif tabular text-2xl text-marinho dark:text-bege mt-1">{leitura.mediaDia >= 1 ? Math.round(leitura.mediaDia) : '—'}</p>
-            <p className="text-xs text-texto/50 dark:text-bege/50">páginas por dia</p>
+            <p className="text-xs text-texto/65 dark:text-bege/55">páginas por dia</p>
           </div>
           <div className="cartao p-4">
-            <p className="text-xs text-texto/50 dark:text-bege/50">{leitura.pct >= 100 ? 'Livro' : 'Neste ritmo, termina'}</p>
+            <p className="text-xs text-texto/65 dark:text-bege/55">{leitura.pct >= 100 ? 'Livro' : 'Neste ritmo, termina'}</p>
             <p className="font-serif tabular text-2xl text-marinho dark:text-bege mt-1">
               {leitura.pct >= 100 ? 'concluído' : leitura.previsao ? formatarData(chaveDia(leitura.previsao.data)) : '—'}
             </p>
-            <p className="text-xs text-texto/50 dark:text-bege/50">
+            <p className="text-xs text-texto/65 dark:text-bege/55">
               {porDiaNecessario ? `precisa de ${porDiaNecessario}/dia até ${formatarData(livro.ciclo_fim!)}` : leitura.previsao ? `em ${leitura.previsao.dias} dias` : 'registre para calcular'}
             </p>
           </div>
@@ -426,7 +418,7 @@ function FormRegistro({ perfil, livro, seletor, pendente, onRegistrado, onAnotar
               <h2 className="titulo-secao">Histórico neste livro</h2>
               <span className="legenda">{leitura.doLivro.length} {leitura.doLivro.length === 1 ? 'registro' : 'registros'}</span>
             </div>
-            <p className="text-xs text-texto/45 dark:text-bege/45 mt-0.5">Lançou algo errado? Apague e registre de novo.</p>
+            <p className="text-xs text-texto/65 dark:text-bege/55 mt-0.5">Lançou algo errado? Apague e registre de novo.</p>
             <ul className="divide-y divide-marinho/[0.07] dark:divide-bege/[0.07] mt-2">
               {ultimos.map((r) => (
                 <li key={r.id} className="flex items-center gap-3 py-2.5">
@@ -439,11 +431,11 @@ function FormRegistro({ perfil, livro, seletor, pendente, onRegistrado, onAnotar
                         ? `${r.paginas_lidas} ${r.paginas_lidas === 1 ? 'página' : 'páginas'}${r.tempo_minutos ? ` em ${formatarTempo(r.tempo_minutos)}` : ''}`
                         : `${formatarTempo(r.minutos_lidos ?? 0)} de ${r.origem === 'pomodoro' ? 'foco' : 'leitura'}`}
                     </p>
-                    <p className="text-xs text-texto/45 dark:text-bege/45">
+                    <p className="text-xs text-texto/65 dark:text-bege/55">
                       {new Date(r.registrado_em).toLocaleString('pt-BR', { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
                     </p>
                   </div>
-                  <button type="button" onClick={() => apagar(r.id)} aria-label="Apagar registro" className="p-3 -mr-2 text-texto/40 dark:text-bege/45 hover:text-red-700 dark:hover:text-red-400">
+                  <button type="button" onClick={() => apagar(r.id)} aria-label="Apagar registro" className="p-3 -mr-2 text-texto/65 dark:text-bege/55 hover:text-red-700 dark:hover:text-red-400">
                     <Icone nome="lixeira" className="w-4 h-4" />
                   </button>
                 </li>
@@ -461,7 +453,7 @@ function FormRegistro({ perfil, livro, seletor, pendente, onRegistrado, onAnotar
           <Icone nome="nota" className="w-4 h-4" />
           Ver todas as anotações
         </button>
-        <p className="text-xs text-center text-texto/40 dark:text-bege/40 mt-4">
+        <p className="text-xs text-center text-texto/65 dark:text-bege/55 mt-4">
           Funciona sem internet: o registro fica no aparelho e sincroniza quando a conexão voltar.
         </p>
         {pendente && onMarcar && (
@@ -471,7 +463,7 @@ function FormRegistro({ perfil, livro, seletor, pendente, onRegistrado, onAnotar
             </p>
             <div className="grid grid-cols-2 gap-2 mt-3">
               <button type="button" onClick={() => onMarcar('terminou')} className="botao-secundario !py-2.5 text-sm">Terminei este livro</button>
-              <button type="button" onClick={() => onMarcar('deixou')} className="rounded-xl py-2.5 text-sm text-texto/60 dark:text-bege/60 hover:text-marinho dark:hover:text-bege">Deixar de lado</button>
+              <button type="button" onClick={() => onMarcar('deixou')} className="rounded-xl py-2.5 text-sm text-texto/70 dark:text-bege/60 hover:text-marinho dark:hover:text-bege">Deixar de lado</button>
             </div>
           </section>
         )}

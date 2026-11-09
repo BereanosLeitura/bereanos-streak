@@ -29,7 +29,7 @@ export default function Panorama({ livro, onVoltar, onCompartilhar, onMural, onM
   return (
     <div className="min-h-screen px-5 pt-6 pb-28">
       <div className="max-w-md mx-auto">
-        <button onClick={onVoltar} className="flex items-center gap-1.5 text-sm text-texto/60 dark:text-bege/60 -ml-1 p-1">
+        <button onClick={onVoltar} className="flex items-center gap-1.5 text-sm text-texto/70 dark:text-bege/60 -ml-1 p-1">
           <Icone nome="seta-esquerda" className="w-4 h-4" /> Início
         </button>
 
@@ -103,7 +103,7 @@ export default function Panorama({ livro, onVoltar, onCompartilhar, onMural, onM
                   <p className="legenda mt-1 mb-3">Um ritmo possível para terminar junto. Quem não chegar, participa do encontro normalmente.</p>
                   <ol className="space-y-1.5">
                     {plano.map((s) => (
-                      <li key={s.n} className={`flex items-center gap-3 rounded-lg px-3 py-2 text-sm ${s.atual ? 'bg-dourado/10 font-semibold text-marinho dark:text-bege' : s.passou ? 'text-texto/45 dark:text-bege/45' : 'text-texto/75 dark:text-bege/75'}`}>
+                      <li key={s.n} className={`flex items-center gap-3 rounded-lg px-3 py-2 text-sm ${s.atual ? 'bg-dourado/10 font-semibold text-marinho dark:text-bege' : s.passou ? 'text-texto/65 dark:text-bege/55' : 'text-texto/75 dark:text-bege/75'}`}>
                         <span className="w-16 shrink-0">Semana {s.n}</span>
                         <span className="flex-1">{formatarData(s.inicio)} a {formatarData(s.fim)}</span>
                         <span className="tabular">até p. {s.ate}</span>
@@ -128,7 +128,7 @@ export default function Panorama({ livro, onVoltar, onCompartilhar, onMural, onM
               <span className="w-9 h-9 rounded-full bg-dourado/10 text-dourado-escuro dark:text-dourado flex items-center justify-center shrink-0"><Icone nome="grafico" className="w-[18px] h-[18px]" /></span>
               <span className="flex-1">
                 <span className="block text-[15px] font-semibold text-marinho dark:text-bege">Métricas do grupo</span>
-                <span className="block text-xs text-texto/50 dark:text-bege/50">semanas, dias de leitura, presença e livros do clube</span>
+                <span className="block text-xs text-texto/65 dark:text-bege/55">semanas, dias de leitura, presença e livros do clube</span>
               </span>
               <Icone nome="seta-direita" className="w-4 h-4 text-texto/30 dark:text-bege/30" />
             </button>
@@ -157,7 +157,7 @@ function Bloco({ icone, v, r }: { icone: 'aspas' | 'lampada' | 'interrogacao' | 
     <div className="rounded-xl bg-marinho/[0.04] dark:bg-bege/[0.05] py-3">
       <Icone nome={icone} className="w-4 h-4 text-dourado mx-auto" />
       <p className="font-serif tabular text-2xl text-marinho dark:text-bege mt-1">{v}</p>
-      <p className="text-xs text-texto/55 dark:text-bege/55">{r}</p>
+      <p className="text-xs text-texto/65 dark:text-bege/55">{r}</p>
     </div>
   )
 }

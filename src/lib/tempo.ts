@@ -14,15 +14,4 @@ export async function tempoManual(membroId: string, filtro: { livroId?: string; 
 }
 
 /** 45 → "45 min"; 90 → "1h30"; 120 → "2h" */
-/** Estimativa de tempo: acima de 1h, arredonda para 10 minutos ("cerca de 8h20"). */
-export function formatarTempoEstimado(min: number): string {
-  return formatarTempo(min >= 60 ? Math.round(min / 10) * 10 : Math.max(1, Math.round(min)))
-}
-
-export function formatarTempo(min: number): string {
-  const m = Math.round(min)
-  if (m < 60) return `${m} min`
-  const h = Math.floor(m / 60)
-  const r = m % 60
-  return r ? `${h}h${String(r).padStart(2, '0')}` : `${h}h`
-}
+export { formatarTempo, formatarTempoEstimado } from './regras'

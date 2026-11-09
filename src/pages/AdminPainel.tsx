@@ -32,7 +32,7 @@ export default function AdminPainel({ adminId, livro, onLivroMudou, onVoltar, on
     <div className="min-h-screen pt-6 pb-28">
       <div className="max-w-md mx-auto px-5">
         {onVoltar && (
-          <button onClick={onVoltar} className="flex items-center gap-1.5 text-sm text-texto/60 dark:text-bege/60 -ml-1 p-1">
+          <button onClick={onVoltar} className="flex items-center gap-1.5 text-sm text-texto/70 dark:text-bege/60 -ml-1 p-1">
             <Icone nome="seta-esquerda" className="w-4 h-4" /> Perfil
           </button>
         )}
@@ -46,7 +46,7 @@ export default function AdminPainel({ adminId, livro, onLivroMudou, onVoltar, on
               aria-selected={aba === a}
               onClick={() => setAba(a)}
               className={`rounded-lg py-2 text-sm font-semibold transition-colors ${
-                aba === a ? 'bg-folha dark:bg-noite-cartao text-marinho dark:text-bege shadow-sm' : 'text-texto/55 dark:text-bege/55'
+                aba === a ? 'bg-folha dark:bg-noite-cartao text-marinho dark:text-bege shadow-sm' : 'text-texto/65 dark:text-bege/55'
               }`}
             >
               {rotulo}
@@ -109,7 +109,7 @@ function CicloAtual({ livro, adminId, onMudou, onAbrirEncontro }: { livro: Livro
             <div className="min-w-0 flex-1">
               <p className="font-serif text-xl text-marinho dark:text-bege leading-snug">{livro.titulo}</p>
               {livro.autor && <p className="legenda">{livro.autor}</p>}
-              <p className="text-xs text-texto/50 dark:text-bege/50 mt-1">
+              <p className="text-xs text-texto/65 dark:text-bege/55 mt-1">
                 {livro.paginas_totais} páginas
                 {livro.ciclo_inicio || livro.ciclo_fim ? `, ciclo ${livro.ciclo_inicio ? `de ${formatarData(livro.ciclo_inicio)} ` : ''}${livro.ciclo_fim ? `até ${formatarData(livro.ciclo_fim)}` : ''}` : ', sem datas do ciclo'}
               </p>
@@ -214,14 +214,14 @@ function EditarLivro({ livro, onCancelar, onSalvo }: { livro: LivroAtivo; onCanc
     <div className="cartao p-5 space-y-4 animate-subir-suave">
       <div className="flex items-center justify-between">
         <h2 className="titulo-secao">Editar livro</h2>
-        <button onClick={onCancelar} aria-label="Fechar" className="p-1 text-texto/50 dark:text-bege/50"><Icone nome="x" /></button>
+        <button onClick={onCancelar} aria-label="Fechar" className="p-1 text-texto/65 dark:text-bege/55"><Icone nome="x" /></button>
       </div>
 
       {/* capa */}
       <div className="flex gap-4 items-start">
         {previa
           ? <img src={previa} alt="Capa" className="w-20 h-[120px] object-cover rounded shadow" onError={() => setPrevia(null)} />
-          : <div className="w-20 h-[120px] rounded border border-dashed border-dourado/50 flex items-center justify-center text-center text-xs text-texto/45 dark:text-bege/45 p-2">sem capa</div>}
+          : <div className="w-20 h-[120px] rounded border border-dashed border-dourado/50 flex items-center justify-center text-center text-xs text-texto/65 dark:text-bege/55 p-2">sem capa</div>}
         <div className="flex-1 space-y-2">
           <label className="botao-secundario flex items-center justify-center gap-2 cursor-pointer py-2.5">
             <Icone nome="imagem" className="w-4 h-4" /> {previa ? 'Trocar imagem' : 'Enviar imagem'}
@@ -232,7 +232,7 @@ function EditarLivro({ livro, onCancelar, onSalvo }: { livro: LivroAtivo; onCanc
               Remover capa
             </button>
           )}
-          <p className="text-xs text-texto/45 dark:text-bege/45">Foto da capa da edição que o grupo está lendo. Proporção de livro (em pé) fica melhor.</p>
+          <p className="text-xs text-texto/65 dark:text-bege/55">Foto da capa da edição que o grupo está lendo. Proporção de livro (em pé) fica melhor.</p>
         </div>
       </div>
       {!arquivo && (
@@ -270,7 +270,7 @@ function EditarLivro({ livro, onCancelar, onSalvo }: { livro: LivroAtivo; onCanc
         </div>
       </div>
 
-      {erro && <p className="text-sm text-red-700 dark:text-red-400">{erro}</p>}
+      {erro && <p role="alert" className="text-sm text-red-700 dark:text-red-400">{erro}</p>}
       <div className="flex gap-2">
         <button onClick={salvar} disabled={salvando} className="botao-primario">{salvando ? 'Salvando…' : 'Salvar alterações'}</button>
         <button onClick={onCancelar} className="botao-secundario">Cancelar</button>
@@ -354,7 +354,7 @@ function Membros({ livroId, adminId }: { livroId: string | null; adminId: string
                       {m.nome_exibicao}{m.role === 'admin' && <span className="text-xs text-dourado-escuro dark:text-dourado"> admin</span>}
                       {a?.suspenso && <span className="text-xs text-red-700 dark:text-red-400"> suspenso</span>}
                     </p>
-                    <p className="text-xs text-texto/45 dark:text-bege/45 truncate">
+                    <p className="text-xs text-texto/65 dark:text-bege/55 truncate">
                       {m.senha_temporaria ? 'ainda não fez o primeiro acesso' : ultima.has(m.id) ? `leu ${tempoRelativo(ultima.get(m.id)!)}` : 'sem leitura neste livro'}
                     </p>
                   </div>
@@ -362,7 +362,7 @@ function Membros({ livroId, adminId }: { livroId: string | null; adminId: string
                 </button>
                 {aberto === m.id && (
                   <div className="mt-3 pl-[46px] space-y-2">
-                    {a?.email && <p className="text-xs text-texto/55 dark:text-bege/55 break-all">{a.email}{a.ultimo_acesso ? `, último login ${tempoRelativo(a.ultimo_acesso)}` : ''}</p>}
+                    {a?.email && <p className="text-xs text-texto/65 dark:text-bege/55 break-all">{a.email}{a.ultimo_acesso ? `, último login ${tempoRelativo(a.ultimo_acesso)}` : ''}</p>}
                     <div className="flex flex-wrap gap-2">
                       <button disabled={ocupado} onClick={() => acao(m, 'nova_senha')} className="rounded-lg border border-marinho/15 dark:border-bege/15 px-3 py-1.5 text-sm font-semibold text-marinho dark:text-bege">Gerar nova senha</button>
                       {m.id !== adminId && (a?.suspenso
@@ -375,7 +375,7 @@ function Membros({ livroId, adminId }: { livroId: string | null; adminId: string
                         <a href={`https://wa.me/?text=${encodeURIComponent(mensagem.texto)}`} target="_blank" rel="noopener" className="botao-texto">Enviar pelo WhatsApp</a>
                       </div>
                     )}
-                    <p className="text-[11px] text-texto/45 dark:text-bege/45">Suspender bloqueia o login sem apagar nada. Reavaliar a permanência de alguém é decisão do grupo (metade mais 1).</p>
+                    <p className="text-[11px] text-texto/65 dark:text-bege/55">Suspender bloqueia o login sem apagar nada. Reavaliar a permanência de alguém é decisão do grupo (metade mais 1).</p>
                   </div>
                 )}
               </li>
@@ -437,7 +437,7 @@ function ConfigClube({ livro, onAbrirIndicacoes }: { livro: LivroAtivo | null; o
           <div className="grid grid-cols-2 gap-2">
             {([[false, 'Esconder'], [true, 'Mostrar']] as [boolean, string][]).map(([v, r]) => (
               <button key={r} onClick={() => salvarPadrao(v)} aria-pressed={padrao === v}
-                className={`rounded-xl border py-2.5 text-sm font-medium ${padrao === v ? 'border-dourado bg-dourado/10 text-dourado-escuro dark:text-dourado' : 'border-marinho/15 dark:border-bege/15 text-texto/60 dark:text-bege/60'}`}>
+                className={`rounded-xl border py-2.5 text-sm font-medium ${padrao === v ? 'border-dourado bg-dourado/10 text-dourado-escuro dark:text-dourado' : 'border-marinho/15 dark:border-bege/15 text-texto/70 dark:text-bege/60'}`}>
                 {r}
               </button>
             ))}
@@ -501,7 +501,7 @@ function GerenciarCiclos({ ativoId, onMudou }: { ativoId: string | null; onMudou
             <li key={l.id} className="py-3 flex items-center gap-3">
               <div className="flex-1 min-w-0">
                 <p className="text-[15px] font-semibold text-marinho dark:text-bege truncate">{l.titulo}</p>
-                <p className="text-xs text-texto/50 dark:text-bege/50">{l.status === 'ativo' ? 'leitura atual' : 'concluído'}, cadastrado em {formatarData(l.created_at)}</p>
+                <p className="text-xs text-texto/65 dark:text-bege/55">{l.status === 'ativo' ? 'leitura atual' : 'concluído'}, cadastrado em {formatarData(l.created_at)}</p>
               </div>
               {l.status === 'concluido' && !ativoId && (
                 <button onClick={() => reabrir(l)} className="text-xs font-semibold text-dourado-escuro dark:text-dourado px-2 py-1">Reabrir</button>
@@ -587,7 +587,7 @@ function EncerrarCiclo({ livro, adminId, onFechar, onConcluido }: { livro: Livro
                   <Avatar nome={m.nome} tamanho={30} />
                   <span className="flex-1 min-w-0">
                     <span className="block text-[15px] text-marinho dark:text-bege truncate">{m.nome}</span>
-                    <span className="block text-xs text-texto/55 dark:text-bege/55">
+                    <span className="block text-xs text-texto/65 dark:text-bege/55">
                       {m.noApp ? 'terminou no app' : m.marcado ? `terminou (marcado), ${m.pct}% no app` : m.pct > 0 ? `${m.pct}% no app: fica com a leitura pendente` : 'não registrou leitura deste livro'}
                     </span>
                   </span>
