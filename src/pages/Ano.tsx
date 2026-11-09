@@ -12,6 +12,7 @@ import { canvasParaArquivo, carregarImagem, desenharEstante, desenharLeitura, VE
 
 interface Reg { livro_id: string; paginas_lidas: number | null; minutos_lidos: number | null; registrado_em: string; livros: { titulo: string; autor: string | null; capa_url: string | null; paginas_totais: number } | null }
 interface Nota { tipo: string; texto: string; favorita: boolean; created_at: string }
+interface LivroClube { id: string; titulo: string; autor: string | null; capa_url: string | null; paginas_totais: number; ciclo_inicio: string | null; ciclo_fim: string | null; created_at: string }
 
 const MESES = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez']
 const MESES_LONGOS = ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho', 'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro']
@@ -23,6 +24,7 @@ export default function Ano({ perfil, onVoltar }: { perfil: Perfil; onVoltar: ()
   const [minutos, setMinutos] = useState(0)
   const [sessoes, setSessoes] = useState(0)
   const [marcados, setMarcados] = useState<Set<string>>(new Set()) // livros que você marcou como terminados
+  const [livrosClube, setLivrosClube] = useState<LivroClube[]>([])
   const [formato, setFormato] = useState<Formato>('story')
   const [imagem, setImagem] = useState<string | null>(null)
   const canvas = useRef<HTMLCanvasElement>(null)
@@ -40,11 +42,13 @@ export default function Ano({ perfil, onVoltar }: { perfil: Perfil; onVoltar: ()
   useEffect(() => {
     ;(async () => {
       const ini = new Date(ano, 0, 1).toISOString()
-      const [r, n, s] = await Promise.all([
+      const [r, n, s, lv] = await Promise.all([
         supabase.from('registros_leitura').select('livro_id, paginas_lidas, minutos_lidos, registrado_em, livros(titulo, autor, capa_url, paginas_totais)').eq('membro_id', perfil.id).order('registrado_em'),
         supabase.from('anotacoes').select('tipo, texto, favorita, created_at').eq('membro_id', perfil.id).gte('created_at', ini),
-        supabase.from('sessoes_pomodoro').select('duracao_minutos').eq('membro_id', perfil.id).eq('status', 'concluida').gte('inicio', ini)
+        supabase.from('sessoes_pomodoro').select('duracao_minutos').eq('membro_id', perfil.id).eq('status', 'concluida').gte('inicio', ini),
+        supabase.from('livros').select('id, titulo, autor, capa_url, paginas_totais, ciclo_inicio, ciclo_fim, created_at')
       ])
+      setLivrosClube((lv.data ?? []) as LivroClube[])
       const manual = await tempoManual(perfil.id, { desde: ini })
       const conc = await buscarConclusoes({ membroId: perfil.id })
       setMarcados(new Set([...conc.entries()].filter(([, st]) => st === 'terminou').map(([k]) => k.split(':')[0])))
@@ -67,7 +71,7 @@ export default function Ano({ perfil, onVoltar }: { perfil: Perfil; onVoltar: ()
       porMes[new Date(r.registrado_em).getMonth()] += p
     }
     // livros: lidos no ano e terminados (somando todo o histórico do livro)
-    const porLivro = new Map<string, { id: string; titulo: string; autor: string | null; capa: string | null; total: number; noAno: number; tudo: number }>()
+    const porLivro = new Map<string, { id: string; titulo: string; autor: string | null; capa: string | null; total: number; noAno: number; tudo: number; soMarcado?: boolean }>()
     for (const r of regs) {
       if (!r.livros) continue
       const l = porLivro.get(r.livro_id) ?? { id: r.livro_id, titulo: r.livros.titulo, autor: r.livros.autor, capa: r.livros.capa_url, total: r.livros.paginas_totais, noAno: 0, tudo: 0 }
@@ -78,7 +82,16 @@ export default function Ano({ perfil, onVoltar }: { perfil: Perfil; onVoltar: ()
     }
     // marcado como terminado (pela pessoa ou pelo admin) conta como terminado
     for (const l of porLivro.values()) if (marcados.has(l.id)) l.tudo = Math.max(l.tudo, l.total)
-    const livros = [...porLivro.values()].filter((l) => l.noAno > 0)
+    // Leitura antiga: marcada como terminada e sem registro de páginas (ex.: um
+    // ciclo lido antes de o app existir). Entra na estante pelo ano do ciclo e
+    // não mexe em nenhum número de páginas acima.
+    for (const l of livrosClube) {
+      if (!marcados.has(l.id) || porLivro.has(l.id)) continue
+      const ref = l.ciclo_fim ?? l.ciclo_inicio ?? l.created_at
+      if (new Date(ref).getFullYear() !== ano) continue
+      porLivro.set(l.id, { id: l.id, titulo: l.titulo, autor: l.autor, capa: l.capa_url, total: l.paginas_totais, noAno: 0, tudo: l.paginas_totais, soMarcado: true })
+    }
+    const livros = [...porLivro.values()].filter((l) => l.noAno > 0 || l.soMarcado)
     const terminados = livros.filter((l) => l.tudo >= l.total).length
     const melhorMes = porMes.indexOf(Math.max(...porMes))
     const trechos = notas.filter((n) => n.tipo === 'trecho')
@@ -98,7 +111,7 @@ export default function Ano({ perfil, onVoltar }: { perfil: Perfil; onVoltar: ()
       inicio: datas[0] ?? null,
       fim: datas[datas.length - 1] ?? null
     }
-  }, [regs, notas, ritmo, marcados])
+  }, [regs, notas, ritmo, marcados, livrosClube])
 
   // imagem para compartilhar (modelo Retrospectiva com o ano no lugar do livro)
   useEffect(() => {
@@ -127,7 +140,7 @@ export default function Ano({ perfil, onVoltar }: { perfil: Perfil; onVoltar: ()
   const escolha = quais ?? (terminadosLista.length ? 'terminados' : 'todos')
   const livrosEstante = d ? (escolha === 'terminados' ? terminadosLista : d.livros) : []
   useEffect(() => {
-    if (!d || !canvasEstante.current || d.paginas === 0) return
+    if (!d || !canvasEstante.current || (d.paginas === 0 && !d.livros.length)) return
     const lista: LivroEstante[] = livrosEstante.map((l) => ({ titulo: l.titulo, autor: l.autor, capa: l.capa ? capas.get(l.capa) ?? null : null }))
     const n = lista.length
     const sub = escolha === 'terminados'
@@ -220,7 +233,7 @@ export default function Ano({ perfil, onVoltar }: { perfil: Perfil; onVoltar: ()
                     {l.capa ? <img src={l.capa} alt="" className="w-9 h-12 object-cover rounded shadow-sm" /> : <span className="w-9 h-12 rounded border border-dourado/40 flex items-center justify-center text-dourado"><Icone nome="livro" className="w-4 h-4" /></span>}
                     <div className="flex-1 min-w-0">
                       <p className="font-serif text-[16px] leading-snug text-marinho dark:text-bege truncate">{l.titulo}</p>
-                      <p className="text-xs text-texto/65 dark:text-bege/55">{Math.round(Math.min(l.noAno, l.total))} páginas no ano{l.tudo >= l.total ? ', terminado' : ''}</p>
+                      <p className="text-xs text-texto/65 dark:text-bege/55">{l.soMarcado ? 'Leitura anterior ao app, terminada' : `${contar(Math.round(Math.min(l.noAno, l.total)), 'página', 'páginas')} no ano${l.tudo >= l.total ? ', terminado' : ''}`}</p>
                     </div>
                     {l.tudo >= l.total && <Icone nome="check" className="w-5 h-5 text-dourado" />}
                   </li>
