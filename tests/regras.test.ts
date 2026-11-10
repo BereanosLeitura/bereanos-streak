@@ -2,6 +2,7 @@
 // (Node 22.18+ executa TypeScript direto, sem instalar nada.)
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
+import { readFileSync } from 'node:fs'
 import { formatarTempo, formatarTempoEstimado, marcoAtravessado, aFrente, dataDoRegistro } from '../src/lib/regras.ts'
 import { contar, chaveDia, paginasEquivalentes, paginasPorDia, sequenciaAtual, maiorSequencia, diasAte } from '../src/lib/estatisticas.ts'
 import { ROTEIRO_PADRAO } from '../src/lib/roteiro.ts'
@@ -82,4 +83,13 @@ test('dias restantes contam o dia de hoje', () => {
 
 test('roteiro do encontro soma 2h30', () => {
   assert.equal(ROTEIRO_PADRAO.reduce((a, b) => a + b.minutos, 0), 150)
+})
+
+test('rede de segurança das animações existe (número e barra não ficam em 0)', () => {
+  const src = readFileSync(new URL('../src/components/BarraBrilho.tsx', import.meta.url), 'utf8')
+  // sem isso, se requestAnimationFrame não rodar (aba de fundo, economia de
+  // energia), o número grande e a barra ficam presos em 0 mostrando valor errado
+  const redes = src.match(/setTimeout/g) ?? []
+  assert.ok(redes.length >= 2, 'useNumeroAnimado e BarraBrilho precisam cada um de uma rede de segurança por tempo')
+  assert.match(src, /clearTimeout/, 'a rede de segurança precisa ser cancelada na limpeza do efeito')
 })

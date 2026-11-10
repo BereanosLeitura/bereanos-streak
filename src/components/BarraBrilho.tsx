@@ -36,7 +36,13 @@ export function useNumeroAnimado(alvo: number, ms = 1100) {
       if (k < 1) quadro = requestAnimationFrame(passo)
     }
     quadro = requestAnimationFrame(passo)
-    return () => cancelAnimationFrame(quadro)
+    // Rede de segurança: em aba de fundo, modo de economia de energia ou
+    // qualquer situação em que a animação não roda, mostra o número certo
+    // assim mesmo. Sem isso o valor ficaria preso em 0.
+    const rede = setTimeout(() => {
+      if (atual.current !== alvo) { atual.current = alvo; setValor(alvo) }
+    }, ms + 400)
+    return () => { cancelAnimationFrame(quadro); clearTimeout(rede) }
   }, [alvo, ms])
   return valor
 }
@@ -58,9 +64,12 @@ export function BarraBrilho({ pct, altura = 'h-2', trilho = 'bg-marinho/[0.08] d
   const alvo = Math.max(0, Math.min(100, Math.round(pct)))
   const [largura, setLargura] = useState(() => (reduzirMovimento() ? alvo : 0))
   useEffect(() => {
-    // espera um quadro para a transição de largura acontecer
+    // espera um quadro para a transição de largura acontecer; o tempo é a rede
+    // de segurança para quando a animação não roda (aba de fundo, economia de
+    // energia), senão a barra ficaria vazia mostrando progresso errado
     const q = requestAnimationFrame(() => setLargura(alvo))
-    return () => cancelAnimationFrame(q)
+    const rede = setTimeout(() => setLargura(alvo), 400)
+    return () => { cancelAnimationFrame(q); clearTimeout(rede) }
   }, [alvo])
 
   const completo = alvo >= 100
