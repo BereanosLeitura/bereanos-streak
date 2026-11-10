@@ -128,19 +128,30 @@ export default function Ano({ perfil, onVoltar }: { perfil: Perfil; onVoltar: ()
     }).then(() => setImagem(canvas.current!.toDataURL('image/jpeg', 0.85))).catch(() => setImagem(null))
   }, [d, formato, minutos, sessoes, contagem])
 
-  // capas dos livros do ano (uma vez); sem capa ou com erro, entra o emblema do clube
+  // capas dos livros do ano (uma vez). Sem capa, com erro ou demorando demais,
+  // entra o emblema do clube: o limite de tempo evita que uma imagem presa
+  // deixe a estante sem aparecer.
   useEffect(() => {
     if (!d) return
     const faltam = d.livros.filter((l) => l.capa && !capas.has(l.capa))
     if (!faltam.length) return
-    Promise.all(faltam.map((l) => carregarImagem(l.capa!).then((img) => [l.capa!, img] as const).catch(() => [l.capa!, null] as const)))
+    const comLimite = (src: string) =>
+      Promise.race<HTMLImageElement | null>([
+        carregarImagem(src).catch(() => null),
+        new Promise((r) => setTimeout(() => r(null), 8000))
+      ]).then((img) => [src, img] as const)
+    Promise.all(faltam.map((l) => comLimite(l.capa!)))
       .then((pares) => setCapas((m) => { const n = new Map(m); pares.forEach(([k, v]) => n.set(k, v)); return n }))
   }, [d])
   const terminadosLista = d ? d.livros.filter((l) => l.tudo >= l.total) : []
   const escolha = quais ?? (terminadosLista.length ? 'terminados' : 'todos')
   const livrosEstante = d ? (escolha === 'terminados' ? terminadosLista : d.livros) : []
+  // só desenha quando todas as capas da lista já resolveram, senão a estante
+  // apareceria com o emblema no lugar das capas e só se arrumaria depois
+  const capasProntas = livrosEstante.every((l) => !l.capa || capas.has(l.capa))
   useEffect(() => {
     if (!d || !canvasEstante.current || (d.paginas === 0 && !d.livros.length)) return
+    if (!capasProntas) return
     const lista: LivroEstante[] = livrosEstante.map((l) => ({ titulo: l.titulo, autor: l.autor, capa: l.capa ? capas.get(l.capa) ?? null : null }))
     const n = lista.length
     const sub = escolha === 'terminados'
@@ -149,7 +160,7 @@ export default function Ano({ perfil, onVoltar }: { perfil: Perfil; onVoltar: ()
     desenharEstante(canvasEstante.current, formatoEstante, { livros: lista, titulo: 'Minha estante', subtitulo: sub, nome: perfil.nome_exibicao, versao: versaoEstante })
       .then(() => setImagemEstante(canvasEstante.current!.toDataURL('image/jpeg', 0.88)))
       .catch(() => setImagemEstante(null))
-  }, [d, capas, escolha, versaoEstante, formatoEstante])
+  }, [d, capas, capasProntas, escolha, versaoEstante, formatoEstante])
 
   async function compartilharEstante(baixar = false) {
     if (!canvasEstante.current) return
