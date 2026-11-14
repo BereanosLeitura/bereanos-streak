@@ -48,6 +48,10 @@ export interface FiltroInicialNotas {
   filtro: Tipo | 'todas'
   novaTipo?: Tipo
   abrirCaderno?: boolean
+  /** termo já digitado na busca global */
+  busca?: string
+  /** abre procurando em todos os livros, não só no do ciclo */
+  todosLivros?: boolean
 }
 
 type Filtro = Tipo | 'todas' | 'favoritas' | 'escrituras' | 'destaques'
@@ -63,10 +67,10 @@ export default function Notas({ perfil, livro, inicial, onCompartilhar }: Props)
   const [vista, setVista] = useState<Vista>(inicial?.vista ?? 'minhas')
   const [notas, setNotas] = useState<Nota[] | null>(null)
   const [filtro, setFiltro] = useState<Filtro>(inicial?.filtro ?? 'todas')
-  const [todosLivros, setTodosLivros] = useState(false)
+  const [todosLivros, setTodosLivros] = useState(inicial?.todosLivros ?? false)
   const [referencia, setReferencia] = useState('')
   const [destaques, setDestaques] = useState<Set<string>>(new Set())
-  const [busca, setBusca] = useState('')
+  const [busca, setBusca] = useState(inicial?.busca ?? '')
   const [ordem, setOrdem] = useState<Ordem>('recentes')
   const [editor, setEditor] = useState<{ id: string | null } | null>(null) // null = fechado; id null = nova
   const [tipo, setTipo] = useState<Tipo>('trecho')

@@ -3,6 +3,8 @@
 // oficial (preta ou branca), com a proporção preservada: nunca é redesenhada,
 // recolorida ou esticada.
 
+import { formatarTempo } from './regras'
+
 export type Formato = 'story' | 'post' | 'quadrado'
 export type TipoTexto = 'trecho' | 'reflexao' | 'pergunta' | 'aplicacao'
 export type ModeloTexto = 'pergaminho' | 'marinho' | 'caderno' | 'noturno' | 'debate' | 'polaroid' | 'foto' | 'foto-faixa' | 'foto-dividida' | 'foto-moldura' | 'foto-destaque' | 'minimal'
@@ -122,7 +124,8 @@ export interface DadosLeitura {
   retro?: {
     paginas: number; dias: number; maiorSequencia: number; minutos: number; anotacoes: number
     sessoes?: number; semContagem?: boolean
-    melhorDia: { rotulo: string; paginas: number } | null
+    /** sexto número do cartão: quem monta diz o que ele é (mês mais forte, melhor dia…) */
+    destaque: { valor: string; rotulo: string } | null
     periodo: string | null
     trecho: string | null
   }
@@ -1408,9 +1411,10 @@ export async function desenharLeitura(canvas: HTMLCanvasElement, modelo: ModeloL
       r.semContagem
         ? [String(r.sessoes ?? 0), (r.sessoes ?? 0) === 1 ? 'sessão de foco' : 'sessões de foco']
         : [String(r.maiorSequencia), r.maiorSequencia === 1 ? 'dia seguido, no máximo' : 'dias seguidos, no máximo'],
-      [r.minutos >= 60 ? `${Math.round(r.minutos / 6) / 10}`.replace('.', ',') : String(r.minutos), r.minutos >= 60 ? 'horas de leitura' : 'min de leitura'],
+      // mesmo formato da tela de retrospectiva: 45 min, 1h20
+      r.minutos >= 60 ? [formatarTempo(r.minutos), 'de leitura'] : [String(r.minutos), 'min de leitura'],
       [String(r.anotacoes), r.anotacoes === 1 ? 'anotação' : 'anotações'],
-      [r.melhorDia ? String(r.melhorDia.paginas) : '0', r.melhorDia ? `páginas em ${r.melhorDia.rotulo}` : 'melhor dia']
+      r.destaque ? [r.destaque.valor, r.destaque.rotulo] : ['0', 'páginas']
     ] : []
     const cols = 2
     const linhasG = Math.ceil(itens.length / cols)

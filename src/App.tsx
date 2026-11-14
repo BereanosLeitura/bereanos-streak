@@ -1,6 +1,7 @@
 import { lazy, Suspense, useEffect, useRef, useState, type ComponentType } from 'react'
 import { MarcoLeitura, TelaTerminei } from './components/Celebracao'
 import { supabase, buscarPerfilAtual, type Perfil as TPerfil } from './lib/supabase'
+import { tokenDaUrl, limparTokenDaUrl } from './lib/adminMembros'
 import { sincronizarTudo } from './lib/sync'
 import { aplicarTema, temaSalvoLocal, type TemaPreferido } from './lib/tema'
 import { ProvedorAvisos } from './components/Toast'
@@ -45,6 +46,9 @@ const Encontro = sobDemanda(() => import('./pages/Encontro'))
 const Indicacoes = sobDemanda(() => import('./pages/Indicacoes'))
 const Ano = sobDemanda(() => import('./pages/Ano'))
 const Metricas = sobDemanda(() => import('./pages/Metricas'))
+const BuscaGlobal = sobDemanda(() => import('./components/BuscaGlobal'))
+const Memoria = sobDemanda(() => import('./pages/Memoria'))
+const AceitarConvite = sobDemanda(() => import('./pages/AceitarConvite'))
 
 // Cópia local do perfil e do livro: o app abre mesmo sem internet.
 const CACHE_PERFIL = 'bereanos-streak-cache-perfil'
@@ -56,7 +60,9 @@ function gravarCache(chave: string, valor: unknown) {
   try { if (valor == null) localStorage.removeItem(chave); else localStorage.setItem(chave, JSON.stringify(valor)) } catch { /* ok */ }
 }
 
-type Aba = 'inicio' | 'foco' | 'registrar' | 'notas' | 'compartilhar' | 'metas' | 'perfil' | 'admin' | 'livro' | 'panorama' | 'encontro' | 'indicacoes' | 'ano' | 'metricas'
+const ABAS_PRINCIPAIS: Aba[] = ['inicio', 'foco', 'registrar', 'notas', 'compartilhar']
+
+type Aba = 'inicio' | 'foco' | 'registrar' | 'notas' | 'compartilhar' | 'metas' | 'perfil' | 'admin' | 'livro' | 'panorama' | 'encontro' | 'indicacoes' | 'ano' | 'metricas' | 'memoria'
 
 export default function App() {
   return (
@@ -80,13 +86,26 @@ function Aplicativo() {
   const [terminado, setTerminado] = useState<LivroAtivo | null>(null)
   const [marco, setMarco] = useState<{ valor: number; titulo: string } | null>(null)
   const [livroDetalhe, setLivroDetalhe] = useState<string | null>(null)
+  const [buscando, setBuscando] = useState(false)
+  // Convite por link: o token vem no endereço e vale antes de existir sessão.
+  const [convite, setConvite] = useState<string | null>(() => tokenDaUrl())
+  // Quem já está logado não precisa da tela do convite: o link sai do endereço
+  // para não ficar guardado no histórico nem ser reaberto por engano.
+  useEffect(() => { if (convite && userId) { limparTokenDaUrl(); setConvite(null) } }, [convite, userId])
   const [livroCompartilhar, setLivroCompartilhar] = useState<LivroAtivo | null>(null) // livro da Estante, quando a imagem é de um ciclo passado
   const [verGuia, setVerGuia] = useState(false)
   const [livroEncontro, setLivroEncontro] = useState<LivroAtivo | null>(null) // encontro de um ciclo passado
-  const [voltarDe, setVoltarDe] = useState<Aba>('inicio')
+  // Caminho percorrido até a tela de agora. O botão voltar desempilha, então
+  // Perfil > Memória > Livro volta para Memória, e não para a última tela
+  // que por acaso tenha sido aberta antes.
+  const [pilha, setPilha] = useState<Aba[]>([])
   const [metricasInicial, setMetricasInicial] = useState<'voce' | 'grupo'>('voce')
   const [pendenteInicial, setPendenteInicial] = useState<string | null>(null)
   useEffect(() => { if (aba !== 'registrar') setPendenteInicial(null) }, [aba])
+
+  // Ao chegar numa aba da barra de baixo, o caminho guardado deixa de valer:
+  // dali ninguém "volta", começa um caminho novo.
+  useEffect(() => { if (ABAS_PRINCIPAIS.includes(aba)) setPilha((p) => (p.length ? [] : p)) }, [aba])
   const [contagemPadrao, setContagemPadrao] = useState(() => padraoClubeLocal())
   const ultimaAtualizacao = useRef(Date.now())
   const chaveGuia = perfil ? `bereanos-streak-guia-visto-${perfil.id}` : null
@@ -149,6 +168,7 @@ function Aplicativo() {
     if (!userId) {
       setPerfil(null)
       setLivro(undefined)
+      setPilha([])
       setAba('inicio')
       return
     }
@@ -207,6 +227,13 @@ function Aplicativo() {
   const pronto = sessaoChecada && (!userId || (!!perfil && (!!perfil.senha_temporaria || livro !== undefined)))
   useEffect(() => { if (pronto) fecharAbertura() }, [pronto])
 
+  if (convite && !userId) {
+    return (
+      <Suspense fallback={<TelaCarregando />}>
+        <AceitarConvite token={convite} onEntrou={() => setConvite(null)} onDesistir={() => setConvite(null)} />
+      </Suspense>
+    )
+  }
   if (!sessaoChecada) return <TelaCarregando />
   if (!userId) return <Login />
   if (!perfil) return <TelaCarregando texto="Carregando seu perfil" />
@@ -248,9 +275,31 @@ function Aplicativo() {
     }
     setNotasInicial(null)
     setLivroCompartilhar(null)
-    if (destino === 'encontro' || destino === 'indicacoes' || destino === 'metas') { setLivroEncontro(null); setVoltarDe(aba) }
+    if (destino === 'encontro' || destino === 'indicacoes' || destino === 'metas') setLivroEncontro(null)
     setPreCarga(carga)
+    if (ABAS_PRINCIPAIS.includes(destino as Aba)) setPilha([])
+    else abrirSobre(destino as Aba)
     setAba(destino as Aba)
+  }
+
+  /** Guarda a tela de agora antes de abrir outra por cima. */
+  function abrirSobre(destino: Aba) {
+    if (destino === aba) return
+    setPilha((p) => (p[p.length - 1] === aba ? p : [...p, aba]))
+  }
+
+  /** Volta uma tela no caminho; sem caminho guardado, vai para o Início. */
+  function voltar() {
+    setPilha((p) => {
+      const l = [...p]
+      setAba(l.pop() ?? 'inicio')
+      return l
+    })
+  }
+
+  function abrir(destino: Aba) {
+    abrirSobre(destino)
+    setAba(destino)
   }
 
   const itens: { aba: Aba; rotulo: string; icone: NomeIcone }[] = [
@@ -262,14 +311,24 @@ function Aplicativo() {
   ]
 
   const contagem = perfil.mostrar_contagem ?? contagemPadrao
-  const ROTULO_ABA: Partial<Record<Aba, string>> = { inicio: 'Início', perfil: 'Perfil', admin: 'Painel do admin', livro: 'Livro', panorama: 'Panorama', notas: 'Anotações', foco: 'Foco', compartilhar: 'Compartilhar', registrar: 'Registrar' }
-  const rotuloVoltar = ROTULO_ABA[voltarDe] ?? 'Voltar'
+  const ROTULO_ABA: Partial<Record<Aba, string>> = { inicio: 'Início', perfil: 'Perfil', admin: 'Painel do admin', livro: 'Livro', panorama: 'Panorama', notas: 'Anotações', foco: 'Foco', compartilhar: 'Compartilhar', registrar: 'Registrar', memoria: 'Memória do clube' }
+  const rotuloVoltar = ROTULO_ABA[pilha[pilha.length - 1] as Aba] ?? 'Voltar'
   const indiceAtivo = itens.findIndex((i) => i.aba === aba && i.aba !== 'registrar')
 
   return (
     <ContagemContext.Provider value={contagem}>
     <div className="min-h-screen">
       <EstadoConexao />
+      {buscando && (
+        <Suspense fallback={null}>
+          <BuscaGlobal
+            membroId={perfil.id}
+            onAbrirLivro={(id) => { setLivroDetalhe(id); abrir('livro') }}
+            onAbrirNotas={(vista, termo) => { setNotasInicial({ vista, filtro: 'todas', busca: termo, todosLivros: true }); setAba('notas') }}
+            onFechar={() => setBuscando(false)}
+          />
+        </Suspense>
+      )}
       {verGuia && <GuiaBoasVindas nome={perfil.nome_exibicao} onFechar={fecharGuia} />}
       {marco && <MarcoLeitura marco={marco.valor} titulo={marco.titulo} onFechar={() => setMarco(null)} />}
       {terminado && (
@@ -289,7 +348,7 @@ function Aplicativo() {
       )}
       <Suspense fallback={<TelaCarregando />}>
       <div key={aba} className="animate-tela">
-        {aba === 'inicio' && <Inicio key={versao} perfil={perfil} livro={livro} onIr={ir} onPerfilAtualizado={setPerfil} onContinuarPendente={(id) => { setPendenteInicial(id); setAba('registrar') }} />}
+        {aba === 'inicio' && <Inicio key={versao} perfil={perfil} livro={livro} onIr={ir} onBuscar={() => setBuscando(true)} onPerfilAtualizado={setPerfil} onContinuarPendente={(id) => { setPendenteInicial(id); setAba('registrar') }} />}
         {aba === 'foco' && <Pomodoro perfil={perfil} livro={livro} onFocoAtivo={setFocoAtivo} />}
         {aba === 'registrar' && (
           <RegistrarLeitura
@@ -299,6 +358,7 @@ function Aplicativo() {
             onRegistrado={(terminou, livroUsado, marco) => {
               setVersao((v) => v + 1)
               setPendenteInicial(null)
+              setPilha([])
               setAba('inicio')
               if (terminou) setTerminado(livroUsado)
               else if (marco) setMarco({ valor: marco, titulo: livroUsado.titulo })
@@ -313,21 +373,28 @@ function Aplicativo() {
           <Compartilhar key={JSON.stringify(preCarga) + (livroCompartilhar?.id ?? '')} perfil={perfil} livro={livroCompartilhar ?? livro} preCarga={preCarga} />
         )}
         {aba === 'encontro' && (
-          <Encontro perfil={perfil} livro={livroEncontro ?? livro} onVoltar={() => setAba(voltarDe)} rotuloVoltar={rotuloVoltar} />
+          <Encontro perfil={perfil} livro={livroEncontro ?? livro} onVoltar={voltar} rotuloVoltar={rotuloVoltar} />
         )}
-        {aba === 'ano' && <Ano perfil={perfil} onVoltar={() => setAba('perfil')} />}
-        {aba === 'metricas' && <Metricas perfil={perfil} livro={livro} inicial={metricasInicial} onVoltar={() => setAba(voltarDe)} rotuloVoltar={rotuloVoltar} />}
-        {aba === 'indicacoes' && <Indicacoes perfil={perfil} onVoltar={() => setAba(voltarDe)} rotuloVoltar={rotuloVoltar} />}
+        {aba === 'ano' && <Ano perfil={perfil} onVoltar={voltar} />}
+        {aba === 'memoria' && (
+          <Memoria
+            onVoltar={voltar}
+            rotuloVoltar={rotuloVoltar}
+            onAbrirLivro={(id) => { setLivroDetalhe(id); abrir('livro') }}
+          />
+        )}
+        {aba === 'metricas' && <Metricas perfil={perfil} livro={livro} inicial={metricasInicial} onVoltar={voltar} rotuloVoltar={rotuloVoltar} />}
+        {aba === 'indicacoes' && <Indicacoes perfil={perfil} onVoltar={voltar} rotuloVoltar={rotuloVoltar} />}
         {aba === 'panorama' && (
           <Panorama
             livro={livro}
-            onVoltar={() => setAba('inicio')}
+            onVoltar={voltar}
             onCompartilhar={() => ir('compartilhar', { modo: 'leitura', modeloLeitura: 'grupo' })}
             onMural={() => { setNotasInicial({ vista: 'mural', filtro: 'todas' }); setAba('notas') }}
-            onMetricas={() => { setMetricasInicial('grupo'); setVoltarDe('panorama'); setAba('metricas') }}
+            onMetricas={() => { setMetricasInicial('grupo'); abrir('metricas') }}
           />
         )}
-        {aba === 'metas' && <Metas perfil={perfil} livro={livro} onVoltar={() => setAba(voltarDe)} rotuloVoltar={rotuloVoltar} />}
+        {aba === 'metas' && <Metas perfil={perfil} livro={livro} onVoltar={voltar} rotuloVoltar={rotuloVoltar} />}
         {aba === 'perfil' && (
           <Perfil
             perfil={perfil}
@@ -335,27 +402,29 @@ function Aplicativo() {
             tema={tema}
             onMudarTema={mudarTema}
             onPerfilAtualizado={setPerfil}
-            onVoltar={() => setAba('inicio')}
-            onAbrirAdmin={() => setAba('admin')}
-            onAbrirMetas={() => { setVoltarDe('perfil'); setAba('metas') }}
-            onAbrirLivro={(id) => { setLivroDetalhe(id); setAba('livro') }}
+            onVoltar={voltar}
+            onAbrirAdmin={() => abrir('admin')}
+            onAbrirMetas={() => abrir('metas')}
+            onAbrirLivro={(id) => { setLivroDetalhe(id); abrir('livro') }}
             onAbrirGuia={() => setVerGuia(true)}
-            onAbrirIndicacoes={() => { setVoltarDe('perfil'); setAba('indicacoes') }}
-            onAbrirAno={() => setAba('ano')}
-            onAbrirMetricas={() => { setMetricasInicial('voce'); setVoltarDe('perfil'); setAba('metricas') }}
+            onAbrirIndicacoes={() => abrir('indicacoes')}
+            onAbrirMemoria={() => abrir('memoria')}
+            onAbrirAno={() => abrir('ano')}
+            onAbrirMetricas={() => { setMetricasInicial('voce'); abrir('metricas') }}
           />
         )}
         {aba === 'livro' && livroDetalhe && (
           <LivroDetalhe
             perfil={perfil}
             livroId={livroDetalhe}
-            onVoltar={() => setAba('perfil')}
+            onVoltar={voltar}
+            rotuloVoltar={rotuloVoltar}
             onCompartilhar={(l, n) => {
               setPreCarga({ modo: 'texto', tipo: n.tipo, texto: n.texto, pagina: n.pagina, autor: n.autor })
               setLivroCompartilhar(l.id === livro.id ? null : l)
               setAba('compartilhar')
             }}
-            onAbrirEncontro={(l) => { setLivroEncontro(l.id === livro.id ? null : l); setVoltarDe('livro'); setAba('encontro') }}
+            onAbrirEncontro={(l) => { setLivroEncontro(l.id === livro.id ? null : l); abrir('encontro') }}
             onCompartilharRetrospectiva={(l) => {
               setPreCarga({ modo: 'leitura', modeloLeitura: 'retrospectiva' })
               setLivroCompartilhar(l.id === livro.id ? null : l)
@@ -367,10 +436,10 @@ function Aplicativo() {
           <AdminPainel
             adminId={perfil.id}
             livro={livro}
-            onVoltar={() => setAba('perfil')}
-            onLivroMudou={() => { carregarLivroAtivo(); setAba('inicio') }}
-            onAbrirEncontro={() => { setLivroEncontro(null); setVoltarDe('admin'); setAba('encontro') }}
-            onAbrirIndicacoes={() => { setVoltarDe('admin'); setAba('indicacoes') }}
+            onVoltar={voltar}
+            onLivroMudou={() => { carregarLivroAtivo(); setPilha([]); setAba('inicio') }}
+            onAbrirEncontro={() => { setLivroEncontro(null); abrir('encontro') }}
+            onAbrirIndicacoes={() => abrir('indicacoes')}
           />
         )}
       </div>

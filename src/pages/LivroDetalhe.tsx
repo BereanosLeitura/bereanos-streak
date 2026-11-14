@@ -40,12 +40,13 @@ interface Props {
   perfil: Perfil
   livroId: string
   onVoltar: () => void
+  rotuloVoltar?: string
   onCompartilhar: (livro: LivroDaEstante, n: { tipo: Tipo; texto: string; pagina: number | null; autor: string }) => void
   onCompartilharRetrospectiva: (livro: LivroDaEstante) => void
   onAbrirEncontro: (livro: LivroDaEstante) => void
 }
 
-export default function LivroDetalhe({ perfil, livroId, onVoltar, onCompartilhar, onCompartilharRetrospectiva, onAbrirEncontro }: Props) {
+export default function LivroDetalhe({ perfil, livroId, onVoltar, rotuloVoltar = 'Voltar', onCompartilhar, onCompartilharRetrospectiva, onAbrirEncontro }: Props) {
   const [livro, setLivro] = useState<Livro | null>(null)
   const [registros, setRegistros] = useState<Registro[] | null>(null)
   const [notas, setNotas] = useState<Nota[]>([])
@@ -167,8 +168,8 @@ export default function LivroDetalhe({ perfil, livroId, onVoltar, onCompartilhar
   return (
     <div className="min-h-screen px-5 pt-6 pb-28">
       <div className="max-w-md mx-auto">
-        <button onClick={onVoltar} className="flex items-center gap-1.5 text-sm text-texto/70 dark:text-bege/60 -ml-1 p-1">
-          <Icone nome="seta-esquerda" className="w-4 h-4" /> Perfil
+        <button onClick={onVoltar} aria-label={`Voltar para ${rotuloVoltar}`} className="flex items-center gap-1.5 text-sm text-texto/70 dark:text-bege/60 -ml-1 p-1">
+          <Icone nome="seta-esquerda" className="w-4 h-4" /> {rotuloVoltar}
         </button>
 
         <header className="flex gap-4 mt-4">

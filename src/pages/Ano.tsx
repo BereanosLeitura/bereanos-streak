@@ -121,7 +121,9 @@ export default function Ano({ perfil, onVoltar }: { perfil: Perfil; onVoltar: ()
       titulo: String(ano), autor: null, capa: null, pct: 0, paginas: d.paginas, total: d.paginas, sequencia: 0, nome: perfil.nome_exibicao, foto: null,
       retro: {
         paginas: d.paginas, dias: d.dias, maiorSequencia: d.sequencia, minutos, anotacoes: d.anotacoes, sessoes, semContagem: !contagem,
-        melhorDia: d.melhorMes !== null ? { rotulo: MESES_LONGOS[d.melhorMes], paginas: d.porMes[d.melhorMes] } : null,
+        destaque: d.melhorMes !== null
+          ? { valor: String(Math.round(d.porMes[d.melhorMes])), rotulo: 'páginas no mês mais forte' }
+          : null,
         periodo: d.livros.length ? `${d.livros.length} ${d.livros.length === 1 ? 'livro' : 'livros'}${d.terminados ? `, ${d.terminados} ${d.terminados === 1 ? 'terminado' : 'terminados'}` : ''}` : null,
         trecho: d.trecho && d.trecho.length > 180 ? d.trecho.slice(0, 177).replace(/\s+\S*$/, '') + '…' : d.trecho
       }

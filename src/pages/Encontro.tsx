@@ -12,7 +12,7 @@ import { ROTEIRO_PADRAO, type Bloco } from '../lib/roteiro'
 
 interface EncontroRow {
   id: string; livro_id: string; data: string; local: string | null; mediador: string | null
-  anotador_id: string | null; roteiro: Bloco[]; perguntas_discutidas: string[]; ata: string | null
+  anotador_id: string | null; roteiro: Bloco[]; perguntas_discutidas: string[]; perguntas_pauta?: string[] | null; ata: string | null
 }
 interface Pergunta { id: string; texto: string; pagina: number | null; perfis: { nome_exibicao: string } | null }
 interface Membro { id: string; nome_exibicao: string }
@@ -83,6 +83,30 @@ export default function Encontro({ perfil, livro, onVoltar, rotuloVoltar = 'Volt
     if (!enc || !podeEditar) return
     const l = enc.perguntas_discutidas.includes(id) ? enc.perguntas_discutidas.filter((x) => x !== id) : [...enc.perguntas_discutidas, id]
     atualizar({ perguntas_discutidas: l })
+  }
+
+  // A pauta é a ordem em que o grupo quer conversar. Fica vazia até alguém
+  // montar; aí o Modo Encontro segue essa ordem em vez da do mural.
+  // Enquanto a coluna da pauta não existir no banco, a tela segue como antes.
+  const pautaDisponivel = !!enc && Object.prototype.hasOwnProperty.call(enc, 'perguntas_pauta')
+  const pauta = (enc?.perguntas_pauta ?? []).filter((id) => perguntas.some((p) => p.id === id))
+  const foraDaPauta = perguntas.filter((p) => !pauta.includes(p.id))
+
+  function porPauta(ids: string[]) {
+    if (!enc) return
+    atualizar({ perguntas_pauta: ids })
+  }
+
+  function entrarNaPauta(id: string) { if (podeEditar) porPauta([...pauta, id]) }
+  function sairDaPauta(id: string) { if (podeEditar) porPauta(pauta.filter((x) => x !== id)) }
+  function mover(id: string, passo: -1 | 1) {
+    if (!podeEditar) return
+    const i = pauta.indexOf(id)
+    const j = i + passo
+    if (i < 0 || j < 0 || j >= pauta.length) return
+    const l = [...pauta]
+    l[i] = l[j]; l[j] = id
+    porPauta(l)
   }
 
   if (enc === undefined) {
@@ -166,8 +190,58 @@ export default function Encontro({ perfil, livro, onVoltar, rotuloVoltar = 'Volt
                 <span className="legenda">{enc.perguntas_discutidas.filter((id) => perguntas.some((p) => p.id === id)).length} de {perguntas.length}</span>
               </div>
               {perguntas.length === 0 && <p className="legenda mt-2">Nenhuma pergunta no mural ainda.</p>}
+              {perguntas.length > 0 && (
+                <p className="legenda mt-1">
+                  {pauta.length
+                    ? 'A pauta segue esta ordem. Toque numa pergunta para marcar que já foi conversada.'
+                    : pautaDisponivel
+                      ? 'Monte a pauta escolhendo as perguntas abaixo, ou conduza na ordem das páginas.'
+                      : 'Toque numa pergunta para marcar que já foi conversada.'}
+                </p>
+              )}
+
+              {pauta.length > 0 && (
+                <ol className="mt-3 space-y-2">
+                  {pauta.map((id, i) => {
+                    const p = perguntas.find((x) => x.id === id)!
+                    const feita = enc.perguntas_discutidas.includes(id)
+                    return (
+                      <li key={id} className={`rounded-xl p-3 ${feita ? 'bg-dourado/10' : 'bg-marinho/[0.03] dark:bg-bege/[0.04]'}`}>
+                        <div className="flex gap-3">
+                          <button onClick={() => alternarPergunta(id)} disabled={!podeEditar}
+                            aria-pressed={feita} aria-label={feita ? 'Marcar como ainda não conversada' : 'Marcar como já conversada'}
+                            className={`w-5 h-5 mt-0.5 rounded-full border flex items-center justify-center shrink-0 ${feita ? 'bg-dourado border-dourado text-marinho' : 'border-marinho/25 dark:border-bege/30'}`}>
+                            {feita && <Icone nome="check" className="w-3.5 h-3.5" />}
+                          </button>
+                          <div className="flex-1 min-w-0">
+                            <p className={`text-[15px] ${feita ? 'text-texto/65 dark:text-bege/55 line-through decoration-dourado/50' : 'text-marinho dark:text-bege'}`}>
+                              <span className="text-dourado-escuro dark:text-dourado tabular mr-1.5">{i + 1}.</span>{p.texto}
+                            </p>
+                            <p className="text-xs text-texto/65 dark:text-bege/55 mt-0.5">{p.perfis?.nome_exibicao ?? 'Membro'}{p.pagina ? `, p. ${p.pagina}` : ''}</p>
+                          </div>
+                        </div>
+                        {podeEditar && (
+                          <div className="flex gap-1 justify-end mt-1">
+                            <button onClick={() => mover(id, -1)} disabled={i === 0} aria-label="Subir na pauta"
+                              className="p-1.5 text-texto/50 dark:text-bege/50 disabled:opacity-25"><Icone nome="seta-esquerda" className="w-4 h-4 rotate-90" /></button>
+                            <button onClick={() => mover(id, 1)} disabled={i === pauta.length - 1} aria-label="Descer na pauta"
+                              className="p-1.5 text-texto/50 dark:text-bege/50 disabled:opacity-25"><Icone nome="seta-esquerda" className="w-4 h-4 -rotate-90" /></button>
+                            <button onClick={() => sairDaPauta(id)} aria-label="Tirar da pauta"
+                              className="p-1.5 text-texto/50 dark:text-bege/50"><Icone nome="x" className="w-4 h-4" /></button>
+                          </div>
+                        )}
+                      </li>
+                    )
+                  })}
+                </ol>
+              )}
+
+              {pauta.length > 0 && foraDaPauta.length > 0 && (
+                <p className="text-xs tracking-[.14em] uppercase text-texto/55 dark:text-bege/45 mt-5">Fora da pauta</p>
+              )}
+
               <ul className="mt-3 space-y-2">
-                {perguntas.map((p) => {
+                {foraDaPauta.map((p) => {
                   const feita = enc.perguntas_discutidas.includes(p.id)
                   return (
                     <li key={p.id}>
@@ -180,6 +254,11 @@ export default function Encontro({ perfil, livro, onVoltar, rotuloVoltar = 'Volt
                           <span className="block text-xs text-texto/65 dark:text-bege/55 mt-0.5">{p.perfis?.nome_exibicao ?? 'Membro'}{p.pagina ? `, p. ${p.pagina}` : ''}</span>
                         </span>
                       </button>
+                      {podeEditar && pautaDisponivel && (
+                        <button onClick={() => entrarNaPauta(p.id)} className="botao-texto mt-1 ml-11">
+                          Levar à pauta
+                        </button>
+                      )}
                     </li>
                   )
                 })}

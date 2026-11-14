@@ -27,6 +27,7 @@ interface Props {
   onAbrirLivro: (id: string) => void
   onAbrirGuia: () => void
   onAbrirIndicacoes: () => void
+  onAbrirMemoria: () => void
   onAbrirAno: () => void
   onAbrirMetricas: () => void
 }
@@ -34,7 +35,7 @@ interface Props {
 interface Conquista { id: string; chave: string; nome: string; descricao: string | null; icone: string | null }
 interface Registro { id: string; livro_id: string; origem: 'manual' | 'pomodoro'; paginas_lidas: number | null; minutos_lidos: number | null; registrado_em: string }
 
-export default function Perfil({ perfil, tema, onMudarTema, onPerfilAtualizado, onVoltar, onAbrirAdmin, onAbrirMetas, onAbrirLivro, onAbrirGuia, onAbrirIndicacoes, onAbrirAno, onAbrirMetricas }: Props) {
+export default function Perfil({ perfil, tema, onMudarTema, onPerfilAtualizado, onVoltar, onAbrirAdmin, onAbrirMetas, onAbrirLivro, onAbrirGuia, onAbrirIndicacoes, onAbrirMemoria, onAbrirAno, onAbrirMetricas }: Props) {
   const [registros, setRegistros] = useState<Registro[] | null>(null)
   const [sessoes, setSessoes] = useState(0)
   const [minutosFoco, setMinutosFoco] = useState(0)
@@ -175,6 +176,7 @@ export default function Perfil({ perfil, tema, onMudarTema, onPerfilAtualizado, 
           <ItemMenu icone="grafico" rotulo="Métricas" detalhe="seus números e os do grupo" onClick={onAbrirMetricas} />
           <ItemMenu icone="alvo" rotulo="Minhas metas" onClick={onAbrirMetas} />
           <ItemMenu icone="estante" rotulo="Próximas leituras" detalhe="indicar livros e ver o sorteio" onClick={onAbrirIndicacoes} />
+          <ItemMenu icone="livro" rotulo="Memória do clube" detalhe="a caminhada, livro a livro" onClick={onAbrirMemoria} />
           <ItemMenu icone="lampada" rotulo="Como usar o app" onClick={onAbrirGuia} />
           {perfil.role === 'admin' && <ItemMenu icone="engrenagem" rotulo="Painel do admin" detalhe="ciclo, membros e clube" onClick={onAbrirAdmin} />}
         </nav>

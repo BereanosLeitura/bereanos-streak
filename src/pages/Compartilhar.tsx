@@ -199,7 +199,7 @@ export default function Compartilhar({ perfil, livro, preCarga }: Props) {
       semContagem: !contagem,
       minutos: retro.minutos,
       anotacoes: retro.anotacoes.trecho + retro.anotacoes.reflexao + retro.anotacoes.pergunta + retro.anotacoes.aplicacao,
-      melhorDia: retro.melhorDia ? { rotulo: formatarData(retro.melhorDia.data), paginas: retro.melhorDia.paginas } : null,
+      destaque: retro.melhorDia ? { valor: String(retro.melhorDia.paginas), rotulo: 'páginas no melhor dia' } : null,
       periodo: retro.inicio && retro.fim
         ? (formatarData(retro.inicio) === formatarData(retro.fim) ? formatarData(retro.inicio) : `${formatarData(retro.inicio)} a ${formatarData(retro.fim)}`)
         : null,

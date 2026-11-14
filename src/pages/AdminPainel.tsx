@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { supabase } from '../lib/supabase'
 import { useAviso } from '../components/Toast'
@@ -10,8 +10,11 @@ import { chamarAdmin, mensagemAcesso } from '../lib/adminMembros'
 import { buscarPadraoClube } from '../lib/preferencias'
 import { baixarCsv } from '../lib/exportar'
 import { ROTEIRO_PADRAO } from '../lib/roteiro'
-import { formatarData, paginasEquivalentes, tempoRelativo } from '../lib/estatisticas'
+import { contar, formatarData, paginasEquivalentes, tempoRelativo } from '../lib/estatisticas'
 import { buscarConclusoes, marcarLeitura } from '../lib/pendentes'
+import { resumoDoCiclo, mensagemDaSemana, type ResumoCiclo } from '../lib/painelAdmin'
+import { BarraBrilho } from '../components/BarraBrilho'
+import RelatorioCiclo from '../components/RelatorioCiclo'
 import type { LivroAtivo } from './Inicio'
 
 interface Props {
@@ -27,6 +30,15 @@ type Aba = 'ciclo' | 'membros' | 'clube'
 
 export default function AdminPainel({ adminId, livro, onLivroMudou, onVoltar, onAbrirEncontro, onAbrirIndicacoes }: Props) {
   const [aba, setAba] = useState<Aba>('ciclo')
+  const [resumo, setResumo] = useState<ResumoCiclo | null>(null)
+
+  const livroId = livro?.id ?? null
+  const recarregarResumo = useCallback(() => {
+    if (!livro) return setResumo(null)
+    setResumo(null)
+    resumoDoCiclo(livro).then(setResumo).catch(() => setResumo(null))
+  }, [livroId, livro?.paginas_totais, livro?.ciclo_inicio, livro?.ciclo_fim])
+  useEffect(() => { recarregarResumo() }, [recarregarResumo])
 
   return (
     <div className="min-h-screen pt-6 pb-28">
@@ -57,17 +69,17 @@ export default function AdminPainel({ adminId, livro, onLivroMudou, onVoltar, on
 
       {aba === 'ciclo' && (
         <>
-          {livro ? <CicloAtual livro={livro} adminId={adminId} onMudou={onLivroMudou} onAbrirEncontro={onAbrirEncontro} /> : <CadastrarLivro adminId={adminId} onCriado={onLivroMudou} />}
+          {livro ? <CicloAtual livro={livro} adminId={adminId} resumo={resumo} onMudou={() => { onLivroMudou(); recarregarResumo() }} onAbrirEncontro={onAbrirEncontro} /> : <CadastrarLivro adminId={adminId} onCriado={onLivroMudou} />}
           <GerenciarCiclos ativoId={livro?.id ?? null} onMudou={onLivroMudou} />
         </>
       )}
-      {aba === 'membros' && <Membros livroId={livro?.id ?? null} adminId={adminId} />}
-      {aba === 'clube' && <ConfigClube livro={livro} onAbrirIndicacoes={onAbrirIndicacoes} />}
+      {aba === 'membros' && <Membros livroId={livro?.id ?? null} adminId={adminId} resumo={resumo} />}
+      {aba === 'clube' && <ConfigClube livro={livro} resumo={resumo} onAbrirIndicacoes={onAbrirIndicacoes} />}
     </div>
   )
 }
 
-function CicloAtual({ livro, adminId, onMudou, onAbrirEncontro }: { livro: LivroAtivo; adminId: string; onMudou: () => void; onAbrirEncontro?: () => void }) {
+function CicloAtual({ livro, adminId, resumo, onMudou, onAbrirEncontro }: { livro: LivroAtivo; adminId: string; resumo: ResumoCiclo | null; onMudou: () => void; onAbrirEncontro?: () => void }) {
   const [editando, setEditando] = useState(false)
   const [confirmando, setConfirmando] = useState(false)
   const [encontro, setEncontro] = useState(paraCampoLocal(livro.encontro_em ?? null))
@@ -121,6 +133,8 @@ function CicloAtual({ livro, adminId, onMudou, onAbrirEncontro }: { livro: Livro
         </div>
       )}
 
+      {resumo === null ? <div className="esqueleto h-32" /> : <ComoEstaOCiclo livro={livro} resumo={resumo} />}
+
       <div className="cartao p-5">
         <h2 className="titulo-secao">Próximo encontro</h2>
         <p className="legenda mt-1 mb-3">Aparece no Início de todos, com contagem regressiva.</p>
@@ -149,6 +163,73 @@ function CicloAtual({ livro, adminId, onMudou, onAbrirEncontro }: { livro: Livro
           <EncerrarCiclo livro={livro} adminId={adminId} onFechar={() => setConfirmando(false)} onConcluido={() => { setConfirmando(false); onMudou() }} />
         )}
       </div>
+    </div>
+  )
+}
+
+// Panorama do ciclo em uma olhada: onde o grupo está, quanto falta e o que
+// merece atenção. Sem ranking: números do conjunto, não classificação.
+function ComoEstaOCiclo({ livro, resumo }: { livro: LivroAtivo; resumo: ResumoCiclo }) {
+  const [relatorio, setRelatorio] = useState(false)
+  const r = resumo
+  const avisos: { tom: 'alerta' | 'calmo'; texto: string }[] = []
+  if (r.cicloVencido) avisos.push({ tom: 'alerta', texto: 'O ciclo passou da data de fim e o livro ainda está como leitura atual. Quando quiser, use "Concluir ciclo" abaixo.' })
+  if (r.semPrimeiroAcesso) avisos.push({ tom: 'calmo', texto: `${contar(r.semPrimeiroAcesso, 'pessoa ainda não fez', 'pessoas ainda não fizeram')} o primeiro acesso. Na aba Membros dá para gerar a senha de novo.` })
+  if (r.paradosSeteDias) avisos.push({ tom: 'calmo', texto: `${contar(r.paradosSeteDias, 'pessoa está', 'pessoas estão')} sem registrar há mais de uma semana. Pode ser só a vida corrida; um "como está a leitura?" costuma bastar.` })
+  if (!r.jaLeram) avisos.push({ tom: 'calmo', texto: 'Ninguém registrou leitura neste livro ainda.' })
+
+  const numeros: [string, string][] = [
+    [String(r.mediaPct) + '%', 'média lida'],
+    [`${r.jaLeram} de ${r.comAcesso}`, 'já leram'],
+    [String(r.terminaram), r.terminaram === 1 ? 'terminou' : 'terminaram'],
+    [r.diasRestantes === null ? '—' : String(r.diasRestantes), 'dias restantes']
+  ]
+
+  return (
+    <div className="cartao p-5">
+      <div className="flex items-baseline justify-between gap-3">
+        <h2 className="titulo-secao">Como está o ciclo</h2>
+        {r.diasCorridos !== null && <span className="legenda shrink-0">dia {r.diasCorridos}</span>}
+      </div>
+
+      <p className="font-serif text-[34px] leading-none text-marinho dark:text-bege mt-3 tabular">
+        {r.paginasGrupo.toLocaleString('pt-BR')}
+        <span className="text-base font-sans text-texto/65 dark:text-bege/55 ml-2">páginas lidas juntos</span>
+      </p>
+      <BarraBrilho pct={r.mediaPct} faiscas={false} className="mt-3" rotulo={`média de ${r.mediaPct}% do livro`} />
+
+      <dl className="grid grid-cols-4 gap-2 mt-4 text-center">
+        {numeros.map(([v, rot]) => (
+          <div key={rot}>
+            <dt className="sr-only">{rot}</dt>
+            <dd className="font-serif text-xl text-marinho dark:text-bege tabular leading-none">{v}</dd>
+            <p className="text-[11px] text-texto/65 dark:text-bege/55 mt-1 leading-tight">{rot}</p>
+          </div>
+        ))}
+      </dl>
+
+      {r.metaDaSemana !== null && (
+        <p className="text-sm text-texto/75 dark:text-bege/70 mt-4 leading-relaxed">
+          O plano desta semana sugere chegar à página <strong className="text-marinho dark:text-bege">{r.metaDaSemana}</strong> de {livro.paginas_totais}. É referência, não cobrança.
+        </p>
+      )}
+
+      <button onClick={() => setRelatorio(true)} className="botao-secundario mt-4 flex items-center justify-center gap-2">
+        <Icone nome="baixar" className="w-4 h-4" /> Relatório do ciclo
+      </button>
+      <p className="legenda mt-1.5">Uma folha A4 com os números, quem participou, o encontro e o mural deste livro, para o arquivo do clube.</p>
+      {relatorio && <RelatorioCiclo livro={livro} onFechar={() => setRelatorio(false)} />}
+
+      {avisos.length > 0 && (
+        <ul className="mt-4 space-y-2">
+          {avisos.map((a, i) => (
+            <li key={i} className={`flex gap-2 text-sm leading-relaxed rounded-lg px-3 py-2 ${a.tom === 'alerta' ? 'bg-dourado/[0.12] text-marinho dark:text-bege' : 'bg-marinho/[0.04] dark:bg-bege/[0.05] text-texto/75 dark:text-bege/70'}`}>
+              <Icone nome={a.tom === 'alerta' ? 'alvo' : 'lampada'} className="w-4 h-4 shrink-0 mt-0.5 text-dourado" />
+              <span>{a.texto}</span>
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
   )
 }
@@ -290,7 +371,7 @@ function paraCampoLocal(iso: string | null) {
 interface Membro { id: string; nome_exibicao: string; nome_completo: string; role: string; senha_temporaria: boolean }
 interface StatusAuth { id: string; email: string; ultimo_acesso: string | null; suspenso: boolean }
 
-function Membros({ livroId, adminId }: { livroId: string | null; adminId: string }) {
+function Membros({ livroId, adminId, resumo }: { livroId: string | null; adminId: string; resumo: ResumoCiclo | null }) {
   const [membros, setMembros] = useState<Membro[] | null>(null)
   const [ultima, setUltima] = useState<Map<string, string>>(new Map())
   const [auth, setAuth] = useState<Map<string, StatusAuth>>(new Map())
@@ -314,6 +395,8 @@ function Membros({ livroId, adminId }: { livroId: string | null; adminId: string
       .catch(() => setAuth(new Map()))
   }
   useEffect(() => { carregar() }, [livroId])
+
+  const noCiclo = new Map((resumo?.membros ?? []).map((m) => [m.id, m]))
 
   async function acao(m: Membro, tipo: 'nova_senha' | 'suspender' | 'reativar') {
     setOcupado(true)
@@ -340,6 +423,25 @@ function Membros({ livroId, adminId }: { livroId: string | null; adminId: string
         </button>
       </div>
       {criando && <CriarAcesso onCriado={carregar} />}
+
+      {resumo && resumo.comAcesso > 0 && (
+        <div className="px-5 mt-4">
+          <dl className="cartao grid grid-cols-3 divide-x divide-marinho/[0.07] dark:divide-bege/[0.07] py-3 text-center">
+            {([
+              [`${resumo.jaLeram} de ${resumo.comAcesso}`, 'já leram'],
+              [String(resumo.leramNaSemana), 'nos 7 dias'],
+              [String(resumo.terminaram), resumo.terminaram === 1 ? 'terminou' : 'terminaram']
+            ] as [string, string][]).map(([v, rot]) => (
+              <div key={rot} className="px-1">
+                <dt className="sr-only">{rot}</dt>
+                <dd className="font-serif text-xl text-marinho dark:text-bege tabular leading-none">{v}</dd>
+                <p className="text-[11px] text-texto/65 dark:text-bege/55 mt-1">{rot}</p>
+              </div>
+            ))}
+          </dl>
+        </div>
+      )}
+
       <div className="px-5 mt-4">
         {membros === null && <div className="space-y-2">{[0, 1, 2].map((i) => <div key={i} className="esqueleto h-14" />)}</div>}
         <ul className="cartao divide-y divide-marinho/[0.07] dark:divide-bege/[0.07]">
@@ -357,6 +459,17 @@ function Membros({ livroId, adminId }: { livroId: string | null; adminId: string
                     <p className="text-xs text-texto/65 dark:text-bege/55 truncate">
                       {m.senha_temporaria ? 'ainda não fez o primeiro acesso' : ultima.has(m.id) ? `leu ${tempoRelativo(ultima.get(m.id)!)}` : 'sem leitura neste livro'}
                     </p>
+                    {(noCiclo.get(m.id)?.paginas ?? 0) > 0 && (
+                      <div className="flex items-center gap-2 mt-1.5">
+                        <BarraBrilho
+                          pct={noCiclo.get(m.id)!.pct} altura="h-1" faiscas={false} className="flex-1"
+                          rotulo={`${noCiclo.get(m.id)!.paginas} páginas lidas neste livro`}
+                        />
+                        <span className="text-[11px] tabular text-texto/65 dark:text-bege/55 shrink-0">
+                          {noCiclo.get(m.id)!.terminou ? 'terminou' : `${noCiclo.get(m.id)!.pct}%`}
+                        </span>
+                      </div>
+                    )}
                   </div>
                   <Icone nome="seta-direita" className={`w-4 h-4 text-texto/30 dark:text-bege/30 transition-transform ${aberto === m.id ? 'rotate-90' : ''}`} />
                 </button>
@@ -388,7 +501,62 @@ function Membros({ livroId, adminId }: { livroId: string | null; adminId: string
   )
 }
 
-function ConfigClube({ livro, onAbrirIndicacoes }: { livro: LivroAtivo | null; onAbrirIndicacoes?: () => void }) {
+// Mensagem pronta para o grupo do WhatsApp, montada com os números do ciclo.
+// O admin lê, edita se quiser e manda; nada sai daqui sozinho.
+function AvisoDaSemana({ livro, resumo }: { livro: LivroAtivo; resumo: ResumoCiclo }) {
+  const [aberto, setAberto] = useState(false)
+  const [texto, setTexto] = useState(() => mensagemDaSemana(livro, resumo))
+  const avisar = useAviso()
+
+  useEffect(() => { setTexto(mensagemDaSemana(livro, resumo)) }, [livro.id, resumo])
+
+  async function copiar() {
+    try {
+      await navigator.clipboard.writeText(texto)
+      avisar('Mensagem copiada')
+    } catch {
+      avisar('Não foi possível copiar; selecione o texto e copie à mão', 'erro')
+    }
+  }
+
+  return (
+    <div className="cartao p-5">
+      <h2 className="titulo-secao">Mensagem da semana</h2>
+      <p className="legenda mt-1 mb-3">
+        Um aviso pronto para o grupo, com o andamento do ciclo. Sem ranking e sem nomes. Você pode editar antes de enviar.
+      </p>
+      {!aberto ? (
+        <button onClick={() => setAberto(true)} className="botao-secundario flex items-center justify-center gap-2">
+          <Icone nome="pena" className="w-4 h-4" /> Montar a mensagem
+        </button>
+      ) : (
+        <div className="space-y-3">
+          <label className="sr-only" htmlFor="aviso-semana">Texto da mensagem</label>
+          <textarea
+            id="aviso-semana" value={texto} onChange={(e) => setTexto(e.target.value)} rows={12}
+            className="campo font-sans text-[14px] leading-relaxed resize-y"
+          />
+          <div className="grid grid-cols-2 gap-2">
+            <button onClick={copiar} className="botao-secundario flex items-center justify-center gap-2">
+              <Icone nome="copiar" className="w-4 h-4" /> Copiar
+            </button>
+            <a
+              href={`https://wa.me/?text=${encodeURIComponent(texto)}`} target="_blank" rel="noopener"
+              className="botao-primario flex items-center justify-center gap-2"
+            >
+              <Icone nome="whatsapp" className="w-4 h-4" /> WhatsApp
+            </a>
+          </div>
+          <button onClick={() => { setTexto(mensagemDaSemana(livro, resumo)); avisar('Texto recomposto') }} className="botao-texto">
+            Voltar ao texto sugerido
+          </button>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function ConfigClube({ livro, resumo, onAbrirIndicacoes }: { livro: LivroAtivo | null; resumo: ResumoCiclo | null; onAbrirIndicacoes?: () => void }) {
   const [padrao, setPadrao] = useState<boolean | null>(null)
   const [baixando, setBaixando] = useState(false)
   const avisar = useAviso()
@@ -428,6 +596,8 @@ function ConfigClube({ livro, onAbrirIndicacoes }: { livro: LivroAtivo | null; o
 
   return (
     <div className="max-w-md mx-auto px-5 mt-6 space-y-4">
+      {livro && resumo && <AvisoDaSemana livro={livro} resumo={resumo} />}
+
       <div className="cartao p-5">
         <h2 className="titulo-secao">Sequência e conquistas</h2>
         <p className="legenda mt-1 mb-3">
@@ -471,13 +641,16 @@ interface LivroCiclo { id: string; titulo: string; autor: string | null; capa_ur
  * Todos os ciclos já cadastrados. Permite reabrir um ciclo concluído por engano
  * (quando não há livro ativo) e excluir de vez um ciclo lançado errado.
  */
+type LivroRelatorio = { id: string; titulo: string; autor: string | null; paginas_totais: number; ciclo_inicio: string | null; ciclo_fim: string | null }
+
 function GerenciarCiclos({ ativoId, onMudou }: { ativoId: string | null; onMudou: () => void }) {
   const [livros, setLivros] = useState<LivroCiclo[] | null>(null)
   const [excluindo, setExcluindo] = useState<LivroCiclo | null>(null)
+  const [relatorio, setRelatorio] = useState<LivroRelatorio | null>(null)
   const avisar = useAviso()
 
   async function carregar() {
-    const { data } = await supabase.from('livros').select('id, titulo, autor, capa_url, status, created_at').order('created_at', { ascending: false })
+    const { data } = await supabase.from('livros').select('id, titulo, autor, capa_url, status, created_at, paginas_totais, ciclo_inicio, ciclo_fim').order('created_at', { ascending: false })
     setLivros((data ?? []) as LivroCiclo[])
   }
   useEffect(() => { carregar() }, [ativoId])
@@ -503,6 +676,10 @@ function GerenciarCiclos({ ativoId, onMudou }: { ativoId: string | null; onMudou
                 <p className="text-[15px] font-semibold text-marinho dark:text-bege truncate">{l.titulo}</p>
                 <p className="text-xs text-texto/65 dark:text-bege/55">{l.status === 'ativo' ? 'leitura atual' : 'concluído'}, cadastrado em {formatarData(l.created_at)}</p>
               </div>
+              <button onClick={() => setRelatorio(l as unknown as LivroRelatorio)} aria-label={`Relatório do ciclo de ${l.titulo}`}
+                className="p-2 text-texto/45 dark:text-bege/45">
+                <Icone nome="baixar" className="w-4 h-4" />
+              </button>
               {l.status === 'concluido' && !ativoId && (
                 <button onClick={() => reabrir(l)} className="text-xs font-semibold text-dourado-escuro dark:text-dourado px-2 py-1">Reabrir</button>
               )}
@@ -514,6 +691,7 @@ function GerenciarCiclos({ ativoId, onMudou }: { ativoId: string | null; onMudou
         </ul>
       </div>
       {excluindo && <ExcluirCiclo livro={excluindo} onFechar={() => setExcluindo(null)} onExcluido={() => { setExcluindo(null); carregar(); onMudou() }} />}
+      {relatorio && <RelatorioCiclo livro={relatorio} onFechar={() => setRelatorio(null)} />}
     </div>
   )
 }

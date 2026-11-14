@@ -93,3 +93,45 @@ test('rede de segurança das animações existe (número e barra não ficam em 0
   assert.ok(redes.length >= 2, 'useNumeroAnimado e BarraBrilho precisam cada um de uma rede de segurança por tempo')
   assert.match(src, /clearTimeout/, 'a rede de segurança precisa ser cancelada na limpeza do efeito')
 })
+
+// ---------- aviso semanal do admin ----------
+import { mensagemDaSemana } from '../src/lib/avisoSemana.ts'
+
+const LIVRO = { titulo: 'Cartas de um Diabo a Seu Aprendiz', autor: 'C. S. Lewis', paginas_totais: 208 }
+const NUMEROS = {
+  paginasGrupo: 142, mediaPct: 34, jaLeram: 2, comAcesso: 2,
+  leramNaSemana: 2, metaDaSemana: 104, anotacoesMural: 7, diasRestantes: 17
+}
+
+test('mensagem da semana traz os números e nunca cobra', () => {
+  const t = mensagemDaSemana(LIVRO, NUMEROS)
+  assert.match(t, /Cartas de um Diabo a Seu Aprendiz, de C\. S\. Lewis/)
+  assert.match(t, /142 páginas/)
+  assert.match(t, /34% da leitura/)
+  assert.match(t, /página 104/)
+  assert.match(t, /não uma cobrança/)
+  assert.match(t, /7 anotações/)
+  assert.match(t, /aproveitar bem a leitura/)
+  // nada de ranking ou nome de membro
+  assert.doesNotMatch(t, /1º|ranking|primeiro lugar|ganhou/i)
+})
+
+test('mensagem da semana aguenta ciclo sem plano e grupo sem leitura', () => {
+  const t = mensagemDaSemana(
+    { titulo: 'O Peregrino', autor: null, paginas_totais: 280 },
+    { paginasGrupo: 0, mediaPct: 0, jaLeram: 0, comAcesso: 5, leramNaSemana: 0, metaDaSemana: null, anotacoesMural: 0, diasRestantes: 3 }
+  )
+  assert.match(t, /Estamos em O Peregrino\./)
+  assert.match(t, /0 páginas deste livro\./)
+  assert.match(t, /Faltam 3 dias de ciclo\./)
+  assert.doesNotMatch(t, /média/)
+  assert.doesNotMatch(t, /mural/)
+})
+
+test('mensagem da semana inclui o encontro quando há data', () => {
+  const t = mensagemDaSemana(
+    { ...LIVRO, encontro_em: '2026-11-28T17:00:00.000Z', encontro_local: 'Igreja, Sala dos Jovens' },
+    NUMEROS
+  )
+  assert.match(t, /Próximo encontro: .*28 de novembro, às \d{2}:\d{2}, Igreja, Sala dos Jovens\./)
+})

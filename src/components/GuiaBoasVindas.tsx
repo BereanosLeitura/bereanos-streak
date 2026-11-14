@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
 import Icone, { type NomeIcone } from './Icone'
 
@@ -48,9 +48,20 @@ export default function GuiaBoasVindas({ nome, onFechar }: { nome: string; onFec
   const p = PASSOS[i]
   const ultimo = i === PASSOS.length - 1
 
+  // Esc fecha, como em qualquer caixa do app
+  useEffect(() => {
+    const esc = (e: KeyboardEvent) => { if (e.key === 'Escape') onFechar() }
+    window.addEventListener('keydown', esc)
+    return () => window.removeEventListener('keydown', esc)
+  }, [onFechar])
+
   return createPortal(
-    <div className="fixed inset-0 z-50 bg-black/55 flex items-end sm:items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="guia-titulo">
-      <div className="cartao w-full max-w-md p-6 animate-subir-suave">
+    <div
+      className="fixed inset-0 z-50 bg-black/55 flex items-end sm:items-center justify-center p-4"
+      role="dialog" aria-modal="true" aria-labelledby="guia-titulo"
+      onClick={onFechar}
+    >
+      <div className="cartao w-full max-w-md p-6 animate-subir-suave" onClick={(e) => e.stopPropagation()}>
         <div className="flex justify-between items-center">
           <div className="flex gap-1.5" aria-hidden>
             {PASSOS.map((_, k) => (
