@@ -482,7 +482,8 @@ export default function Notas({ perfil, livro, inicial, onCompartilhar }: Props)
                   {vista === 'mural' && <Avatar nome={n.nome} tamanho={22} />}
                   <span className="text-xs text-texto/65 dark:text-bege/55">{vista === 'mural' ? `${n.nome}, ` : ''}{tempoRelativo(n.created_at)}</span>
                   <div className="ml-auto flex items-center">
-                    <BotaoIcone icone="imagem" rotulo="Criar imagem para compartilhar" onClick={() => onCompartilhar({ ...n, autor: n.membro_id === perfil.id ? perfil.nome_exibicao : n.nome })} />
+                    {/* anotação protegida contra spoiler não vira imagem antes de ser revelada */}
+                    {!protegida && <BotaoIcone icone="imagem" rotulo="Criar imagem para compartilhar" onClick={() => onCompartilhar({ ...n, autor: n.membro_id === perfil.id ? perfil.nome_exibicao : n.nome })} />}
                     {minha && (
                       <>
                         <BotaoIcone icone="pena" rotulo="Editar" onClick={() => abrirEdicao(n)} />

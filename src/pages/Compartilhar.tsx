@@ -777,8 +777,9 @@ export default function Compartilhar({ perfil, livro, preCarga }: Props) {
           <div className={`grid gap-2 ${podeCopiarImagem && partes.length <= 1 ? 'grid-cols-4' : 'grid-cols-3'}`}>
             {podeCopiarImagem && partes.length <= 1 && <BotaoAcao icone="imagem" rotulo="Copiar imagem" onClick={copiarImagem} desativado={!podeGerar || (precisaFoto && !foto)} />}
             <BotaoAcao icone="baixar" rotulo={transparente ? 'Baixar PNG' : 'Baixar'} onClick={baixar} desativado={!podeGerar || (precisaFoto && !foto)} />
-            <BotaoAcao icone="copiar" rotulo="Copiar legenda" onClick={() => copiarTexto(legenda)} desativado={!legenda} />
-            <BotaoAcao icone="whatsapp" rotulo="WhatsApp" desativado={!legenda}
+            {/* com o modelo bloqueado (ex.: "Terminei" sem ter terminado), a legenda também não sai */}
+            <BotaoAcao icone="copiar" rotulo="Copiar legenda" onClick={() => copiarTexto(legenda)} desativado={!legenda || !!bloqueio} />
+            <BotaoAcao icone="whatsapp" rotulo="WhatsApp" desativado={!legenda || !!bloqueio}
               onClick={() => window.open(`https://wa.me/?text=${encodeURIComponent(legenda)}`, '_blank', 'noopener')} />
           </div>
           <p className="text-xs text-center text-texto/65 dark:text-bege/55 pt-1">

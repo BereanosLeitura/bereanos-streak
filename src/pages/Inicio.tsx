@@ -94,6 +94,7 @@ export default function Inicio({ perfil, livro, onIr, onBuscar, onPerfilAtualiza
   const [erroMetas, setErroMetas] = useState(false)
   const [membrosClube, setMembrosClube] = useState<string[]>([]) // ids de quem tem acesso
   const [destaque, setDestaque] = useState<Destaque | null>(null)
+  const [destaqueRevelado, setDestaqueRevelado] = useState(false)
   const [metas, setMetas] = useState<MetaResumo[] | null>(null)
   const [qtdPerguntas, setQtdPerguntas] = useState(0)
   const [temAplicacao, setTemAplicacao] = useState(true)
@@ -260,6 +261,7 @@ export default function Inicio({ perfil, livro, onIr, onBuscar, onPerfilAtualiza
   // onde parar hoje para cumprir a meta do dia
   const paginaAlvoHoje = Math.min(livro.paginas_totais, leitura.paginasLivro + Math.max(0, meta - leitura.paginasHoje))
   const ultimaLeitura = leitura.doLivro[0] ?? null
+  const destaqueProtegido = !!destaque && !destaqueRevelado && aFrente(destaque, perfil.id, paginaMural)
   // uma frase que situa o dia: encontro, fim do ciclo ou leitura de hoje
   const resumoDoDia = (() => {
     if (leitura.carregando) return null
@@ -379,7 +381,7 @@ export default function Inicio({ perfil, livro, onIr, onBuscar, onPerfilAtualiza
           <section className="relative overflow-hidden rounded-3xl border border-dourado/40 bg-gradient-to-br from-dourado/[0.12] via-transparent to-transparent p-5">
             <span aria-hidden="true" className="absolute -top-6 right-3 font-serif text-[120px] leading-none text-dourado/15 select-none">“</span>
             <p className="text-[11px] font-semibold uppercase tracking-[.18em] text-dourado-escuro dark:text-dourado">Destaque do clube</p>
-            <ProtecaoSpoiler pagina={destaque.pagina} minhaPagina={paginaMural} ativo={aFrente(destaque, perfil.id, paginaMural)}>
+            <ProtecaoSpoiler pagina={destaque.pagina} minhaPagina={paginaMural} ativo={destaqueProtegido} onRevelar={() => setDestaqueRevelado(true)}>
               <p className={`texto-nota mt-2 text-marinho dark:text-bege ${destaque.tipo === 'trecho' ? 'font-serif italic text-[19px] leading-relaxed' : 'text-[16px] leading-relaxed'}`}>
                 {destaque.tipo === 'pergunta' && <span className="text-dourado-escuro dark:text-dourado font-semibold not-italic">Pergunta: </span>}
                 {destaque.tipo === 'aplicacao' && <span className="text-dourado-escuro dark:text-dourado font-semibold not-italic">Para aplicar: </span>}
@@ -388,12 +390,15 @@ export default function Inicio({ perfil, livro, onIr, onBuscar, onPerfilAtualiza
             </ProtecaoSpoiler>
             <div className="flex items-center justify-between gap-3 mt-3">
               <p className="text-xs text-texto/65 dark:text-bege/55">{destaque.nome}{destaque.pagina ? `, p. ${destaque.pagina}` : ''}</p>
-              <button
-                onClick={() => onIr('compartilhar', { modo: 'texto', tipo: destaque.tipo, texto: destaque.texto, pagina: destaque.pagina, autor: destaque.nome })}
-                className="botao-texto text-sm flex items-center gap-1.5"
-              >
-                <Icone nome="imagem" className="w-4 h-4" /> Criar imagem
-              </button>
+              {/* protegido contra spoiler: a imagem mostraria o texto inteiro, então só depois de revelar */}
+              {!destaqueProtegido && (
+                <button
+                  onClick={() => onIr('compartilhar', { modo: 'texto', tipo: destaque.tipo, texto: destaque.texto, pagina: destaque.pagina, autor: destaque.nome })}
+                  className="botao-texto text-sm flex items-center gap-1.5"
+                >
+                  <Icone nome="imagem" className="w-4 h-4" /> Criar imagem
+                </button>
+              )}
             </div>
           </section>
         )}
