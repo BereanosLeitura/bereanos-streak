@@ -6,6 +6,7 @@ import { readFileSync } from 'node:fs'
 import { formatarTempo, formatarTempoEstimado, marcoAtravessado, aFrente, dataDoRegistro, juntarNomes, terminouLivro, dataLocal, limitesDoPeriodo, entreAspas } from '../src/lib/regras.ts'
 import { contar, chaveDia, paginasEquivalentes, paginasPorDia, sequenciaAtual, maiorSequencia, diasAte, diaRelativo, rotulosMeses, gradeSemanas } from '../src/lib/estatisticas.ts'
 import { ROTEIRO_PADRAO } from '../src/lib/roteiro.ts'
+import { curvaDoVideo } from '../src/lib/video.ts'
 
 const dia = (offset: number) => { const d = new Date(); d.setDate(d.getDate() + offset); return chaveDia(d) }
 
@@ -182,4 +183,15 @@ test('entreAspas não dobra as aspas que a pessoa já digitou', () => {
   assert.equal(entreAspas('"O traço mais repugnante "'), '“O traço mais repugnante”')
   assert.equal(entreAspas('“Já curvas”'), '“Já curvas”')
   assert.equal(entreAspas('  «Francesas»  '), '“Francesas”')
+})
+
+test('curvaDoVideo começa no zero, sobe sem passar do valor e segura no fim', () => {
+  assert.equal(curvaDoVideo(0), 0)
+  assert.equal(curvaDoVideo(0.1), 0)
+  const meio = curvaDoVideo(0.36)
+  assert.ok(meio > 0.5 && meio < 1)
+  assert.equal(curvaDoVideo(0.6), 1)
+  assert.equal(curvaDoVideo(1), 1)
+  let anterior = 0
+  for (let t = 0; t <= 1; t += 0.01) { const v = curvaDoVideo(t); assert.ok(v >= anterior - 1e-9 && v <= 1); anterior = v }
 })

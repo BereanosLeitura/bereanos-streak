@@ -15,6 +15,11 @@ import { calcularPanorama, calcularRetrospectiva, type Panorama, type Retrospect
 import { contar, formatarData } from '../lib/estatisticas'
 import { entreAspas } from '../lib/regras'
 import { buscarConclusoes } from '../lib/pendentes'
+import { curvaDoVideo, formatoDeVideo, gravarAnimacao } from '../lib/video'
+
+// modelos em que os números sobem no vídeo
+const ANIMAVEIS: ModeloLeitura[] = ['lendo', 'progresso', 'anel', 'constancia']
+const HASHTAGS = '#ClubeDoLivroBereanos #Leitura #Livros'
 import { useContagem } from '../lib/preferencias'
 
 export interface PreCarga {
@@ -228,10 +233,21 @@ export default function Compartilhar({ perfil, livro, preCarga }: Props) {
     } : undefined
   }
 
+  // hashtags: opcionais, desligadas por padrão, lembradas neste aparelho
+  const [comHashtags, setComHashtags] = useState(() => { try { return localStorage.getItem('bereanos-streak-hashtags') === '1' } catch { return false } })
+  useEffect(() => { try { localStorage.setItem('bereanos-streak-hashtags', comHashtags ? '1' : '0') } catch { /* ok */ } }, [comHashtags])
+  // guia das áreas que o Instagram cobre no Story (foto de perfil em cima, resposta embaixo)
+  const [verAreas, setVerAreas] = useState(false)
+  const [gravandoVideo, setGravandoVideo] = useState(false)
+  const videoSuportado = useMemo(() => !!formatoDeVideo(), [])
+
   // legenda automática (até a pessoa editar à mão)
   useEffect(() => {
-    if (!legendaEditada) setLegenda(gerarLegenda())
-  }, [modo, tipo, texto, fonte, autorTexto, modeloLeitura, leitura.pct, leitura.paginasLivro, leitura.seq.dias, leitura.paginasSemana, mostrarLivro, legendaEditada, retro, panorama])
+    if (!legendaEditada) {
+      const base = gerarLegenda()
+      setLegenda(base && comHashtags ? `${base}\n\n${HASHTAGS}` : base)
+    }
+  }, [modo, tipo, texto, fonte, autorTexto, modeloLeitura, leitura.pct, leitura.paginasLivro, leitura.seq.dias, leitura.paginasSemana, mostrarLivro, legendaEditada, retro, panorama, comHashtags])
 
   function gerarLegenda(): string {
     const nomeLivro = mostrarLivro ? `${livro.titulo}${livro.autor ? `, de ${livro.autor}` : ''}` : ''
@@ -446,6 +462,45 @@ export default function Compartilhar({ perfil, livro, preCarga }: Props) {
     }
   }
 
+  /** Vídeo de 6 s: os números do cartão sobem do zero até o valor real. */
+  async function criarVideo() {
+    if (!podeGerar || gravandoVideo) return
+    setGravandoVideo(true)
+    try {
+      const { blob, formato: fv } = await gravarAnimacao(async (c, t) => {
+        const k = curvaDoVideo(t)
+        await desenharLeitura(c, modeloLeitura, formato, {
+          ...dadosLeitura,
+          pct: dadosLeitura.pct * k,
+          paginas: Math.round(dadosLeitura.paginas * k),
+          sequencia: Math.round(dadosLeitura.sequencia * k)
+        })
+      }, w, h)
+      const arquivo = new File([blob], nomeArquivo().replace(/\.png$/, '') + '.' + fv.ext, { type: blob.type })
+      if (navigator.canShare?.({ files: [arquivo] })) {
+        try {
+          await navigator.share({ files: [arquivo], text: legenda || undefined })
+          marcarConquista()
+          return
+        } catch (e: any) {
+          if (e?.name === 'AbortError') return
+        }
+      }
+      const url = URL.createObjectURL(arquivo)
+      const a = document.createElement('a')
+      a.href = url; a.download = arquivo.name
+      document.body.appendChild(a); a.click(); a.remove()
+      setTimeout(() => URL.revokeObjectURL(url), 3000)
+      if (legenda) await copiarTexto(legenda, false)
+      avisar(fv.ext === 'mp4' ? 'Vídeo baixado (MP4) e legenda copiada' : 'Vídeo baixado em WebM. Se o Instagram recusar, use a imagem.')
+      marcarConquista()
+    } catch {
+      avisar('Não foi possível gravar o vídeo neste navegador. Use a imagem.', 'erro')
+    } finally {
+      setGravandoVideo(false)
+    }
+  }
+
   async function baixar() {
     if (!canvasRef.current || !podeGerar) return
     const arquivos = await gerarArquivos()
@@ -526,6 +581,12 @@ export default function Compartilhar({ perfil, livro, preCarga }: Props) {
             >
               <canvas ref={canvasRef} className="w-full h-full block" aria-label="Prévia da imagem" />
               {gerando && <Girando />}
+              {verAreas && formato === 'story' && (
+                <div aria-hidden="true" className="pointer-events-none absolute inset-0 flex flex-col justify-between">
+                  <div className="h-[13%] bg-red-500/25 border-b border-dashed border-red-500/70 flex items-center justify-center text-[10px] font-semibold text-white drop-shadow">foto de perfil e nome</div>
+                  <div className="h-[18%] bg-red-500/25 border-t border-dashed border-red-500/70 flex items-center justify-center text-[10px] font-semibold text-white drop-shadow">campo de resposta</div>
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -556,6 +617,13 @@ export default function Compartilhar({ perfil, livro, preCarga }: Props) {
               ))}
             </div>
             <p className="text-xs text-center text-texto/65 dark:text-bege/55 mt-2">{FORMATOS[formato].dica}</p>
+            {formato === 'story' && !transparente && (
+              <div className="flex justify-center mt-2">
+                <button onClick={() => setVerAreas((v) => !v)} aria-pressed={verAreas} className={`chip text-[12px] ${verAreas ? 'chip-ativo' : ''}`}>
+                  {verAreas ? 'Esconder áreas do Instagram' : 'Ver o que o Instagram cobre'}
+                </button>
+              </div>
+            )}
           </>
         )}
 
@@ -763,6 +831,10 @@ export default function Compartilhar({ perfil, livro, preCarga }: Props) {
             <label className="rotulo" htmlFor="legenda">Legenda</label>
             {legendaEditada && <button onClick={() => setLegendaEditada(false)} className="botao-texto text-xs">Refazer automática</button>}
           </div>
+          <label className="flex items-center gap-2 text-sm text-texto/70 dark:text-bege/65 mb-2 cursor-pointer select-none">
+            <input type="checkbox" checked={comHashtags} onChange={(e) => { setComHashtags(e.target.checked); setLegendaEditada(false) }} className="w-4 h-4 accent-[#B8912F]" />
+            Incluir hashtags <span className="text-xs text-texto/55 dark:text-bege/45">({HASHTAGS})</span>
+          </label>
           <textarea id="legenda" rows={4} value={legenda} onChange={(e) => { setLegenda(e.target.value); setLegendaEditada(true) }}
             className="campo resize-y text-[15px]" placeholder="O texto que vai junto com a imagem." />
         </section>
@@ -774,6 +846,13 @@ export default function Compartilhar({ perfil, livro, preCarga }: Props) {
             {enviando ? 'Preparando…' : partes.length > 1 && modo === 'texto' ? `Compartilhar ${partes.length} imagens e legenda` : 'Compartilhar imagem e legenda'}
           </button>
           {precisaFoto && !foto && <p className="text-xs text-center text-texto/65 dark:text-bege/55">Escolha uma foto para esse modelo.</p>}
+          {modo === 'leitura' && !transparente && ANIMAVEIS.includes(modeloLeitura) && videoSuportado && (
+            <button onClick={criarVideo} disabled={!podeGerar || gravandoVideo}
+              className="w-full rounded-xl border border-dourado/60 bg-dourado/[0.08] py-3 font-semibold text-dourado-escuro dark:text-dourado flex items-center justify-center gap-2 disabled:opacity-50">
+              <Icone nome="seta-direita" className="w-5 h-5" />
+              {gravandoVideo ? 'Gravando o vídeo… (6 s)' : 'Vídeo animado para Reels e Status'}
+            </button>
+          )}
           <div className={`grid gap-2 ${podeCopiarImagem && partes.length <= 1 ? 'grid-cols-4' : 'grid-cols-3'}`}>
             {podeCopiarImagem && partes.length <= 1 && <BotaoAcao icone="imagem" rotulo="Copiar imagem" onClick={copiarImagem} desativado={!podeGerar || (precisaFoto && !foto)} />}
             <BotaoAcao icone="baixar" rotulo={transparente ? 'Baixar PNG' : 'Baixar'} onClick={baixar} desativado={!podeGerar || (precisaFoto && !foto)} />

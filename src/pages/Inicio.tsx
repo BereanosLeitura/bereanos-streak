@@ -630,10 +630,10 @@ export default function Inicio({ perfil, livro, onIr, onBuscar, onPerfilAtualiza
           <div className="p-5 pr-16">
             <div className="flex gap-4">
               {livro.capa_url ? (
-                <img src={livro.capa_url} alt="" className="w-[88px] h-[132px] object-cover rounded shadow-lg shadow-black/30 shrink-0" />
+                <img src={livro.capa_url} alt="" className="w-[104px] h-[156px] object-cover rounded shadow-lg shadow-black/30 shrink-0" />
               ) : (
-                <div className="w-[88px] h-[132px] rounded border border-dourado/40 flex items-center justify-center shrink-0">
-                  <Logo versao="simbolo" sempre="branco" className="h-[90px]" />
+                <div className="w-[104px] h-[156px] rounded border border-dourado/40 flex items-center justify-center shrink-0">
+                  <Logo versao="simbolo" sempre="branco" className="h-[106px]" />
                 </div>
               )}
               <div className="min-w-0">
