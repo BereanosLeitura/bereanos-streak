@@ -1,6 +1,6 @@
 -- Catálogo inicial de conquistas (lista aprovada em 02/11/2026)
--- Rodar depois da migration: supabase db execute -f supabase/seed.sql
--- (ou colar no SQL Editor do painel Supabase)
+-- Já rodado em 02/11/2026. Fica como registro do catálogo inicial.
+-- (Script de uso único, colado no SQL Editor do Supabase depois da 0001.)
 
 insert into public.conquistas (chave, nome, descricao, icone) values
   ('primeira_leitura', 'Primeira leitura concluída', 'Terminou o 1º livro no app', 'book-check'),
