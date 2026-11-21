@@ -134,7 +134,8 @@ function FormRegistro({ perfil, livro, seletor, pendente, onRegistrado, onAnotar
   const ontemChave = (() => { const d = new Date(); d.setDate(d.getDate() - 1); return chaveLocal(d) })()
   const minimoOutroDia = (() => { const d = new Date(); d.setDate(d.getDate() - 90); const lim = chaveLocal(d); return livro.ciclo_inicio && livro.ciclo_inicio > lim ? livro.ciclo_inicio : lim })()
   const outroDiaValido = quando !== 'outro' || (!!outroDia && outroDia <= ontemChave && outroDia >= minimoOutroDia)
-  const podeSalvar = podeSalvarBase && outroDiaValido
+  // enquanto o progresso carrega, "parei na página X" seria contado a partir da 0
+  const podeSalvar = podeSalvarBase && outroDiaValido && !leitura.carregando
   const porDiaNecessario = restantes && restantes > 0 && faltam > 0 ? Math.ceil(faltam / restantes) : null
 
   function dataDoRegistro(): string {
@@ -151,6 +152,7 @@ function FormRegistro({ perfil, livro, seletor, pendente, onRegistrado, onAnotar
     e.preventDefault()
     setErro(null)
     if (minutosInformados > 1440) return setErro('O tempo vai até 1.440 minutos (24 horas).')
+    if (leitura.carregando) return setErro('Espere seu progresso carregar.')
     if (!outroDiaValido) return setErro('Escolha o dia da leitura (de ontem para trás).')
     if (soTempo) {
       if (minutosInformados <= 0) return setErro('Informe quantos minutos você leu.')

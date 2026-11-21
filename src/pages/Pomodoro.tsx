@@ -347,6 +347,10 @@ export default function Pomodoro({ perfil, livro, onFocoAtivo }: Props) {
 
   async function concluir(comPaginas: boolean) {
     if (!sessao || !terminada) return
+    if (comPaginas && leitura.carregando) {
+      avisar('Espere seu progresso carregar', 'erro')
+      return
+    }
     if (comPaginas && paginasDoFim <= 0) {
       avisar(modoFim === 'pagina' ? `Informe uma página depois da ${leitura.paginasLivro}` : 'Informe quantas páginas leu', 'erro')
       return

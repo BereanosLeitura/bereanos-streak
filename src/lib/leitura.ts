@@ -37,24 +37,33 @@ export function useMinhaLeitura(perfil: Perfil, livro: LivroBasico) {
     desde.setDate(desde.getDate() - 400)
     const semanaAtras = new Date()
     semanaAtras.setDate(semanaAtras.getDate() - 7)
-    const consulta = (campos: string) => supabase
+    // Sem internet, nem tenta o servidor: o Supabase repete a tentativa várias
+    // vezes e a tela ficava uns 15 segundos em "carregando". Com internet
+    // ruim, desiste em 8 segundos e usa a cópia do aparelho.
+    const semRede = { data: null, error: new Error('sem internet') }
+    const offline = typeof navigator !== 'undefined' && navigator.onLine === false
+    const consulta = (campos: string) => offline ? Promise.resolve(semRede) : supabase
       .from('registros_leitura')
       .select(campos)
       .eq('membro_id', perfil.id)
       .gte('registrado_em', desde.toISOString())
       .order('registrado_em', { ascending: false })
+      .abortSignal(AbortSignal.timeout(8000))
+      .then((r) => r, () => semRede)
     const [primeira, { data: ss }] = await Promise.all([
       consulta('id, livro_id, origem, paginas_lidas, minutos_lidos, tempo_minutos, registrado_em'),
-      supabase
+      offline ? Promise.resolve(semRede) : supabase
         .from('sessoes_pomodoro')
         .select('fim, duracao_minutos, livro_id')
         .eq('membro_id', perfil.id)
         .eq('status', 'concluida')
         .gte('fim', semanaAtras.toISOString())
+        .abortSignal(AbortSignal.timeout(8000))
+        .then((r) => r, () => semRede)
     ])
     // sem a coluna tempo_minutos (banco ainda não atualizado), busca sem ela
     let data: unknown[] | null = primeira.error ? null : (primeira.data as unknown[])
-    if (primeira.error) {
+    if (primeira.error && !offline && primeira !== semRede) {
       const segunda = await consulta('id, livro_id, origem, paginas_lidas, minutos_lidos, registrado_em')
       data = segunda.error ? null : (segunda.data as unknown[])
     }
