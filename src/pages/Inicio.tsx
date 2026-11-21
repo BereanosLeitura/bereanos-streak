@@ -1,6 +1,7 @@
 import { Fragment, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { BarraBrilho, useNumeroAnimado } from '../components/BarraBrilho'
 import { formatarTempoEstimado } from '../lib/tempo'
+import { juntarNomes } from '../lib/regras'
 import { useCorDaCapa } from '../lib/corCapa'
 import Vazio from '../components/Vazio'
 import ProtecaoSpoiler, { aFrente } from '../components/ProtecaoSpoiler'
@@ -175,8 +176,10 @@ export default function Inicio({ perfil, livro, onIr, onBuscar, onPerfilAtualiza
     setMural((data ?? []).map((n: any) => ({ ...n, nome: n.perfis?.nome_exibicao ?? 'Membro' })))
   }
 
-  async function registrarRapido(paginas: number) {
-    if (registrando) return
+  async function registrarRapido(pedidas: number) {
+    // não passa da última página: +20 com 3 páginas faltando registra 3
+    const paginas = Math.min(pedidas, Math.max(0, livro.paginas_totais - leitura.paginasLivro))
+    if (registrando || paginas <= 0) return
     setRegistrando(true)
     const r = await criarRegistroLeitura({ membro_id: perfil.id, livro_id: livro.id, origem: 'manual', paginas_lidas: paginas, minutos_lidos: null })
     setRegistrando(false)
@@ -185,7 +188,7 @@ export default function Inicio({ perfil, livro, onIr, onBuscar, onPerfilAtualiza
     timerDesfazer.current = setTimeout(() => setUltimoRapido(null), 8000)
     const terminou = leitura.paginasLivro < livro.paginas_totais && leitura.paginasLivro + paginas >= livro.paginas_totais
     const bateuMeta = leitura.paginasHoje < meta && leitura.paginasHoje + paginas >= meta
-    avisar(terminou ? 'Livro concluído. Parabéns!' : bateuMeta ? `Meta do dia cumprida: ${leitura.paginasHoje + paginas} páginas hoje` : `${paginas} páginas registradas`)
+    avisar(terminou ? 'Livro concluído. Parabéns!' : bateuMeta ? `Meta do dia cumprida: ${contar(leitura.paginasHoje + paginas, 'página', 'páginas')} hoje` : `${contar(paginas, 'página registrada', 'páginas registradas')}`)
     leitura.recarregar()
     carregarProgresso()
     setTimeout(verificarConquistas, 1200)
@@ -263,7 +266,7 @@ export default function Inicio({ perfil, livro, onIr, onBuscar, onPerfilAtualiza
               {[5, 10, 20].map((n) => (
                 <button
                   key={n}
-                  disabled={registrando}
+                  disabled={registrando || faltamPaginas === 0}
                   onClick={() => registrarRapido(n)}
                   className="rounded-xl border border-marinho/15 dark:border-bege/15 py-2.5 font-semibold text-marinho dark:text-bege hover:border-dourado hover:bg-dourado/5 disabled:opacity-50 transition-colors"
                 >
@@ -483,10 +486,10 @@ export default function Inicio({ perfil, livro, onIr, onBuscar, onPerfilAtualiza
             </span>
             <div className="text-[15px] text-marinho dark:text-bege space-y-1">
               {aniversariantes.filter((a) => a.dias === 0).length > 0 && (
-                <p>Hoje é aniversário de <span className="font-semibold">{aniversariantes.filter((a) => a.dias === 0).map((a) => a.nome).join(' e ')}</span>. Manda um abraço no grupo.</p>
+                <p>Hoje é aniversário de <span className="font-semibold">{juntarNomes(aniversariantes.filter((a) => a.dias === 0).map((a) => a.nome))}</span>. Manda um abraço no grupo.</p>
               )}
               {aniversariantes.filter((a) => a.dias > 0).map((a) => (
-                <p key={a.nome} className="text-sm text-texto/70 dark:text-bege/70">
+                <p key={a.nome + a.dias} className="text-sm text-texto/70 dark:text-bege/70">
                   <span className="font-semibold text-marinho dark:text-bege">{a.nome}</span> faz aniversário {a.dias === 1 ? 'amanhã' : `${/sábado|domingo/.test(a.data) ? 'no' : 'na'} ${a.data.split(',')[0]}`}, {a.data.split(', ')[1]}.
                 </p>
               ))}
@@ -675,7 +678,7 @@ function CartaoMetas({ metas, leitura, livro, onAbrir }: {
     const fim = m.periodo_fim ?? '9999'
     const dentro = (iso: string) => { const k = chaveDia(iso); return k >= ini && k <= fim }
     const ritmo = leitura.ritmo
-    if (m.tipo === 'sessoes_semanais') return [leitura.sessoes.filter((x) => dentro(x.fim)).length, m.valor_sessoes ?? 0]
+    if (m.tipo === 'sessoes_semanais') return [leitura.sessoes.filter((x) => (!x.livro_id || x.livro_id === livro.id) && dentro(x.fim)).length, m.valor_sessoes ?? 0]
     if (m.tipo === 'dias_semanais') return [new Set(leitura.doLivro.filter((r) => dentro(r.registrado_em)).map((r) => chaveDia(r.registrado_em))).size, m.valor_dias ?? 0]
     if (m.tipo === 'livro_total') return [leitura.paginasLivro, livro.paginas_totais]
     const soma = leitura.doLivro.filter((r) => dentro(r.registrado_em)).reduce((a, r) => a + paginasEquivalentes(r, ritmo), 0)
@@ -846,7 +849,7 @@ function MapaAtividade({ porDia }: { porDia: Map<string, number> }) {
           return (
             <span
               key={k}
-              title={futuro ? '' : `${formatarData(k)}: ${Math.round(p)} páginas`}
+              title={futuro ? '' : `${formatarData(k)}: ${contar(p, 'página', 'páginas')}`}
               className={`aspect-square rounded-[4px] ${futuro ? 'opacity-0' : nivel(p)} ${k === hoje ? 'ring-1 ring-marinho/50 dark:ring-bege/60' : ''}`}
             />
           )
@@ -881,7 +884,7 @@ function RitmoCiclo({ leitura, livro }: { leitura: ReturnType<typeof useMinhaLei
     )
   }
   const frase = leitura.paginasLivro >= livro.paginas_totais ? 'Livro concluído. A linha mostra o caminho até aqui.'
-    : diferenca === null ? 'O ciclo ainda não tem data de término. Quando a moderação definir, aparece a linha do ritmo ideal para comparar.'
+    : diferenca === null ? 'O ciclo ainda não tem data de término. Quando o admin definir, aparece a linha do ritmo do ciclo para comparar.'
     : Math.abs(diferenca) <= 2 ? 'Você está no ritmo do ciclo.'
     : diferenca > 0 ? `${diferenca} ${diferenca === 1 ? 'página' : 'páginas'} adiante do ritmo do ciclo.`
     : `${-diferenca} ${diferenca === -1 ? 'página' : 'páginas'} atrás do ritmo. Sem pressa: cada página conta.`

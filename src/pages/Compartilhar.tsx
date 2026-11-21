@@ -242,11 +242,11 @@ export default function Compartilhar({ perfil, livro, preCarga }: Props) {
         return `${s} ${s === 1 ? 'dia seguido' : 'dias seguidos'} de leitura${nomeLivro ? `, lendo ${nomeLivro}` : ''}. Clube do Livro Bereanos.`
       case 'retrospectiva':
         return retro
-          ? `Minha leitura de${de}: ${retro.paginas} páginas em ${retro.dias} ${retro.dias === 1 ? 'dia' : 'dias'}${retro.anotacoes.trecho + retro.anotacoes.reflexao + retro.anotacoes.pergunta + retro.anotacoes.aplicacao ? `, com ${retro.anotacoes.trecho + retro.anotacoes.reflexao + retro.anotacoes.pergunta + retro.anotacoes.aplicacao} anotações` : ''}. Clube do Livro Bereanos.`
+          ? `Minha leitura de${de}: ${contar(retro.paginas, 'página', 'páginas')} em ${retro.dias} ${retro.dias === 1 ? 'dia' : 'dias'}${retro.anotacoes.trecho + retro.anotacoes.reflexao + retro.anotacoes.pergunta + retro.anotacoes.aplicacao ? `, com ${contar(retro.anotacoes.trecho + retro.anotacoes.reflexao + retro.anotacoes.pergunta + retro.anotacoes.aplicacao, 'anotação', 'anotações')}` : ''}. Clube do Livro Bereanos.`
           : ''
       case 'grupo':
         return panorama
-          ? `${panorama.paginasGrupo} páginas lidas juntos${nomeLivro ? ` em ${nomeLivro}` : ''}, por ${panorama.leitores} ${panorama.leitores === 1 ? 'leitor' : 'leitores'}. Ler, examinar, dialogar e aplicar, no Clube do Livro Bereanos.`
+          ? `${contar(panorama.paginasGrupo, 'página lida', 'páginas lidas')} juntos${nomeLivro ? ` em ${nomeLivro}` : ''}, por ${panorama.leitores} ${panorama.leitores === 1 ? 'leitor' : 'leitores'}. Ler, examinar, dialogar e aplicar, no Clube do Livro Bereanos.`
           : ''
       case 'terminei':
         return `Terminei de ler${nomeLivro ? ` ${nomeLivro}` : ' mais um livro'}. ${livro.paginas_totais} páginas com o Clube do Livro Bereanos.`

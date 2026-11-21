@@ -30,7 +30,7 @@ Protótipo pessoal de Felipe para acompanhar a leitura coletiva do Clube do Livr
 
 ## Banco de dados (Supabase)
 
-As migrações ficam em `supabase/migrations`, de `0001` a `0016`, e devem ser rodadas em ordem no SQL Editor.
+As migrações ficam em `supabase/migrations`, de `0001` a `0019`, e devem ser rodadas em ordem no SQL Editor. A `0019` (Retirar do mural sem apagar a anotação) precisa rodar antes de publicar a versão que a usa.
 
 A função `supabase/functions/admin-membros` roda no servidor do Supabase (Edge Functions). Para publicar ou atualizar: painel do Supabase, Edge Functions, abrir `admin-membros` (ou criar com esse nome), colar o conteúdo de `index.ts` e clicar em Deploy. Ela usa a `service_role key` do próprio servidor, que nunca vai para o app.
 
@@ -61,3 +61,4 @@ A função `supabase/functions/admin-membros` roda no servidor do Supabase (Edge
 - A `anon key` é pública por natureza; quem protege os dados é o RLS
 - O bucket de capas é público pelo link, mas não permite listar os arquivos (0016)
 - O anotador do encontro só edita roteiro, perguntas discutidas, ata e presença (0016)
+- O admin retira uma anotação do mural sem apagá-la do caderno de quem escreveu (0019)

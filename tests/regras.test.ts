@@ -3,7 +3,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
-import { formatarTempo, formatarTempoEstimado, marcoAtravessado, aFrente, dataDoRegistro } from '../src/lib/regras.ts'
+import { formatarTempo, formatarTempoEstimado, marcoAtravessado, aFrente, dataDoRegistro, juntarNomes, terminouLivro, dataLocal, limitesDoPeriodo } from '../src/lib/regras.ts'
 import { contar, chaveDia, paginasEquivalentes, paginasPorDia, sequenciaAtual, maiorSequencia, diasAte } from '../src/lib/estatisticas.ts'
 import { ROTEIRO_PADRAO } from '../src/lib/roteiro.ts'
 
@@ -134,4 +134,31 @@ test('mensagem da semana inclui o encontro quando há data', () => {
     NUMEROS
   )
   assert.match(t, /Próximo encontro: .*28 de novembro, às \d{2}:\d{2}, Igreja, Sala dos Jovens\./)
+})
+
+test('juntarNomes usa vírgula e "e" no último', () => {
+  assert.equal(juntarNomes([]), '')
+  assert.equal(juntarNomes(['Ana']), 'Ana')
+  assert.equal(juntarNomes(['Ana', 'Bia']), 'Ana e Bia')
+  assert.equal(juntarNomes(['Ana', 'Bia', 'Caio']), 'Ana, Bia e Caio')
+})
+
+test('terminouLivro aceita a última página ou a marcação "Terminei"', () => {
+  assert.equal(terminouLivro(208, 208), true)
+  assert.equal(terminouLivro(150, 208), false)
+  assert.equal(terminouLivro(150, 208, 'terminou'), true)
+  assert.equal(terminouLivro(150, 208, 'deixou'), false)
+})
+
+test('dataLocal não vira o dia às 22h (fuso de Fortaleza)', () => {
+  const d = new Date(2026, 10, 21, 22, 30) // 21/11, 22h30 no horário local
+  assert.equal(dataLocal(d), '2026-11-21')
+})
+
+test('limitesDoPeriodo cobre o dia local inteiro', () => {
+  const { de, ate } = limitesDoPeriodo('2026-11-15', '2026-11-21')
+  assert.equal(new Date(de).getDate(), 15)
+  assert.equal(new Date(de).getHours(), 0)
+  assert.equal(new Date(ate).getDate(), 21)
+  assert.equal(new Date(ate).getHours(), 23)
 })

@@ -80,7 +80,7 @@ function Voce({ m, livro }: { m: MetricasVoce; livro: LivroAtivo }) {
           <Num v={`${m.ciclo.pct}%`} r="lido" />
           <Num v={m.ciclo.paginas} r={m.ciclo.paginas === 1 ? 'página' : 'páginas'} />
           <Num v={m.ciclo.dias} r={m.ciclo.dias === 1 ? 'dia de leitura' : 'dias de leitura'} />
-          <Num v={m.ciclo.mediaPorDia} r="páginas por dia lido" />
+          <Num v={m.ciclo.mediaPorDia} r="páginas por dia de leitura" />
           <Num v={m.ciclo.minutos ? formatarTempo(m.ciclo.minutos) : '—'} r="tempo de leitura" />
           <Num v={m.ciclo.registros} r={m.ciclo.registros === 1 ? 'registro' : 'registros'} />
         </dl>

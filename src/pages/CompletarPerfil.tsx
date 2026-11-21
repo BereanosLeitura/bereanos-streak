@@ -34,6 +34,10 @@ export default function CompletarPerfil({ userId, onConcluido }: Props) {
     e.preventDefault()
     setErro(null)
 
+    if (nomeCompleto.trim().length < 3 || !nomeExibicao.trim()) {
+      setErro('Preencha seu nome completo e o nome que aparece para o grupo.')
+      return
+    }
     if (novaSenha.length < 8) {
       setErro('A nova senha precisa ter pelo menos 8 caracteres.')
       return
@@ -51,8 +55,8 @@ export default function CompletarPerfil({ userId, onConcluido }: Props) {
     const { error: erroPerfil } = await supabase
       .from('perfis')
       .update({
-        nome_completo: nomeCompleto,
-        nome_exibicao: nomeExibicao,
+        nome_completo: nomeCompleto.trim(),
+        nome_exibicao: nomeExibicao.trim(),
         data_nascimento: dataNascimento || null,
         senha_temporaria: false
       })

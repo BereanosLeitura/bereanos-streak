@@ -6,6 +6,8 @@ import { apagarComDesfazer, useAviso } from '../components/Toast'
 import Icone, { type NomeIcone } from '../components/Icone'
 import Avatar from '../components/Avatar'
 import { chaveDia, formatarData, paginasEquivalentes, tempoRelativo } from '../lib/estatisticas'
+import { buscarConclusoes, type StatusLeitura } from '../lib/pendentes'
+import { terminouLivro } from '../lib/regras'
 import { apagarRegistroLeitura } from '../lib/sync'
 import { useContagem } from '../lib/preferencias'
 import { abrirRelatorioCiclo } from '../lib/relatorio'
@@ -53,6 +55,7 @@ export default function LivroDetalhe({ perfil, livroId, onVoltar, rotuloVoltar =
   const [sessoes, setSessoes] = useState<{ duracao_minutos: number | null }[]>([])
   const [conquistas, setConquistas] = useState<{ nome: string }[]>([])
   const [aba, setAba] = useState<Aba>('minhas')
+  const [conclusoes, setConclusoes] = useState<Map<string, StatusLeitura>>(new Map())
   const contagem = useContagem()
   const [retro, setRetro] = useState<Retrospectiva | null>(null)
   const [destaques, setDestaques] = useState<Set<string>>(new Set())
@@ -70,6 +73,7 @@ export default function LivroDetalhe({ perfil, livroId, onVoltar, rotuloVoltar =
         supabase.from('sessoes_pomodoro').select('duracao_minutos').eq('livro_id', livroId).eq('membro_id', perfil.id).eq('status', 'concluida'),
         supabase.from('membro_conquistas').select('conquistas(nome)').eq('membro_id', perfil.id).eq('livro_id', livroId)
       ])
+      buscarConclusoes({ livroId }).then(setConclusoes)
       setLivro(l.data as Livro)
       if (l.data) atualizarRetro(l.data as Livro)
       supabase.from('destaques').select('anotacao_id').then(({ data }) => setDestaques(new Set((data ?? []).map((d) => d.anotacao_id))))
@@ -98,9 +102,10 @@ export default function LivroDetalhe({ perfil, livroId, onVoltar, rotuloVoltar =
       primeiro: ordenados[0]?.registrado_em ?? null,
       ultimo: ordenados[ordenados.length - 1]?.registrado_em ?? null,
       leitores: porMembro.size,
-      terminaram: livro ? [...porMembro.values()].filter((p) => p >= livro.paginas_totais).length : 0
+      terminaram: livro ? [...new Set([...porMembro.keys(), ...[...conclusoes.keys()].map((k) => k.split(':')[1])])]
+        .filter((m) => terminouLivro(porMembro.get(m) ?? 0, livro.paginas_totais, conclusoes.get(`${livro.id}:${m}`))).length : 0
     }
-  }, [registros, livro, perfil.id, ritmo])
+  }, [registros, livro, perfil.id, ritmo, conclusoes])
 
   const minhas = notas.filter((n) => n.membro_id === perfil.id)
   const mural = notas.filter((n) => n.compartilhada)
@@ -214,7 +219,7 @@ export default function LivroDetalhe({ perfil, livroId, onVoltar, rotuloVoltar =
               {chaveDia(dados.primeiro) === chaveDia(dados.ultimo!)
                 ? `Você leu em ${formatarData(dados.primeiro)}.`
                 : `Você leu de ${formatarData(dados.primeiro)} a ${formatarData(dados.ultimo!)}.`}
-              {' '}O grupo teve {dados.leitores} {dados.leitores === 1 ? 'leitor' : 'leitores'}{dados.terminaram ? `, ${dados.terminaram} terminaram` : ''}.
+              {' '}O grupo teve {dados.leitores} {dados.leitores === 1 ? 'leitor' : 'leitores'}{dados.terminaram ? `, ${dados.terminaram} ${dados.terminaram === 1 ? 'terminou' : 'terminaram'}` : ''}.
             </p>
           )}
           {contagem && conquistas.length > 0 && (
@@ -235,7 +240,7 @@ export default function LivroDetalhe({ perfil, livroId, onVoltar, rotuloVoltar =
               {contagem && <Destaque icone="chama" texto={`${retro.maiorSequencia} ${retro.maiorSequencia === 1 ? 'dia seguido' : 'dias seguidos'} foi sua maior sequência neste livro.`} />}
               {retro.melhorDia && <Destaque icone="alvo" texto={`Seu melhor dia foi ${formatarData(retro.melhorDia.data, { day: 'numeric', month: 'long' })}, com ${retro.melhorDia.paginas} ${retro.melhorDia.paginas === 1 ? 'página' : 'páginas'}.`} />}
               {retro.horarioPreferido && <Destaque icone="relogio" texto={`Você leu mais ${retro.horarioPreferido}.`} />}
-              {retro.minutos > 0 && <Destaque icone="relogio" texto={`${retro.minutos >= 60 ? `${String(Math.round(retro.minutos / 6) / 10).replace('.', ',')} horas` : `${retro.minutos} minutos`} de leitura${retro.sessoes ? `, com ${retro.sessoes} ${retro.sessoes === 1 ? 'sessão' : 'sessões'} de foco` : ''}.`} />}
+              {retro.minutos > 0 && <Destaque icone="relogio" texto={`${formatarTempo(retro.minutos)} de leitura${retro.sessoes ? `, com ${retro.sessoes} ${retro.sessoes === 1 ? 'sessão' : 'sessões'} de foco` : ''}.`} />}
               {retro.anotacoes.trecho + retro.anotacoes.reflexao + retro.anotacoes.pergunta + retro.anotacoes.aplicacao > 0 && (
                 <Destaque icone="nota" texto={'Você anotou ' + [
                   retro.anotacoes.trecho && `${retro.anotacoes.trecho} ${retro.anotacoes.trecho === 1 ? 'trecho' : 'trechos'}`,
@@ -343,7 +348,7 @@ export default function LivroDetalhe({ perfil, livroId, onVoltar, rotuloVoltar =
                       <Icone nome={r.origem === 'pomodoro' ? 'relogio' : 'pena'} className="w-4 h-4" />
                     </span>
                     <div className="flex-1">
-                      <p className="text-[15px] text-marinho dark:text-bege">{r.paginas_lidas ? `${r.paginas_lidas} páginas` : `${r.minutos_lidos} min de ${r.origem === 'pomodoro' ? 'foco' : 'leitura'}`}</p>
+                      <p className="text-[15px] text-marinho dark:text-bege">{r.paginas_lidas ? `${r.paginas_lidas} ${r.paginas_lidas === 1 ? 'página' : 'páginas'}` : `${formatarTempo(r.minutos_lidos ?? 0)} de ${r.origem === 'pomodoro' ? 'foco' : 'leitura'}`}</p>
                       <p className="text-xs text-texto/65 dark:text-bege/55">
                         {new Date(r.registrado_em).toLocaleString('pt-BR', { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
                       </p>

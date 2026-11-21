@@ -47,3 +47,19 @@ export async function buscarPerfilAtual(): Promise<Perfil | null> {
   }
   return data as Perfil
 }
+
+/**
+ * Busca todas as linhas, de 1.000 em 1.000. O Supabase devolve no máximo 1.000
+ * linhas por consulta; sem isto, a Memória do clube e o backup passariam a
+ * contar menos do que existe, sem aviso, quando o histórico crescer.
+ * `montar` precisa criar a consulta do zero a cada chamada e ter uma ordem fixa.
+ */
+export async function buscarTodas<T>(montar: () => any, passo = 1000): Promise<{ data: T[]; error: unknown }> {
+  const todas: T[] = []
+  for (let de = 0; ; de += passo) {
+    const { data, error } = await montar().range(de, de + passo - 1)
+    if (error) return { data: todas, error }
+    todas.push(...((data ?? []) as T[]))
+    if (!data || data.length < passo) return { data: todas, error: null }
+  }
+}

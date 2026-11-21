@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { tempoManual } from '../lib/tempo'
+import { formatarTempo, tempoManual } from '../lib/tempo'
 import { supabase, type Perfil } from '../lib/supabase'
 import { useAviso } from '../components/Toast'
 import Icone from '../components/Icone'
@@ -183,7 +183,7 @@ export default function Ano({ perfil, onVoltar }: { perfil: Perfil; onVoltar: ()
   async function compartilhar(baixar = false) {
     if (!canvas.current) return
     const arq = await canvasParaArquivo(canvas.current, `meu-ano-de-leitura-${ano}.png`)
-    const legenda = `Meu ano de leitura em ${ano}: ${d?.paginas} páginas${d?.livros.length ? ` em ${d.livros.length} ${d.livros.length === 1 ? 'livro' : 'livros'}` : ''}. Ler, examinar, dialogar e aplicar. Clube do Livro Bereanos.`
+    const legenda = `Meu ano de leitura em ${ano}: ${contar(d?.paginas ?? 0, 'página', 'páginas')}${d?.livros.length ? ` em ${d.livros.length} ${d.livros.length === 1 ? 'livro' : 'livros'}` : ''}. Ler, examinar, dialogar e aplicar. Clube do Livro Bereanos.`
     if (!baixar && navigator.canShare?.({ files: [arq] })) {
       try { await navigator.share({ files: [arq], text: legenda }); return } catch { return }
     }
@@ -216,7 +216,7 @@ export default function Ano({ perfil, onVoltar }: { perfil: Perfil; onVoltar: ()
               <dl className="grid grid-cols-3 gap-3 mt-6 pt-5 border-t border-dourado/30 text-center">
                 <Num v={d.livros.length} r={d.livros.length === 1 ? 'livro' : 'livros'} />
                 <Num v={d.dias} r={d.dias === 1 ? 'dia de leitura' : 'dias de leitura'} />
-                <Num v={minutos >= 60 ? `${Math.floor(minutos / 60)}h${minutos % 60 ? String(minutos % 60).padStart(2, '0') : ''}` : `${minutos}min`} r="de leitura" />
+                <Num v={formatarTempo(minutos)} r="de leitura" />
                 <Num v={d.anotacoes} r={d.anotacoes === 1 ? 'anotação' : 'anotações'} />
                 <Num v={d.terminados} r={d.terminados === 1 ? 'terminado' : 'terminados'} />
                 {contagem ? <Num v={d.sequencia} r="dias seguidos, no máximo" /> : <Num v={sessoes} r={sessoes === 1 ? 'sessão de foco' : 'sessões de foco'} />}

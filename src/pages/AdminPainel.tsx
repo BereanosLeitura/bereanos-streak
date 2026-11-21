@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { supabase } from '../lib/supabase'
+import { supabase, buscarTodas } from '../lib/supabase'
+import { dataLocal } from '../lib/regras'
 import { useAviso } from '../components/Toast'
 import Icone from '../components/Icone'
 import Avatar from '../components/Avatar'
@@ -575,17 +576,20 @@ function ConfigClube({ livro, resumo, onAbrirIndicacoes }: { livro: LivroAtivo |
     setBaixando(true)
     try {
       const [regs, notas, pres] = await Promise.all([
-        supabase.from('registros_leitura').select('registrado_em, origem, paginas_lidas, minutos_lidos, perfis(nome_exibicao), livros(titulo)').order('registrado_em'),
-        supabase.from('anotacoes').select('created_at, tipo, pagina, referencia, texto, compartilhada, perfis(nome_exibicao), livros(titulo)').eq('compartilhada', true).order('created_at'),
+        // de 1.000 em 1.000: o backup não pode sair cortado quando o histórico crescer
+        buscarTodas(() => supabase.from('registros_leitura').select('id, registrado_em, origem, paginas_lidas, minutos_lidos, tempo_minutos, perfis(nome_exibicao), livros(titulo)').order('registrado_em').order('id')),
+        buscarTodas(() => supabase.from('anotacoes').select('id, created_at, tipo, pagina, referencia, texto, compartilhada, perfis(nome_exibicao), livros(titulo)').eq('compartilhada', true).order('created_at').order('id')),
         supabase.from('presencas').select('perfis(nome_exibicao), encontros(data, livros(titulo))')
       ])
-      const hoje = new Date().toISOString().slice(0, 10)
-      baixarCsv(`bereanos-registros-${hoje}.csv`, ['data', 'membro', 'livro', 'origem', 'páginas', 'minutos'],
-        ((regs.data ?? []) as any[]).map((r) => [r.registrado_em, r.perfis?.nome_exibicao, r.livros?.titulo, r.origem, r.paginas_lidas, r.minutos_lidos]))
+      if (regs.error || notas.error || pres.error) throw new Error('falha')
+      const hoje = dataLocal(new Date())
+      const quando = (iso: string) => new Date(iso).toLocaleString('pt-BR')
+      baixarCsv(`bereanos-registros-${hoje}.csv`, ['data', 'membro', 'livro', 'origem', 'páginas', 'minutos (convertidos em páginas)', 'tempo informado (min)'],
+        ((regs.data ?? []) as any[]).map((r) => [quando(r.registrado_em), r.perfis?.nome_exibicao, r.livros?.titulo, r.origem, r.paginas_lidas, r.minutos_lidos, r.tempo_minutos]))
       baixarCsv(`bereanos-mural-${hoje}.csv`, ['data', 'membro', 'livro', 'tipo', 'página', 'referência', 'texto'],
-        ((notas.data ?? []) as any[]).map((n) => [n.created_at, n.perfis?.nome_exibicao, n.livros?.titulo, n.tipo, n.pagina, n.referencia, n.texto]))
+        ((notas.data ?? []) as any[]).map((n) => [quando(n.created_at), n.perfis?.nome_exibicao, n.livros?.titulo, n.tipo, n.pagina, n.referencia, n.texto]))
       baixarCsv(`bereanos-presencas-${hoje}.csv`, ['encontro', 'livro', 'membro'],
-        ((pres.data ?? []) as any[]).map((p) => [p.encontros?.data, p.encontros?.livros?.titulo, p.perfis?.nome_exibicao]))
+        ((pres.data ?? []) as any[]).map((p) => [p.encontros?.data ? quando(p.encontros.data) : '', p.encontros?.livros?.titulo, p.perfis?.nome_exibicao]))
       avisar('Três planilhas baixadas')
     } catch {
       avisar('Não foi possível gerar o backup', 'erro')

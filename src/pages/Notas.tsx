@@ -143,7 +143,8 @@ export default function Notas({ perfil, livro, inicial, onCompartilhar }: Props)
   async function salvar() {
     if (!texto.trim() || !editor) return
     setSalvando(true)
-    const campos = { tipo, texto: texto.trim(), pagina: pagina ? parseInt(pagina, 10) : null, referencia: referencia.trim() || null, compartilhada: noMural }
+    const pg = pagina ? parseInt(pagina, 10) : NaN
+    const campos = { tipo, texto: texto.trim(), pagina: pg > 0 ? Math.min(pg, livro.paginas_totais) : null, referencia: referencia.trim() || null, compartilhada: noMural }
     const { error } = editor.id
       ? await supabase.from('anotacoes').update(campos).eq('id', editor.id)
       : await supabase.from('anotacoes').insert({ ...campos, membro_id: perfil.id, livro_id: livro.id })
@@ -180,7 +181,13 @@ export default function Notas({ perfil, livro, inicial, onCompartilhar }: Props)
       avisar, texto: n.membro_id === perfil.id ? 'Anotação apagada' : 'Anotação retirada do mural',
       esconder: () => setNotas((l) => l?.filter((x) => x.id !== n.id) ?? null),
       restaurar: () => setNotas(antes),
-      apagar: async () => !(await supabase.from('anotacoes').delete().eq('id', n.id)).error
+      apagar: async () => {
+        if (n.membro_id === perfil.id) return !(await supabase.from('anotacoes').delete().eq('id', n.id)).error
+        // Anotação de outro membro: o admin só tira do mural; o texto continua
+        // no caderno de quem escreveu (migração 0019).
+        const { error } = await supabase.rpc('retirar_do_mural', { anotacao: n.id })
+        return !error
+      }
     })
   }
 

@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from 'react'
-import { tempoManual } from '../lib/tempo'
-import { supabase, type Perfil as TPerfil } from '../lib/supabase'
+import { formatarTempo, tempoManual } from '../lib/tempo'
+import { buscarConclusoes } from '../lib/pendentes'
+import { terminouLivro } from '../lib/regras'
+import { supabase, buscarTodas, type Perfil as TPerfil } from '../lib/supabase'
 import { useAviso } from '../components/Toast'
 import Avatar from '../components/Avatar'
 import { BarraBrilho } from '../components/BarraBrilho'
@@ -45,6 +47,7 @@ export default function Perfil({ perfil, tema, onMudarTema, onPerfilAtualizado, 
   const [nome, setNome] = useState(perfil.nome_exibicao)
   const [nascimento, setNascimento] = useState(perfil.data_nascimento ?? '')
   const [ritmo, setRitmo] = useState(String(perfil.ritmo_leitura_min_por_pagina))
+  const [conclusoes, setConclusoes] = useState<Map<string, string>>(new Map())
   const [livros, setLivros] = useState<{ id: string; titulo: string; autor: string | null; capa_url: string | null; paginas_totais: number; status: string }[]>([])
   const avisar = useAviso()
   const contagem = useContagem()
@@ -71,12 +74,14 @@ export default function Perfil({ perfil, tema, onMudarTema, onPerfilAtualizado, 
   async function carregar() {
     supabase.from('livros').select('id, titulo, autor, capa_url, paginas_totais, status').order('created_at', { ascending: false })
       .then(({ data }) => setLivros(data ?? []))
+    buscarConclusoes({ membroId: perfil.id }).then(setConclusoes)
     const [regs, sess, cat, mc] = await Promise.all([
-      supabase
+      buscarTodas<Registro>(() => supabase
         .from('registros_leitura')
         .select('id, livro_id, origem, paginas_lidas, minutos_lidos, registrado_em')
         .eq('membro_id', perfil.id)
-        .order('registrado_em', { ascending: false }),
+        .order('registrado_em', { ascending: false })
+        .order('id')),
       supabase
         .from('sessoes_pomodoro')
         .select('duracao_minutos')
@@ -106,7 +111,7 @@ export default function Perfil({ perfil, tema, onMudarTema, onPerfilAtualizado, 
   async function salvarPerfil() {
     const r = parseFloat(ritmo.replace(',', '.'))
     if (!nome.trim()) return avisar('Informe um nome', 'erro')
-    if (!r || r <= 0 || r > 30) return avisar('Ritmo entre 0,5 e 30 minutos por página', 'erro')
+    if (!r || r < 0.5 || r > 30) return avisar('Ritmo entre 0,5 e 30 minutos por página', 'erro')
     const novo = { nome_exibicao: nome.trim(), data_nascimento: nascimento || null, ritmo_leitura_min_por_pagina: r }
     const { error } = await supabase.from('perfis').update(novo).eq('id', perfil.id)
     if (error) return avisar('Não foi possível salvar', 'erro')
@@ -120,8 +125,10 @@ export default function Perfil({ perfil, tema, onMudarTema, onPerfilAtualizado, 
   }
 
   const horarios = useMemo(() => mapaHorarios(registros ?? [], ritmoNum), [registros, ritmoNum])
-  const livrosTerminados = livros.filter((l) => (registros ?? []).filter((r) => r.livro_id === l.id)
-    .reduce((a, r) => a + paginasEquivalentes(r, ritmoNum), 0) >= l.paginas_totais).length
+  // mesma regra das outras telas: última página registrada ou "Terminei" marcado
+  const livrosTerminados = livros.filter((l) => terminouLivro(
+    (registros ?? []).filter((r) => r.livro_id === l.id).reduce((a, r) => a + paginasEquivalentes(r, ritmoNum), 0),
+    l.paginas_totais, conclusoes.get(`${l.id}:${perfil.id}`))).length
 
   async function mudarContagem(v: boolean | null) {
     const { error } = await supabase.from('perfis').update({ mostrar_contagem: v }).eq('id', perfil.id)
@@ -153,10 +160,10 @@ export default function Perfil({ perfil, tema, onMudarTema, onPerfilAtualizado, 
         {/* Números */}
         <section className="grid grid-cols-3 gap-px rounded-2xl overflow-hidden bg-dourado/15 mt-6 border border-dourado/15">
           {[
-            [estat.paginas, 'páginas lidas'],
-            [minutosFoco >= 60 ? Math.round(minutosFoco / 6) / 10 : minutosFoco, minutosFoco >= 60 ? 'horas de leitura' : 'min de leitura'],
-            [sessoes, 'sessões'],
-            [estat.diasLidos, 'dias com leitura'],
+            [estat.paginas, estat.paginas === 1 ? 'página lida' : 'páginas lidas'],
+            [minutosFoco >= 60 ? formatarTempo(minutosFoco) : minutosFoco, minutosFoco >= 60 ? 'de leitura' : 'min de leitura'],
+            [sessoes, sessoes === 1 ? 'sessão' : 'sessões'],
+            [estat.diasLidos, estat.diasLidos === 1 ? 'dia com leitura' : 'dias com leitura'],
             ...(contagem
               ? [[estat.atual, 'sequência atual'], [estat.maior, 'maior sequência']]
               : [[livrosTerminados, livrosTerminados === 1 ? 'livro terminado' : 'livros terminados'], [livros.length, livros.length === 1 ? 'livro no clube' : 'livros no clube']])

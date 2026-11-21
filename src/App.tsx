@@ -95,6 +95,7 @@ function Aplicativo() {
   const [livroCompartilhar, setLivroCompartilhar] = useState<LivroAtivo | null>(null) // livro da Estante, quando a imagem é de um ciclo passado
   const [verGuia, setVerGuia] = useState(false)
   const [livroEncontro, setLivroEncontro] = useState<LivroAtivo | null>(null) // encontro de um ciclo passado
+  const [entreCiclos, setEntreCiclos] = useState<'menu' | 'indicacoes' | 'memoria'>('menu')
   // Caminho percorrido até a tela de agora. O botão voltar desempilha, então
   // Perfil > Memória > Livro volta para Memória, e não para a última tela
   // que por acaso tenha sido aberta antes.
@@ -252,11 +253,28 @@ function Aplicativo() {
         </div>
       )
     }
+    // Entre um ciclo e outro o app não fica vazio: dá para indicar o próximo
+    // livro e rever a memória do clube.
+    if (entreCiclos !== 'menu') {
+      return (
+        <div className="min-h-screen pb-6">
+          <Suspense fallback={<TelaCarregando />}>
+            {entreCiclos === 'indicacoes'
+              ? <Indicacoes perfil={perfil} onVoltar={() => setEntreCiclos('menu')} rotuloVoltar="Voltar" />
+              : <Memoria onVoltar={() => setEntreCiclos('menu')} rotuloVoltar="Voltar" />}
+          </Suspense>
+        </div>
+      )
+    }
     return (
       <div className="min-h-screen flex flex-col items-center justify-center p-8 text-center">
         <Icone nome="livro" className="w-10 h-10 text-dourado" />
         <h1 className="font-serif text-2xl text-marinho dark:text-bege mt-4">Entre um livro e outro</h1>
         <p className="legenda mt-2 max-w-xs">O próximo livro do ciclo aparece aqui assim que o admin cadastrar.</p>
+        <div className="mt-8 w-full max-w-xs space-y-2">
+          <button onClick={() => setEntreCiclos('indicacoes')} className="botao-secundario">Indicar o próximo livro</button>
+          <button onClick={() => setEntreCiclos('memoria')} className="botao-secundario">Memória do clube</button>
+        </div>
         <button onClick={() => supabase.auth.signOut()} className="botao-texto mt-8">Sair da conta</button>
       </div>
     )

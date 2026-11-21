@@ -2,7 +2,8 @@ import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import type { Perfil } from '../lib/supabase'
 import type { LivroAtivo } from './Inicio'
-import { formatarData } from '../lib/estatisticas'
+import { chaveDia, formatarData } from '../lib/estatisticas'
+import { dataLocal, limitesDoPeriodo } from '../lib/regras'
 import Icone from '../components/Icone'
 
 interface Props {
@@ -68,14 +69,18 @@ export default function Metas({ perfil, livro, onVoltar, rotuloVoltar = 'Voltar'
     for (const m of lista) {
       if (!m.periodo_inicio || !m.periodo_fim) continue
 
+      // períodos em datas locais: um registro às 22h conta no dia certo
+      const { de, ate } = limitesDoPeriodo(m.periodo_inicio, m.periodo_fim)
+
       if (m.tipo === 'semanal' || m.tipo === 'mensal' || m.tipo === 'livro_total') {
-        const { data } = await supabase
+        let q = supabase
           .from('registros_leitura')
           .select('paginas_lidas, minutos_lidos, registrado_em')
           .eq('membro_id', perfil.id)
           .eq('livro_id', livro.id)
-          .gte('registrado_em', m.periodo_inicio)
-          .lte('registrado_em', m.periodo_fim + 'T23:59:59')
+        // "terminar o livro" conta tudo o que já foi lido dele, como no Início
+        if (m.tipo !== 'livro_total') q = q.gte('registrado_em', de).lte('registrado_em', ate)
+        const { data } = await q
 
         const soma = (data ?? []).reduce(
           (acc, r) => acc + (r.paginas_lidas ?? 0) + (r.minutos_lidos ? r.minutos_lidos / ritmo : 0),
@@ -91,8 +96,8 @@ export default function Metas({ perfil, livro, onVoltar, rotuloVoltar = 'Voltar'
           .eq('membro_id', perfil.id)
           .eq('livro_id', livro.id)
           .eq('status', 'concluida')
-          .gte('fim', m.periodo_inicio)
-          .lte('fim', m.periodo_fim + 'T23:59:59')
+          .gte('fim', de)
+          .lte('fim', ate)
         novoProgresso[m.id] = count ?? 0
       }
 
@@ -102,9 +107,9 @@ export default function Metas({ perfil, livro, onVoltar, rotuloVoltar = 'Voltar'
           .select('registrado_em')
           .eq('membro_id', perfil.id)
           .eq('livro_id', livro.id)
-          .gte('registrado_em', m.periodo_inicio)
-          .lte('registrado_em', m.periodo_fim + 'T23:59:59')
-        const dias = new Set((data ?? []).map((r) => r.registrado_em.slice(0, 10)))
+          .gte('registrado_em', de)
+          .lte('registrado_em', ate)
+        const dias = new Set((data ?? []).map((r) => chaveDia(r.registrado_em)))
         novoProgresso[m.id] = dias.size
       }
     }
@@ -134,9 +139,8 @@ export default function Metas({ perfil, livro, onVoltar, rotuloVoltar = 'Voltar'
     return { inicio: formatarISO(inicio), fim: formatarISO(fim) }
   }
 
-  function formatarISO(d: Date) {
-    return d.toISOString().slice(0, 10)
-  }
+  // data local (toISOString passava para o dia seguinte depois das 21h)
+  const formatarISO = dataLocal
 
   async function salvarMeta() {
     setErro(null)
@@ -144,6 +148,10 @@ export default function Metas({ perfil, livro, onVoltar, rotuloVoltar = 'Voltar'
     const valorNum = parseInt(valorBruto, 10)
     if (!valorNum || valorNum <= 0) {
       setErro('Informe um número válido.')
+      return
+    }
+    if (tipo === 'dias_semanais' && valorNum > 7) {
+      setErro('A semana tem 7 dias.')
       return
     }
 
@@ -177,6 +185,11 @@ export default function Metas({ perfil, livro, onVoltar, rotuloVoltar = 'Voltar'
     carregar()
   }
 
+  /** Período já passou (o Início mostra só as metas em andamento). */
+  function encerrada(m: MetaRow) {
+    return !!m.periodo_fim && m.periodo_fim < dataLocal(new Date())
+  }
+
   function alvoDaMeta(m: MetaRow): number {
     if (m.tipo === 'semanal' || m.tipo === 'mensal') return m.valor_paginas ?? 0
     if (m.tipo === 'livro_total') return livro.paginas_totais
@@ -201,23 +214,25 @@ export default function Metas({ perfil, livro, onVoltar, rotuloVoltar = 'Voltar'
 
         {!carregando && metas.length === 0 && !formAberto && (
           <p className="text-sm text-texto/65 dark:text-bege/55 text-center mb-5">
-            Você ainda não tem meta pra este livro. Uma meta pequena e realista ajuda mais do que uma ambiciosa que ninguém cumpre.
+            Você ainda não tem meta para este livro. Uma meta pequena e realista ajuda mais do que uma ambiciosa que ninguém cumpre.
           </p>
         )}
 
         <ul className="space-y-3 mb-5">
-          {metas.map((m) => {
+          {[...metas].sort((a, b) => Number(encerrada(a)) - Number(encerrada(b))).map((m) => {
+            const fechada = encerrada(m)
             const alvo = alvoDaMeta(m)
             const atual = progresso[m.id] ?? 0
             const pct = alvo > 0 ? Math.min(100, Math.round((atual / alvo) * 100)) : 0
             const bateu = pct >= 100
             return (
-              <li key={m.id} className={`cartao p-4 ${bateu ? 'border-dourado/50' : ''}`}>
+              <li key={m.id} className={`cartao p-4 ${bateu ? 'border-dourado/50' : ''} ${fechada ? 'opacity-70' : ''}`}>
                 <div className="flex justify-between items-start gap-2 mb-2">
                   <div>
                     <p className="text-[15px] font-semibold text-marinho dark:text-bege">{RADIO[m.tipo]}</p>
                     <p className="text-xs text-texto/65 dark:text-bege/55">
                       {m.periodo_inicio && m.periodo_fim ? `${formatarData(m.periodo_inicio)} a ${formatarData(m.periodo_fim)}` : ''}
+                      {fechada ? ' · encerrada' : ''}
                     </p>
                   </div>
                   <button
@@ -273,6 +288,7 @@ export default function Metas({ perfil, livro, onVoltar, rotuloVoltar = 'Voltar'
               <input aria-label={tipo === 'sessoes_semanais' ? 'Quantas sessões' : tipo === 'dias_semanais' ? 'Quantos dias' : 'Quantas páginas'}
                 type="number"
                 min={1}
+                max={tipo === 'dias_semanais' ? 7 : undefined}
                 value={tipo === 'livro_total' ? String(livro.paginas_totais) : valor}
                 disabled={tipo === 'livro_total'}
                 onChange={(e) => setValor(e.target.value)}

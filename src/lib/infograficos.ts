@@ -1,4 +1,5 @@
 import { supabase } from './supabase'
+import { terminouLivro } from './regras'
 import { tempoManual } from './tempo'
 import { chaveDia, maiorSequencia, paginasEquivalentes, type RegistroBasico } from './estatisticas'
 
@@ -136,11 +137,13 @@ export interface Panorama {
 }
 
 export async function calcularPanorama(livro: { id: string; paginas_totais: number }): Promise<Panorama> {
-  const [r, a] = await Promise.all([
+  const [r, a, st] = await Promise.all([
     supabase.from('registros_leitura').select('membro_id, paginas_lidas, minutos_lidos, registrado_em, perfis(ritmo_leitura_min_por_pagina)')
       .eq('livro_id', livro.id),
-    supabase.from('anotacoes').select('tipo, pagina').eq('livro_id', livro.id).eq('compartilhada', true)
+    supabase.from('anotacoes').select('tipo, pagina').eq('livro_id', livro.id).eq('compartilhada', true),
+    supabase.from('leituras_status').select('membro_id, status').eq('livro_id', livro.id)
   ])
+  const statusDe = new Map(((st.error ? [] : st.data ?? []) as { membro_id: string; status: string }[]).map((x) => [x.membro_id, x.status]))
   const regs = ((r.data ?? []) as any[]).map((x) => ({ ...x, ritmo: x.perfis?.ritmo_leitura_min_por_pagina ?? 2 }))
   const porMembro = new Map<string, number>()
   const porDia = new Map<string, number>()
@@ -162,7 +165,8 @@ export async function calcularPanorama(livro: { id: string; paginas_totais: numb
   return {
     paginasGrupo: Math.round(somas.reduce((x, y) => x + y, 0)),
     leitores: porMembro.size,
-    terminaram: somas.filter((p) => p >= livro.paginas_totais).length,
+    terminaram: [...new Set([...porMembro.keys(), ...statusDe.keys()])]
+      .filter((m) => terminouLivro(porMembro.get(m) ?? 0, livro.paginas_totais, statusDe.get(m))).length,
     mediaPct: somas.length ? Math.round((somas.reduce((x, y) => x + y, 0) / somas.length / livro.paginas_totais) * 100) : 0,
     diasComLeitura: porDia.size,
     leramHoje: new Set(regs.filter((x) => chaveDia(x.registrado_em) === hoje).map((x) => x.membro_id)).size,

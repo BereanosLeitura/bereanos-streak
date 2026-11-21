@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { supabase, type Perfil } from './supabase'
+import { db } from './db-local'
 import { chaveDia, paginasEquivalentes, paginasPorDia, sequenciaAtual } from './estatisticas'
 
 // Tudo o que as telas precisam saber sobre a leitura do membro, num lugar só:
@@ -29,7 +30,7 @@ export interface DiaSemana {
 
 export function useMinhaLeitura(perfil: Perfil, livro: LivroBasico) {
   const [registros, setRegistros] = useState<RegistroMeu[] | null>(null)
-  const [sessoes, setSessoes] = useState<{ fim: string; duracao_minutos: number }[]>([])
+  const [sessoes, setSessoes] = useState<{ fim: string; duracao_minutos: number; livro_id?: string }[]>([])
 
   const recarregar = useCallback(async () => {
     const desde = new Date()
@@ -46,17 +47,38 @@ export function useMinhaLeitura(perfil: Perfil, livro: LivroBasico) {
       consulta('id, livro_id, origem, paginas_lidas, minutos_lidos, tempo_minutos, registrado_em'),
       supabase
         .from('sessoes_pomodoro')
-        .select('fim, duracao_minutos')
+        .select('fim, duracao_minutos, livro_id')
         .eq('membro_id', perfil.id)
         .eq('status', 'concluida')
         .gte('fim', semanaAtras.toISOString())
     ])
     // sem a coluna tempo_minutos (banco ainda não atualizado), busca sem ela
-    const data = primeira.error ? (await consulta('id, livro_id, origem, paginas_lidas, minutos_lidos, registrado_em')).data : primeira.data
-    setRegistros((data ?? []) as unknown as RegistroMeu[])
-    setSessoes(((ss ?? []) as { fim: string | null; duracao_minutos: number | null }[])
+    let data: unknown[] | null = primeira.error ? null : (primeira.data as unknown[])
+    if (primeira.error) {
+      const segunda = await consulta('id, livro_id, origem, paginas_lidas, minutos_lidos, registrado_em')
+      data = segunda.error ? null : (segunda.data as unknown[])
+    }
+    // Sem internet: usa a última cópia que veio do servidor. Antes, a lista
+    // ficava vazia e o app achava que a pessoa estava na página 0, e um
+    // "parei na página 120" offline virava 120 páginas lidas de uma vez.
+    const chaveCache = `bereanos-streak-cache-registros-${perfil.id}`
+    let base: RegistroMeu[]
+    if (data) {
+      base = data as RegistroMeu[]
+      try { localStorage.setItem(chaveCache, JSON.stringify(base)) } catch { /* sem espaço: segue */ }
+    } else {
+      try { base = JSON.parse(localStorage.getItem(chaveCache) ?? '[]') as RegistroMeu[] } catch { base = [] }
+    }
+    // Junta o que foi lançado neste aparelho e ainda não chegou ao servidor.
+    const ids = new Set(base.map((r) => r.id))
+    const locais = await db.registros.where('membro_id').equals(perfil.id)
+      .filter((r) => r.sync_status !== 'sincronizado' && !ids.has(r.id)).toArray().catch(() => [])
+    const juntos = [...base, ...locais.map(({ sync_status: _s, membro_id: _m, ...r }) => r as RegistroMeu)]
+      .sort((a, b) => b.registrado_em.localeCompare(a.registrado_em))
+    setRegistros(juntos)
+    setSessoes(((ss ?? []) as { fim: string | null; duracao_minutos: number | null; livro_id?: string }[])
       .filter((x) => x.fim)
-      .map((x) => ({ fim: x.fim!, duracao_minutos: x.duracao_minutos ?? 0 })))
+      .map((x) => ({ fim: x.fim!, duracao_minutos: x.duracao_minutos ?? 0, livro_id: x.livro_id })))
   }, [perfil.id])
 
   useEffect(() => {

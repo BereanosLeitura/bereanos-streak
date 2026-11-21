@@ -103,7 +103,13 @@ export async function criarRegistroLeitura(dados: {
 
 /** Apaga um registro (no servidor e na cópia local). Usado pelo "desfazer". */
 export async function apagarRegistroLeitura(id: string) {
+  const local = await db.registros.get(id).catch(() => undefined)
   await db.registros.delete(id).catch(() => {})
+  // Lançado sem internet e ainda não enviado: apagar daqui já basta.
+  if (local && local.sync_status !== 'sincronizado') {
+    await supabase.from('registros_leitura').delete().eq('id', id).then(() => {}, () => {})
+    return true
+  }
   const { error } = await supabase.from('registros_leitura').delete().eq('id', id)
   return !error
 }

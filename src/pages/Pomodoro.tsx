@@ -412,7 +412,7 @@ export default function Pomodoro({ perfil, livro, onFocoAtivo }: Props) {
             className="w-full bg-transparent text-center font-serif tabular text-[56px] leading-none text-marinho dark:text-bege placeholder:text-texto/15 dark:placeholder:text-bege/15 focus:outline-none py-3"
           />
           <p className="text-sm text-texto/65 dark:text-bege/55 min-h-[20px]">
-            {paginasDoFim > 0 ? `${paginasDoFim} páginas nesta sessão` : modoFim === 'pagina' ? 'Digite a página em que você parou.' : ''}
+            {paginasDoFim > 0 ? `${contar(paginasDoFim, 'página', 'páginas')} nesta sessão` : modoFim === 'pagina' ? 'Digite a página em que você parou.' : ''}
           </p>
           <div className="flex gap-2 mt-4">
             <button onClick={() => concluir(true)} disabled={salvando || paginasDoFim <= 0} className="botao-primario">Salvar</button>

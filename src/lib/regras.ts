@@ -48,3 +48,33 @@ export function dataDoRegistro(quando: Quando, outroDia: string, hora: string, a
   d.setHours(h, min, 0, 0)
   return d > agora ? agora : d
 }
+
+/** "Ana", "Ana e Bia", "Ana, Bia e Caio". */
+export function juntarNomes(nomes: string[]): string {
+  if (nomes.length <= 1) return nomes[0] ?? ''
+  return `${nomes.slice(0, -1).join(', ')} e ${nomes[nomes.length - 1]}`
+}
+
+/**
+ * Terminou o livro? Vale a última página registrada OU a marcação "Terminei"
+ * (feita pela pessoa ou pelo admin ao concluir o ciclo). Usar esta regra em
+ * todas as telas evita números diferentes para "quem terminou".
+ */
+export function terminouLivro(paginasLidas: number, paginasTotais: number, status?: string | null): boolean {
+  return status === 'terminou' || (paginasTotais > 0 && paginasLidas >= paginasTotais)
+}
+
+/** Data local AAAA-MM-DD (nunca em UTC: às 22h em Fortaleza ainda é o mesmo dia). */
+export function dataLocal(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
+
+/** Início e fim de um período de datas locais, em ISO, para filtrar timestamps no banco. */
+export function limitesDoPeriodo(inicio: string, fim: string): { de: string; ate: string } {
+  const [a1, m1, d1] = inicio.split('-').map(Number)
+  const [a2, m2, d2] = fim.split('-').map(Number)
+  return {
+    de: new Date(a1, m1 - 1, d1, 0, 0, 0, 0).toISOString(),
+    ate: new Date(a2, m2 - 1, d2, 23, 59, 59, 999).toISOString()
+  }
+}

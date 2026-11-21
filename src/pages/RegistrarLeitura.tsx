@@ -6,7 +6,7 @@ import { supabase, type Perfil } from '../lib/supabase'
 import { useMinhaLeitura } from '../lib/leitura'
 import { apagarComDesfazer, useAviso } from '../components/Toast'
 import Icone from '../components/Icone'
-import { chaveDia, diasAte, formatarData } from '../lib/estatisticas'
+import { chaveDia, contar, diasAte, formatarData } from '../lib/estatisticas'
 import { formatarTempo } from '../lib/tempo'
 import type { LivroAtivo } from './Inicio'
 
@@ -194,7 +194,7 @@ function FormRegistro({ perfil, livro, seletor, pendente, onRegistrado, onAnotar
       avisar(bateuMeta
         ? `Meta do dia cumprida: ${Math.round(leitura.paginasHoje + paginasEstimadas)} páginas hoje`
         : soTempo
-          ? `${formatarTempo(minutosInformados)} de leitura registrados${comAnotacao}`
+          ? `Leitura de ${formatarTempo(minutosInformados)} registrada${comAnotacao}`
           : `${paginasDoRegistro} ${paginasDoRegistro === 1 ? 'página registrada' : 'páginas registradas'}${minutosInformados ? ` em ${formatarTempo(minutosInformados)}` : ''}${comAnotacao}`)
     }
     const pctAntes = (jaLidas / livro.paginas_totais) * 100
@@ -406,7 +406,7 @@ function FormRegistro({ perfil, livro, seletor, pendente, onRegistrado, onAnotar
               {leitura.pct >= 100 ? 'concluído' : leitura.previsao ? formatarData(chaveDia(leitura.previsao.data)) : '—'}
             </p>
             <p className="text-xs text-texto/65 dark:text-bege/55">
-              {porDiaNecessario ? `precisa de ${porDiaNecessario}/dia até ${formatarData(livro.ciclo_fim!)}` : leitura.previsao ? `em ${leitura.previsao.dias} dias` : 'registre para calcular'}
+              {porDiaNecessario ? `precisa de ${porDiaNecessario}/dia até ${formatarData(livro.ciclo_fim!)}` : leitura.previsao ? `em ${contar(leitura.previsao.dias, 'dia', 'dias')}` : 'registre para calcular'}
             </p>
           </div>
         </section>

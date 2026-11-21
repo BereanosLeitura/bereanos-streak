@@ -79,7 +79,7 @@ export default function AceitarConvite({ token, onEntrou, onDesistir }: Props) {
           <>
             <p className="text-center text-[11px] tracking-[.22em] uppercase text-dourado-escuro dark:text-dourado font-semibold mt-7">Convite</p>
             <h1 className="font-serif text-[28px] leading-tight text-marinho dark:text-bege text-center mt-1">
-              Bem-vindo, {estado.nome.split(/\s+/)[0]}
+              Boas-vindas, {estado.nome.split(/\s+/)[0]}
             </h1>
             <p className="text-sm text-texto/70 dark:text-bege/65 text-center mt-2 leading-relaxed">
               Este é o espaço onde os Bereanos acompanham juntos a leitura do livro do ciclo.
