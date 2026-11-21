@@ -99,6 +99,8 @@ export default function Inicio({ perfil, livro, onIr, onBuscar, onPerfilAtualiza
   const [qtdPerguntas, setQtdPerguntas] = useState(0)
   const [temAplicacao, setTemAplicacao] = useState(true)
   const [novaConquista, setNovaConquista] = useState<{ id: string; nome: string; descricao: string | null; icone: string | null } | null>(null)
+  // quem entrou por convite antes desta versão ficou sem aniversário: um lembrete discreto, que some ao preencher ou dispensar
+  const [verAniversario, setVerAniversario] = useState(() => { try { return !perfil.data_nascimento && !localStorage.getItem(`bereanos-streak-aniversario-dispensado-${perfil.id}`) } catch { return !perfil.data_nascimento } })
   const [verInstalar, setVerInstalar] = useState(() => { try { return !localStorage.getItem('bereanos-streak-instalar-dispensado') } catch { return true } })
   const [registrando, setRegistrando] = useState(false)
   const [ultimoRapido, setUltimoRapido] = useState<{ id: string; paginas: number } | null>(null)
@@ -124,6 +126,22 @@ export default function Inicio({ perfil, livro, onIr, onBuscar, onPerfilAtualiza
     supabase.from('anotacoes').select('id', { count: 'exact', head: true }).eq('livro_id', livro.id).eq('membro_id', perfil.id).eq('tipo', 'aplicacao')
       .then(({ count, error }) => setTemAplicacao(error ? true : (count ?? 0) > 0))
     return () => { if (timerDesfazer.current) clearTimeout(timerDesfazer.current) }
+  }, [livro.id])
+
+  // Ao vivo: quando alguém do clube registra leitura ou mexe no mural deste
+  // livro, o grupo e o mural se atualizam sozinhos (precisa da migração 0020;
+  // sem ela, nada acontece e a tela segue como antes).
+  useEffect(() => {
+    let espera: ReturnType<typeof setTimeout> | null = null
+    const atualizar = () => {
+      if (espera) clearTimeout(espera)
+      espera = setTimeout(() => { carregarProgresso(); carregarMural(); carregarDestaque() }, 800)
+    }
+    const canal = supabase.channel(`inicio-${livro.id}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'registros_leitura', filter: `livro_id=eq.${livro.id}` }, atualizar)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'anotacoes', filter: `livro_id=eq.${livro.id}` }, atualizar)
+      .subscribe()
+    return () => { if (espera) clearTimeout(espera); supabase.removeChannel(canal) }
   }, [livro.id])
 
   // Avisa de conquistas novas (concedidas pelo banco) que a pessoa ainda não viu.
@@ -761,6 +779,18 @@ export default function Inicio({ perfil, livro, onIr, onBuscar, onPerfilAtualiza
                 </li>
               ))}
             </ul>
+          </section>
+        )}
+
+        {verAniversario && !perfil.data_nascimento && (
+          <section className="cartao px-4 py-3 flex items-center gap-3">
+            <span className="w-9 h-9 rounded-full bg-dourado/10 text-dourado flex items-center justify-center shrink-0"><Icone nome="bolo" className="w-4 h-4" /></span>
+            <p className="flex-1 text-sm text-texto/75 dark:text-bege/70">Seu perfil está sem data de aniversário. Quer que o clube lembre do seu dia?</p>
+            <div className="flex flex-col items-end gap-1 shrink-0">
+              <button onClick={() => onIr('perfil')} className="chip">Completar</button>
+              <button onClick={() => { setVerAniversario(false); try { localStorage.setItem(`bereanos-streak-aniversario-dispensado-${perfil.id}`, '1') } catch { /* ok */ } }}
+                className="text-xs text-texto/65 dark:text-bege/55">Agora não</button>
+            </div>
           </section>
         )}
 

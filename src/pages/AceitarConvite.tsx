@@ -22,19 +22,28 @@ export default function AceitarConvite({ token, onEntrou, onDesistir }: Props) {
   const [estado, setEstado] = useState<Estado>({ fase: 'checando' })
   const [senha, setSenha] = useState('')
   const [repetir, setRepetir] = useState('')
+  // o perfil completo já sai daqui: antes, quem entrava por convite ficava sem
+  // nome completo e sem aniversário até lembrar de editar no Perfil
+  const [nomeCompleto, setNomeCompleto] = useState('')
+  const [nomeExibicao, setNomeExibicao] = useState('')
+  const [nascimento, setNascimento] = useState('')
   const [vendo, setVendo] = useState(false)
   const [enviando, setEnviando] = useState(false)
   const [erro, setErro] = useState<string | null>(null)
 
   useEffect(() => {
     chamarConvite<{ nome: string; email: string }>('convite_info', { token })
-      .then((r) => setEstado({ fase: 'valido', nome: r.nome, email: r.email }))
+      .then((r) => {
+        setEstado({ fase: 'valido', nome: r.nome, email: r.email })
+        setNomeCompleto(r.nome)
+        setNomeExibicao(r.nome.split(/\s+/)[0])
+      })
       .catch((e) => setEstado({ fase: 'invalido', motivo: e instanceof Error ? e.message : 'Convite inválido' }))
   }, [token])
 
   const curta = senha.length > 0 && senha.length < 8
   const diferente = repetir.length > 0 && senha !== repetir
-  const podeEnviar = senha.length >= 8 && senha === repetir && !enviando
+  const podeEnviar = senha.length >= 8 && senha === repetir && nomeCompleto.trim().length >= 3 && !!nomeExibicao.trim() && !enviando
 
   async function aceitar() {
     if (!podeEnviar || estado.fase !== 'valido') return
@@ -44,6 +53,16 @@ export default function AceitarConvite({ token, onEntrou, onDesistir }: Props) {
       await chamarConvite('aceitar', { token, senha })
       const { error } = await supabase.auth.signInWithPassword({ email: estado.email, password: senha })
       limparTokenDaUrl()
+      if (!error) {
+        const { data: s } = await supabase.auth.getSession()
+        if (s.session) {
+          await supabase.from('perfis').update({
+            nome_completo: nomeCompleto.trim(),
+            nome_exibicao: nomeExibicao.trim(),
+            data_nascimento: nascimento || null
+          }).eq('id', s.session.user.id)
+        }
+      }
       if (error) {
         // conta criada, mas o login não foi: a pessoa entra pela tela normal
         setEstado({ fase: 'invalido', motivo: 'Sua conta foi criada. Entre com seu e-mail e a senha que você acabou de escolher.' })
@@ -93,6 +112,19 @@ export default function AceitarConvite({ token, onEntrou, onDesistir }: Props) {
                 <p id="convite-email-ajuda" className="legenda mt-1">Foi o e-mail que o admin usou no convite.</p>
               </div>
 
+              <div>
+                <label className="rotulo" htmlFor="convite-nome">Nome completo</label>
+                <input id="convite-nome" value={nomeCompleto} onChange={(e) => setNomeCompleto(e.target.value)} className="campo" autoComplete="name" />
+              </div>
+              <div>
+                <label className="rotulo" htmlFor="convite-exibicao">Nome que aparece para o grupo</label>
+                <input id="convite-exibicao" value={nomeExibicao} onChange={(e) => setNomeExibicao(e.target.value)} className="campo" placeholder="ex.: Felipe M." />
+              </div>
+              <div>
+                <label className="rotulo" htmlFor="convite-nascimento">Data de nascimento <span className="font-normal text-texto/60 dark:text-bege/50">(opcional)</span></label>
+                <input id="convite-nascimento" type="date" value={nascimento} onChange={(e) => setNascimento(e.target.value)} className="campo" />
+                <p className="legenda mt-1">Usada só para um destaque discreto de aniversário dentro do app.</p>
+              </div>
               <div>
                 <label className="rotulo" htmlFor="convite-senha">Crie sua senha</label>
                 <div className="relative">

@@ -30,6 +30,7 @@ interface Nota {
   created_at: string
   nome: string
   referencia: string | null
+  comentario?: string | null
   livro_id: string
   livro_titulo?: string
 }
@@ -70,6 +71,9 @@ export default function Notas({ perfil, livro, inicial, onCompartilhar }: Props)
   const [filtro, setFiltro] = useState<Filtro>(inicial?.filtro ?? 'todas')
   const [todosLivros, setTodosLivros] = useState(inicial?.todosLivros ?? false)
   const [referencia, setReferencia] = useState('')
+  const [comentario, setComentario] = useState('')
+  // a coluna "comentario" chega com a migração 0020; antes dela o campo fica escondido
+  const [temComentario, setTemComentario] = useState(true)
   const [destaques, setDestaques] = useState<Set<string>>(new Set())
   const [busca, setBusca] = useState(inicial?.busca ?? '')
   const [ordem, setOrdem] = useState<Ordem>('recentes')
@@ -105,14 +109,14 @@ export default function Notas({ perfil, livro, inicial, onCompartilhar }: Props)
   useEffect(() => {
     if (!editor || editor.id !== null) return
     try {
-      if (texto.trim()) localStorage.setItem(chaveRascunho, JSON.stringify({ tipo, texto, pagina, referencia, noMural }))
+      if (texto.trim()) localStorage.setItem(chaveRascunho, JSON.stringify({ tipo, texto, pagina, referencia, noMural, comentario }))
       else localStorage.removeItem(chaveRascunho)
     } catch { /* ok */ }
-  }, [editor, tipo, texto, pagina, referencia, noMural])
+  }, [editor, tipo, texto, pagina, referencia, noMural, comentario])
   function descartarRascunho() {
     try { localStorage.removeItem(chaveRascunho) } catch { /* ok */ }
     setRecuperado(false)
-    setTexto(''); setPagina(''); setReferencia(''); setNoMural(false)
+    setTexto(''); setPagina(''); setReferencia(''); setNoMural(false); setComentario('')
   }
 
   // Ditado por voz (Chrome no Android e no computador; o Safari do iPhone usa o microfone do teclado).
@@ -145,18 +149,40 @@ export default function Notas({ perfil, livro, inicial, onCompartilhar }: Props)
   const buscaGeral = todosLivros && vista === 'minhas'
   useEffect(() => { carregar() }, [livro.id, vista, buscaGeral])
 
-  async function carregar() {
-    setNotas(null)
-    let q = supabase
-      .from('anotacoes')
-      .select('id, membro_id, livro_id, tipo, texto, pagina, referencia, compartilhada, favorita, created_at, perfis(nome_exibicao), livros(titulo)')
-      .order('created_at', { ascending: false })
-    if (!buscaGeral) q = q.eq('livro_id', livro.id)
-    q = vista === 'minhas' ? q.eq('membro_id', perfil.id) : q.eq('compartilhada', true)
+  // mural ao vivo: quando alguém posta, edita ou tira uma anotação deste livro
+  useEffect(() => {
+    if (vista !== 'mural') return
+    let espera: ReturnType<typeof setTimeout> | null = null
+    const canal = supabase.channel(`mural-${livro.id}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'anotacoes', filter: `livro_id=eq.${livro.id}` }, () => {
+        if (espera) clearTimeout(espera)
+        espera = setTimeout(() => carregar(true), 600)
+      })
+      .subscribe()
+    return () => { if (espera) clearTimeout(espera); supabase.removeChannel(canal) }
+  }, [livro.id, vista])
+
+  async function carregar(silencioso = false) {
+    if (!silencioso) setNotas(null)
+    const montar = (campos: string) => {
+      let q = supabase
+        .from('anotacoes')
+        .select(campos)
+        .order('created_at', { ascending: false })
+      if (!buscaGeral) q = q.eq('livro_id', livro.id)
+      return vista === 'minhas' ? q.eq('membro_id', perfil.id) : q.eq('compartilhada', true)
+    }
     if (vista === 'mural') {
       supabase.from('destaques').select('anotacao_id').then(({ data }) => setDestaques(new Set((data ?? []).map((d) => d.anotacao_id))))
     }
-    const { data, error } = await q
+    const base = 'id, membro_id, livro_id, tipo, texto, pagina, referencia, compartilhada, favorita, created_at, perfis(nome_exibicao), livros(titulo)'
+    let { data, error } = await montar(base + ', comentario')
+    if (error) {
+      // banco ainda sem a 0020: busca sem o comentário
+      const r = await montar(base)
+      data = r.data as typeof data; error = r.error
+      if (!error) setTemComentario(false)
+    } else setTemComentario(true)
     if (error) {
       setErroTabela(true)
       setNotas([])
@@ -174,6 +200,7 @@ export default function Notas({ perfil, livro, inicial, onCompartilhar }: Props)
     setTexto(r?.texto ?? '')
     setPagina(r?.pagina ?? '')
     setReferencia(r?.referencia ?? '')
+    setComentario((r as any)?.comentario ?? '')
     setNoMural(r?.noMural ?? false)
     setRecuperado(!!r?.texto)
   }
@@ -184,6 +211,7 @@ export default function Notas({ perfil, livro, inicial, onCompartilhar }: Props)
     setTexto(n.texto)
     setPagina(n.pagina ? String(n.pagina) : '')
     setReferencia(n.referencia ?? '')
+    setComentario(n.comentario ?? '')
     setNoMural(n.compartilhada)
     window.scrollTo({ top: 0, behavior: 'smooth' })
   }
@@ -192,7 +220,9 @@ export default function Notas({ perfil, livro, inicial, onCompartilhar }: Props)
     if (!texto.trim() || !editor) return
     setSalvando(true)
     const pg = pagina ? parseInt(pagina, 10) : NaN
-    const campos = { tipo, texto: texto.trim(), pagina: pg > 0 ? Math.min(pg, livro.paginas_totais) : null, referencia: referencia.trim() || null, compartilhada: noMural }
+    const campos: Record<string, unknown> = { tipo, texto: texto.trim(), pagina: pg > 0 ? Math.min(pg, livro.paginas_totais) : null, referencia: referencia.trim() || null, compartilhada: noMural }
+    // comentário só existe para trecho; em outro tipo, o que foi escrito ali sai
+    if (temComentario) campos.comentario = tipo === 'trecho' && comentario.trim() ? comentario.trim() : null
     const { error } = editor.id
       ? await supabase.from('anotacoes').update(campos).eq('id', editor.id)
       : await supabase.from('anotacoes').insert({ ...campos, membro_id: perfil.id, livro_id: livro.id })
@@ -246,7 +276,7 @@ export default function Notas({ perfil, livro, inicial, onCompartilhar }: Props)
     const minhas = (notas ?? []).filter((n) => n.membro_id === perfil.id && n.livro_id === livro.id)
     if (minhas.length === 0) return avisar('Você ainda não tem anotações neste livro', 'erro')
     const porTipo = (t: Tipo) => minhas.filter((n) => n.tipo === t).sort((a, b) => (a.pagina ?? 9999) - (b.pagina ?? 9999))
-    const linha = (n: Nota) => `${n.pagina ? `(p. ${n.pagina}) ` : ''}${n.tipo === 'trecho' ? entreAspas(n.texto) : n.texto}${n.referencia ? ` [${n.referencia}]` : ''}`
+    const linha = (n: Nota) => `${n.pagina ? `(p. ${n.pagina}) ` : ''}${n.tipo === 'trecho' ? entreAspas(n.texto) : n.texto}${n.comentario ? `\n  Comentário: ${n.comentario}` : ''}${n.referencia ? ` [${n.referencia}]` : ''}`
     const partes = [`${livro.titulo}${livro.autor ? `, ${livro.autor}` : ''}`, `Anotações de ${perfil.nome_exibicao}`]
     ORDEM_TIPOS.forEach((t) => {
       const l = porTipo(t)
@@ -264,7 +294,7 @@ export default function Notas({ perfil, livro, inicial, onCompartilhar }: Props)
     const termo = busca.trim().toLowerCase()
     let l = (notas ?? []).filter((n) =>
       (filtro === 'todas' || (filtro === 'favoritas' ? n.favorita : filtro === 'escrituras' ? !!n.referencia : filtro === 'destaques' ? destaques.has(n.id) : n.tipo === filtro)) &&
-      (!termo || n.texto.toLowerCase().includes(termo) || (n.referencia ?? '').toLowerCase().includes(termo) ||
+      (!termo || n.texto.toLowerCase().includes(termo) || (n.comentario ?? '').toLowerCase().includes(termo) || (n.referencia ?? '').toLowerCase().includes(termo) ||
         (n.livro_titulo ?? '').toLowerCase().includes(termo) || (vista === 'mural' && n.nome.toLowerCase().includes(termo)))
     )
     if (ordem === 'pagina') l = [...l].sort((a, b) => (a.pagina ?? 99999) - (b.pagina ?? 99999))
@@ -336,6 +366,13 @@ export default function Notas({ perfil, livro, inicial, onCompartilhar }: Props)
               ) : <span />}
               <p className="text-xs text-texto/65 dark:text-bege/55">{texto.length}/2000</p>
             </div>
+            {tipo === 'trecho' && temComentario && (
+              <label className="block mt-2">
+                <span className="text-sm text-texto/70 dark:text-bege/70">Seu comentário <span className="text-texto/65 dark:text-bege/55">(opcional)</span></span>
+                <textarea value={comentario} onChange={(e) => setComentario(e.target.value)} rows={2} maxLength={1000}
+                  placeholder="O que esse trecho te fez pensar? Fica separado do texto do livro." className="campo mt-1 py-2 resize-none text-[15px]" />
+              </label>
+            )}
             <label className="block mt-2">
               <span className="text-sm text-texto/70 dark:text-bege/70">Referência bíblica <span className="text-texto/65 dark:text-bege/55">(opcional)</span></span>
               <input value={referencia} onChange={(e) => setReferencia(e.target.value)} maxLength={80} placeholder="Ex.: Atos 17:11" className="campo mt-1 py-2" />
@@ -471,6 +508,11 @@ export default function Notas({ perfil, livro, inicial, onCompartilhar }: Props)
                 {n.texto.length > 420 && (
                   <button onClick={() => setExpandidas((s) => { const x = new Set(s); if (x.has(n.id)) x.delete(n.id); else x.add(n.id); return x })}
                     className="botao-texto text-sm mt-1">{longa ? 'Ler mais' : 'Mostrar menos'}</button>
+                )}
+                {n.comentario && (
+                  <p className="mt-2 pl-3 border-l-2 border-dourado/50 text-[15px] leading-relaxed text-texto/80 dark:text-bege/75 whitespace-pre-line">
+                    <ComDestaque texto={n.comentario} termo={busca} />
+                  </p>
                 )}
                 </ProtecaoSpoiler>
                 {n.referencia && (

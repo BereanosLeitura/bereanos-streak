@@ -22,6 +22,15 @@ export default function RespostasMural({ anotacaoId, perfil, autorNota }: { anot
       .then(({ count, error }) => setQtd(error ? null : count ?? 0))
   }, [anotacaoId])
 
+  // conversa aberta ao vivo: respostas novas aparecem sem recarregar (0020)
+  useEffect(() => {
+    if (!aberto) return
+    const canal = supabase.channel(`respostas-${anotacaoId}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'respostas_mural', filter: `anotacao_id=eq.${anotacaoId}` }, () => carregar())
+      .subscribe()
+    return () => { supabase.removeChannel(canal) }
+  }, [aberto, anotacaoId])
+
   async function carregar() {
     const { data } = await supabase.from('respostas_mural').select('id, membro_id, texto, created_at, perfis(nome_exibicao)')
       .eq('anotacao_id', anotacaoId).order('created_at')

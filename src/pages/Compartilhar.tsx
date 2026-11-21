@@ -15,10 +15,6 @@ import { calcularPanorama, calcularRetrospectiva, type Panorama, type Retrospect
 import { contar, formatarData } from '../lib/estatisticas'
 import { entreAspas } from '../lib/regras'
 import { buscarConclusoes } from '../lib/pendentes'
-import { curvaDoVideo, formatoDeVideo, gravarAnimacao } from '../lib/video'
-
-// modelos em que os números sobem no vídeo
-const ANIMAVEIS: ModeloLeitura[] = ['lendo', 'progresso', 'anel', 'constancia']
 const HASHTAGS = '#ClubeDoLivroBereanos #Leitura #Livros'
 import { useContagem } from '../lib/preferencias'
 
@@ -238,8 +234,6 @@ export default function Compartilhar({ perfil, livro, preCarga }: Props) {
   useEffect(() => { try { localStorage.setItem('bereanos-streak-hashtags', comHashtags ? '1' : '0') } catch { /* ok */ } }, [comHashtags])
   // guia das áreas que o Instagram cobre no Story (foto de perfil em cima, resposta embaixo)
   const [verAreas, setVerAreas] = useState(false)
-  const [gravandoVideo, setGravandoVideo] = useState(false)
-  const videoSuportado = useMemo(() => !!formatoDeVideo(), [])
 
   // legenda automática (até a pessoa editar à mão)
   useEffect(() => {
@@ -459,45 +453,6 @@ export default function Compartilhar({ perfil, livro, preCarga }: Props) {
       marcarConquista()
     } catch {
       avisar('Este navegador não deixou copiar a imagem. Use Baixar.', 'erro')
-    }
-  }
-
-  /** Vídeo de 6 s: os números do cartão sobem do zero até o valor real. */
-  async function criarVideo() {
-    if (!podeGerar || gravandoVideo) return
-    setGravandoVideo(true)
-    try {
-      const { blob, formato: fv } = await gravarAnimacao(async (c, t) => {
-        const k = curvaDoVideo(t)
-        await desenharLeitura(c, modeloLeitura, formato, {
-          ...dadosLeitura,
-          pct: dadosLeitura.pct * k,
-          paginas: Math.round(dadosLeitura.paginas * k),
-          sequencia: Math.round(dadosLeitura.sequencia * k)
-        })
-      }, w, h)
-      const arquivo = new File([blob], nomeArquivo().replace(/\.png$/, '') + '.' + fv.ext, { type: blob.type })
-      if (navigator.canShare?.({ files: [arquivo] })) {
-        try {
-          await navigator.share({ files: [arquivo], text: legenda || undefined })
-          marcarConquista()
-          return
-        } catch (e: any) {
-          if (e?.name === 'AbortError') return
-        }
-      }
-      const url = URL.createObjectURL(arquivo)
-      const a = document.createElement('a')
-      a.href = url; a.download = arquivo.name
-      document.body.appendChild(a); a.click(); a.remove()
-      setTimeout(() => URL.revokeObjectURL(url), 3000)
-      if (legenda) await copiarTexto(legenda, false)
-      avisar(fv.ext === 'mp4' ? 'Vídeo baixado (MP4) e legenda copiada' : 'Vídeo baixado em WebM. Se o Instagram recusar, use a imagem.')
-      marcarConquista()
-    } catch {
-      avisar('Não foi possível gravar o vídeo neste navegador. Use a imagem.', 'erro')
-    } finally {
-      setGravandoVideo(false)
     }
   }
 
@@ -846,13 +801,6 @@ export default function Compartilhar({ perfil, livro, preCarga }: Props) {
             {enviando ? 'Preparando…' : partes.length > 1 && modo === 'texto' ? `Compartilhar ${partes.length} imagens e legenda` : 'Compartilhar imagem e legenda'}
           </button>
           {precisaFoto && !foto && <p className="text-xs text-center text-texto/65 dark:text-bege/55">Escolha uma foto para esse modelo.</p>}
-          {modo === 'leitura' && !transparente && ANIMAVEIS.includes(modeloLeitura) && videoSuportado && (
-            <button onClick={criarVideo} disabled={!podeGerar || gravandoVideo}
-              className="w-full rounded-xl border border-dourado/60 bg-dourado/[0.08] py-3 font-semibold text-dourado-escuro dark:text-dourado flex items-center justify-center gap-2 disabled:opacity-50">
-              <Icone nome="seta-direita" className="w-5 h-5" />
-              {gravandoVideo ? 'Gravando o vídeo… (6 s)' : 'Vídeo animado para Reels e Status'}
-            </button>
-          )}
           <div className={`grid gap-2 ${podeCopiarImagem && partes.length <= 1 ? 'grid-cols-4' : 'grid-cols-3'}`}>
             {podeCopiarImagem && partes.length <= 1 && <BotaoAcao icone="imagem" rotulo="Copiar imagem" onClick={copiarImagem} desativado={!podeGerar || (precisaFoto && !foto)} />}
             <BotaoAcao icone="baixar" rotulo={transparente ? 'Baixar PNG' : 'Baixar'} onClick={baixar} desativado={!podeGerar || (precisaFoto && !foto)} />
