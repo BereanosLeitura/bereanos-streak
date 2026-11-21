@@ -78,3 +78,12 @@ export function limitesDoPeriodo(inicio: string, fim: string): { de: string; ate
     ate: new Date(a2, m2 - 1, d2, 23, 59, 59, 999).toISOString()
   }
 }
+
+/**
+ * Trecho entre aspas curvas, sem dobrar: quem já digitou "aspas" no texto
+ * não vê “"assim"”. Tira aspas e espaços das pontas e põe um par só.
+ */
+export function entreAspas(texto: string): string {
+  const limpo = texto.trim().replace(/^["“”'‘’«»]+/, '').replace(/["“”'‘’«»]+$/, '').trim()
+  return `“${limpo}”`
+}

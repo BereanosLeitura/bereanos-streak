@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { supabase, type Perfil } from '../lib/supabase'
+import { entreAspas } from '../lib/regras'
 import Icone from './Icone'
 
 // "Baixar minhas anotações": monta um caderno com as anotações do livro,
@@ -86,7 +87,7 @@ export default function CadernoAnotacoes({ perfil, livro, paginaAtual, onFechar 
                     <span className="text-[12px] text-[#8A6D2B] pt-1 tabular">{n.pagina ? `p. ${n.pagina}` : ''}</span>
                     <div>
                       <p className={`whitespace-pre-line leading-relaxed ${s.tipo === 'trecho' ? 'italic text-[16px]' : 'text-[15px]'}`}>
-                        {s.tipo === 'trecho' ? `“${n.texto}”` : n.texto}
+                        {s.tipo === 'trecho' ? entreAspas(n.texto) : n.texto}
                         {n.favorita && <span className="text-[#B8912F]" title="Favorita"> ◆</span>}
                       </p>
                       {n.referencia && <p className="text-[12px] text-[#1B2A4A] mt-0.5 font-sans font-semibold">{n.referencia}</p>}

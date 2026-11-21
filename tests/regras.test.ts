@@ -3,8 +3,8 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
-import { formatarTempo, formatarTempoEstimado, marcoAtravessado, aFrente, dataDoRegistro, juntarNomes, terminouLivro, dataLocal, limitesDoPeriodo } from '../src/lib/regras.ts'
-import { contar, chaveDia, paginasEquivalentes, paginasPorDia, sequenciaAtual, maiorSequencia, diasAte } from '../src/lib/estatisticas.ts'
+import { formatarTempo, formatarTempoEstimado, marcoAtravessado, aFrente, dataDoRegistro, juntarNomes, terminouLivro, dataLocal, limitesDoPeriodo, entreAspas } from '../src/lib/regras.ts'
+import { contar, chaveDia, paginasEquivalentes, paginasPorDia, sequenciaAtual, maiorSequencia, diasAte, diaRelativo, rotulosMeses, gradeSemanas } from '../src/lib/estatisticas.ts'
 import { ROTEIRO_PADRAO } from '../src/lib/roteiro.ts'
 
 const dia = (offset: number) => { const d = new Date(); d.setDate(d.getDate() + offset); return chaveDia(d) }
@@ -161,4 +161,25 @@ test('limitesDoPeriodo cobre o dia local inteiro', () => {
   assert.equal(new Date(de).getHours(), 0)
   assert.equal(new Date(ate).getDate(), 21)
   assert.equal(new Date(ate).getHours(), 23)
+})
+
+test('diaRelativo diz hoje, ontem ou o dia da semana', () => {
+  const agora = new Date(2026, 10, 21, 18, 0) // sábado
+  assert.equal(diaRelativo(new Date(2026, 10, 21, 9).toISOString(), agora), 'hoje')
+  assert.equal(diaRelativo(new Date(2026, 10, 20, 23, 40).toISOString(), agora), 'ontem')
+  assert.match(diaRelativo(new Date(2026, 10, 15, 15).toISOString(), agora), /^domingo, 15 de nov/)
+})
+
+test('rotulosMeses marca só a semana em que o mês muda', () => {
+  const r = rotulosMeses(gradeSemanas(15))
+  assert.equal(r.length, 15)
+  assert.ok(r[0] !== '')
+  assert.ok(r.filter(Boolean).length >= 3 && r.filter(Boolean).length <= 5)
+})
+
+test('entreAspas não dobra as aspas que a pessoa já digitou', () => {
+  assert.equal(entreAspas('Texto simples'), '“Texto simples”')
+  assert.equal(entreAspas('"O traço mais repugnante "'), '“O traço mais repugnante”')
+  assert.equal(entreAspas('“Já curvas”'), '“Já curvas”')
+  assert.equal(entreAspas('  «Francesas»  '), '“Francesas”')
 })

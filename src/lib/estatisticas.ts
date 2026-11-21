@@ -113,3 +113,26 @@ export function contar(n: number, singular: string, plural: string): string {
   const v = Math.round(n)
   return `${v.toLocaleString('pt-BR')} ${v === 1 ? singular : plural}`
 }
+
+/** "hoje", "ontem" ou "sexta, 20 de nov" (dia local do registro). */
+export function diaRelativo(iso: string, agora: Date = new Date()): string {
+  const k = chaveDia(iso)
+  if (k === chaveDia(agora)) return 'hoje'
+  const ontem = new Date(agora)
+  ontem.setDate(ontem.getDate() - 1)
+  if (k === chaveDia(ontem)) return 'ontem'
+  const d = new Date(k + 'T12:00:00')
+  const semana = d.toLocaleDateString('pt-BR', { weekday: 'long' }).split('-')[0]
+  return `${semana}, ${formatarData(k)}`
+}
+
+/** Rótulo do mês para cada coluna da grade (só quando o mês muda). */
+export function rotulosMeses(grade: Date[][]): string[] {
+  let anterior = -1
+  return grade.map((semana) => {
+    const m = semana[0].getMonth()
+    if (m === anterior) return ''
+    anterior = m
+    return semana[0].toLocaleDateString('pt-BR', { month: 'short' }).replace('.', '')
+  })
+}

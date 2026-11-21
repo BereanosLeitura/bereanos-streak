@@ -195,7 +195,7 @@ function ComoEstaOCiclo({ livro, resumo }: { livro: LivroAtivo; resumo: ResumoCi
 
       <p className="font-serif text-[34px] leading-none text-marinho dark:text-bege mt-3 tabular">
         {r.paginasGrupo.toLocaleString('pt-BR')}
-        <span className="text-base font-sans text-texto/65 dark:text-bege/55 ml-2">páginas lidas juntos</span>
+        <span className="text-base font-sans text-texto/65 dark:text-bege/55 ml-2">páginas lidas pelo clube</span>
       </p>
       <BarraBrilho pct={r.mediaPct} faiscas={false} className="mt-3" rotulo={`média de ${r.mediaPct}% do livro`} />
 

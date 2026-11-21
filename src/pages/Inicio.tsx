@@ -1,7 +1,7 @@
 import { Fragment, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { BarraBrilho, useNumeroAnimado } from '../components/BarraBrilho'
 import { formatarTempoEstimado } from '../lib/tempo'
-import { juntarNomes } from '../lib/regras'
+import { juntarNomes, terminouLivro, entreAspas } from '../lib/regras'
 import { useCorDaCapa } from '../lib/corCapa'
 import Vazio from '../components/Vazio'
 import ProtecaoSpoiler, { aFrente } from '../components/ProtecaoSpoiler'
@@ -10,7 +10,7 @@ import { apagarRegistroLeitura, criarRegistroLeitura } from '../lib/sync'
 import { useMinhaLeitura } from '../lib/leitura'
 import { useContagem, usePreferenciaVisual, corDaCapaAtiva } from '../lib/preferencias'
 import PersonalizarInicio, { gravarLayout, layoutSalvo, type IdBlocoInicio, type LayoutInicio } from '../components/PersonalizarInicio'
-import { buscarPendentes, type LivroPendente } from '../lib/pendentes'
+import { buscarConclusoes, buscarPendentes, type LivroPendente, type StatusLeitura } from '../lib/pendentes'
 import { useAviso } from '../components/Toast'
 import Logo from '../components/Logo'
 import InstalarApp from '../components/InstalarApp'
@@ -21,7 +21,7 @@ import type { PreCarga } from './Compartilhar'
 import { GraficoRitmo } from '../components/Graficos'
 import { planoCiclo, serieRitmo } from '../lib/infograficos'
 import {
-  chaveDia, contar, diasAte, formatarData, gradeSemanas, paginasEquivalentes, tempoRelativo
+  chaveDia, contar, diaRelativo, diasAte, formatarData, gradeSemanas, paginasEquivalentes, rotulosMeses, tempoRelativo
 } from '../lib/estatisticas'
 
 export interface LivroAtivo {
@@ -42,6 +42,16 @@ interface ProgressoMembro {
   nome_exibicao: string
   paginas: number
   ultima: string
+  terminou: boolean // última página ou "Terminei" marcado
+}
+
+interface Destaque {
+  id: string
+  membro_id: string
+  texto: string
+  tipo: 'trecho' | 'reflexao' | 'pergunta' | 'aplicacao'
+  pagina: number | null
+  nome: string
 }
 
 interface NotaMural {
@@ -54,7 +64,7 @@ interface NotaMural {
   nome: string
 }
 
-export type Destino = 'registrar' | 'notas' | 'perfil' | 'metas' | 'compartilhar' | 'foco' | 'perguntas-encontro' | 'panorama' | 'aplicar' | 'encontro' | 'indicacoes'
+export type Destino = 'registrar' | 'notas' | 'mural' | 'perfil' | 'metas' | 'compartilhar' | 'foco' | 'perguntas-encontro' | 'panorama' | 'aplicar' | 'encontro' | 'indicacoes'
 
 interface Props {
   perfil: Perfil
@@ -78,6 +88,12 @@ export default function Inicio({ perfil, livro, onIr, onBuscar, onPerfilAtualiza
   const [progresso, setProgresso] = useState<ProgressoMembro[] | null>(null)
   const [aniversariantes, setAniversariantes] = useState<{ nome: string; dias: number; data: string }[]>([])
   const [mural, setMural] = useState<NotaMural[]>([])
+  // falha de conexão não pode virar "ninguém leu" nem "crie sua primeira meta"
+  const [erroGrupo, setErroGrupo] = useState(false)
+  const [erroMural, setErroMural] = useState(false)
+  const [erroMetas, setErroMetas] = useState(false)
+  const [membrosClube, setMembrosClube] = useState<string[]>([]) // ids de quem tem acesso
+  const [destaque, setDestaque] = useState<Destaque | null>(null)
   const [metas, setMetas] = useState<MetaResumo[] | null>(null)
   const [qtdPerguntas, setQtdPerguntas] = useState(0)
   const [temAplicacao, setTemAplicacao] = useState(true)
@@ -97,9 +113,10 @@ export default function Inicio({ perfil, livro, onIr, onBuscar, onPerfilAtualiza
     carregarProgresso()
     carregarAniversariantes()
     carregarMural()
+    carregarDestaque()
     supabase.from('metas').select('id, tipo, valor_paginas, valor_sessoes, valor_dias, periodo_inicio, periodo_fim')
       .eq('membro_id', perfil.id).eq('livro_id', livro.id)
-      .then(({ data }) => setMetas((data ?? []) as MetaResumo[]))
+      .then(({ data, error }) => { setErroMetas(!!error); setMetas(error ? [] : (data ?? []) as MetaResumo[]) })
     verificarConquistas()
     supabase.from('anotacoes').select('id', { count: 'exact', head: true }).eq('livro_id', livro.id).eq('compartilhada', true).eq('tipo', 'pergunta')
       .then(({ count }) => setQtdPerguntas(count ?? 0))
@@ -135,23 +152,47 @@ export default function Inicio({ perfil, livro, onIr, onBuscar, onPerfilAtualiza
   }
 
   async function carregarProgresso() {
-    const { data } = await supabase
-      .from('registros_leitura')
-      .select('membro_id, paginas_lidas, minutos_lidos, registrado_em, perfis(nome_exibicao, ritmo_leitura_min_por_pagina)')
-      .eq('livro_id', livro.id)
+    const [{ data, error }, conclusoes] = await Promise.all([
+      supabase
+        .from('registros_leitura')
+        .select('membro_id, paginas_lidas, minutos_lidos, registrado_em, perfis(nome_exibicao, ritmo_leitura_min_por_pagina)')
+        .eq('livro_id', livro.id),
+      buscarConclusoes({ livroId: livro.id }).catch(() => new Map<string, StatusLeitura>())
+    ])
+    if (error) {
+      setErroGrupo(true)
+      setProgresso((p) => p ?? [])
+      return
+    }
+    setErroGrupo(false)
     const mapa = new Map<string, ProgressoMembro>()
     for (const r of data ?? []) {
       const p = (r as any).perfis
-      const atual = mapa.get(r.membro_id) ?? { membro_id: r.membro_id, nome_exibicao: p?.nome_exibicao ?? 'Membro', paginas: 0, ultima: r.registrado_em }
+      const atual = mapa.get(r.membro_id) ?? { membro_id: r.membro_id, nome_exibicao: p?.nome_exibicao ?? 'Membro', paginas: 0, ultima: r.registrado_em, terminou: false }
       atual.paginas += paginasEquivalentes(r, p?.ritmo_leitura_min_por_pagina ?? 2)
       if (r.registrado_em > atual.ultima) atual.ultima = r.registrado_em
       mapa.set(r.membro_id, atual)
     }
-    setProgresso([...mapa.values()].sort((a, b) => b.paginas - a.paginas))
+    for (const m of mapa.values()) m.terminou = terminouLivro(m.paginas, livro.paginas_totais, conclusoes.get(`${livro.id}:${m.membro_id}`))
+    // quem terminou fica no topo; depois, quem leu mais
+    setProgresso([...mapa.values()].sort((a, b) => Number(b.terminou) - Number(a.terminou) || b.paginas - a.paginas))
+  }
+
+  /** Último destaque do clube (escolhido pelo admin no mural) deste livro. */
+  async function carregarDestaque() {
+    const { data, error } = await supabase
+      .from('destaques')
+      .select('created_at, anotacoes!inner(id, membro_id, texto, tipo, pagina, livro_id, perfis(nome_exibicao))')
+      .eq('anotacoes.livro_id', livro.id)
+      .order('created_at', { ascending: false })
+      .limit(1)
+    const a = !error && (data?.[0] as any)?.anotacoes
+    setDestaque(a ? { id: a.id, membro_id: a.membro_id, texto: a.texto, tipo: a.tipo, pagina: a.pagina, nome: a.perfis?.nome_exibicao ?? 'Membro' } : null)
   }
 
   async function carregarAniversariantes() {
-    const { data } = await supabase.from('perfis').select('nome_exibicao, data_nascimento')
+    const { data } = await supabase.from('perfis').select('id, nome_exibicao, data_nascimento')
+    if (data) setMembrosClube(data.map((p) => p.id))
     const hoje = new Date(); hoje.setHours(12, 0, 0, 0)
     const lista: { nome: string; dias: number; data: string }[] = []
     for (const p of data ?? []) {
@@ -166,13 +207,15 @@ export default function Inicio({ perfil, livro, onIr, onBuscar, onPerfilAtualiza
   }
 
   async function carregarMural() {
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('anotacoes')
       .select('id, membro_id, texto, tipo, pagina, created_at, perfis(nome_exibicao)')
       .eq('livro_id', livro.id)
       .eq('compartilhada', true)
       .order('created_at', { ascending: false })
       .limit(3)
+    setErroMural(!!error)
+    if (error) return
     setMural((data ?? []).map((n: any) => ({ ...n, nome: n.perfis?.nome_exibicao ?? 'Membro' })))
   }
 
@@ -213,6 +256,29 @@ export default function Inicio({ perfil, livro, onIr, onBuscar, onPerfilAtualiza
   const meta = perfil.meta_diaria_paginas ?? 10
   const pct = leitura.pct
   const restantes = diasAte(livro.ciclo_fim)
+  const cicloEncerrado = !!livro.ciclo_fim && chaveDia(new Date()) > livro.ciclo_fim
+  // onde parar hoje para cumprir a meta do dia
+  const paginaAlvoHoje = Math.min(livro.paginas_totais, leitura.paginasLivro + Math.max(0, meta - leitura.paginasHoje))
+  const ultimaLeitura = leitura.doLivro[0] ?? null
+  // uma frase que situa o dia: encontro, fim do ciclo ou leitura de hoje
+  const resumoDoDia = (() => {
+    if (leitura.carregando) return null
+    const partes: string[] = []
+    if (livro.encontro_em) {
+      const d0 = new Date(); d0.setHours(0, 0, 0, 0)
+      const d1 = new Date(livro.encontro_em); d1.setHours(0, 0, 0, 0)
+      const dias = Math.round((d1.getTime() - d0.getTime()) / 86_400_000)
+      if (dias === 0) partes.push('Hoje tem encontro do clube')
+      else if (dias === 1) partes.push('Amanhã tem encontro do clube')
+      else if (dias > 1 && dias <= 21) partes.push(`O encontro é daqui a ${dias} dias`)
+    }
+    if (pct >= 100) partes.push('você já terminou o livro')
+    else if (leitura.paginasHoje > 0) partes.push(`você já leu ${contar(leitura.paginasHoje, 'página', 'páginas')} hoje`)
+    else if (!cicloEncerrado && restantes !== null && restantes <= 7) partes.push(restantes === 1 ? 'hoje é o último dia do ciclo' : `o ciclo termina em ${restantes} dias`)
+    if (!partes.length) return null
+    const frase = partes.join(' e ')
+    return frase.charAt(0).toUpperCase() + frase.slice(1) + '.'
+  })()
   const faltam = livro.paginas_totais - leitura.paginasLivro
   const ritmoNecessario = restantes && restantes > 0 && faltam > 0 ? Math.ceil(faltam / restantes) : null
   const pctHoje = Math.min(1, leitura.paginasHoje / meta)
@@ -247,6 +313,11 @@ export default function Inicio({ perfil, livro, onIr, onBuscar, onPerfilAtualiza
                     ? `Meta cumprida: ${contar(leitura.paginasHoje, 'página', 'páginas')} hoje (meta de ${meta}).`
                     : `${leitura.paginasHoje} de ${meta} páginas da meta do dia.`}{' '}
                   <button onClick={() => setEditandoMeta(true)} className="botao-texto">Ajustar meta</button>
+                </p>
+              )}
+              {!editandoMeta && !leitura.carregando && leitura.paginasHoje < meta && faltamPaginas > 0 && (
+                <p className="text-sm text-marinho dark:text-bege mt-1.5">
+                  Para hoje: até a <span className="font-semibold tabular">página {paginaAlvoHoje}</span>.
                 </p>
               )}
               {contagem && <p className={`flex items-center gap-1 text-sm mt-2 ${leitura.seq.dias > 0 ? 'text-dourado-escuro dark:text-dourado' : 'text-texto/65 dark:text-bege/55'}`}>
@@ -290,6 +361,42 @@ export default function Inicio({ perfil, livro, onIr, onBuscar, onPerfilAtualiza
             )}
           </div>
         </section>
+      </>
+    ),
+    destaque: (
+      <>
+        {/* Destaque do clube: trecho do mural escolhido pelo admin */}
+        {!destaque && perfil.role === 'admin' && (
+          <button onClick={() => onIr('mural')} className="w-full cartao px-4 py-3 flex items-center gap-3 text-left border-dashed border-dourado/40">
+            <span className="w-9 h-9 rounded-full bg-dourado/10 text-dourado flex items-center justify-center shrink-0"><Icone nome="aspas" className="w-4 h-4" /></span>
+            <span className="text-sm text-texto/70 dark:text-bege/65">
+              <span className="font-semibold text-marinho dark:text-bege">Destaque do clube</span><br />
+              Só você vê este aviso. No mural, toque na estrela de uma anotação e ela aparece aqui para todos.
+            </span>
+          </button>
+        )}
+        {destaque && (
+          <section className="relative overflow-hidden rounded-3xl border border-dourado/40 bg-gradient-to-br from-dourado/[0.12] via-transparent to-transparent p-5">
+            <span aria-hidden="true" className="absolute -top-6 right-3 font-serif text-[120px] leading-none text-dourado/15 select-none">“</span>
+            <p className="text-[11px] font-semibold uppercase tracking-[.18em] text-dourado-escuro dark:text-dourado">Destaque do clube</p>
+            <ProtecaoSpoiler pagina={destaque.pagina} minhaPagina={paginaMural} ativo={aFrente(destaque, perfil.id, paginaMural)}>
+              <p className={`texto-nota mt-2 text-marinho dark:text-bege ${destaque.tipo === 'trecho' ? 'font-serif italic text-[19px] leading-relaxed' : 'text-[16px] leading-relaxed'}`}>
+                {destaque.tipo === 'pergunta' && <span className="text-dourado-escuro dark:text-dourado font-semibold not-italic">Pergunta: </span>}
+                {destaque.tipo === 'aplicacao' && <span className="text-dourado-escuro dark:text-dourado font-semibold not-italic">Para aplicar: </span>}
+                {destaque.tipo === 'trecho' ? entreAspas(destaque.texto) : destaque.texto}
+              </p>
+            </ProtecaoSpoiler>
+            <div className="flex items-center justify-between gap-3 mt-3">
+              <p className="text-xs text-texto/65 dark:text-bege/55">{destaque.nome}{destaque.pagina ? `, p. ${destaque.pagina}` : ''}</p>
+              <button
+                onClick={() => onIr('compartilhar', { modo: 'texto', tipo: destaque.tipo, texto: destaque.texto, pagina: destaque.pagina, autor: destaque.nome })}
+                className="botao-texto text-sm flex items-center gap-1.5"
+              >
+                <Icone nome="imagem" className="w-4 h-4" /> Criar imagem
+              </button>
+            </div>
+          </section>
+        )}
       </>
     ),
     semana: (
@@ -350,7 +457,7 @@ export default function Inicio({ perfil, livro, onIr, onBuscar, onPerfilAtualiza
     metas: (
       <>
         {/* Metas, com o progresso de verdade */}
-        <CartaoMetas metas={metas} leitura={leitura} livro={livro} onAbrir={() => onIr('metas')} />
+        <CartaoMetas metas={metas} erro={erroMetas} leitura={leitura} livro={livro} onAbrir={() => onIr('metas')} />
       </>
     ),
     grupo: (
@@ -362,11 +469,12 @@ export default function Inicio({ perfil, livro, onIr, onBuscar, onPerfilAtualiza
             <button onClick={() => onIr('panorama')} className="botao-texto">Ver panorama</button>
           </div>
           {progresso === null && <div className="space-y-4">{[0, 1, 2].map((i) => <div key={i} className="esqueleto h-10" />)}</div>}
-          {progresso && progresso.length > 0 && <p className="legenda -mt-2 mb-4">{leramHoje.size === 0 ? 'Ninguém registrou leitura hoje ainda' : `${leramHoje.size} ${leramHoje.size === 1 ? 'pessoa leu' : 'pessoas leram'} hoje`}</p>}
-          {progresso?.length === 0 && <p className="legenda">Ninguém registrou leitura ainda. As primeiras páginas podem ser as suas.</p>}
+          {erroGrupo && <p className="legenda mb-4">Sem conexão agora. O progresso do grupo aparece quando a internet voltar.</p>}
+          {!erroGrupo && progresso && progresso.length > 0 && <p className="legenda -mt-2 mb-4">{leramHoje.size === 0 ? 'Ninguém registrou leitura hoje ainda' : `${leramHoje.size} ${leramHoje.size === 1 ? 'pessoa leu' : 'pessoas leram'} hoje`}</p>}
+          {!erroGrupo && progresso?.length === 0 && <p className="legenda">Ninguém registrou leitura ainda. As primeiras páginas podem ser as suas.</p>}
           <ul className="space-y-4">
             {progresso?.map((p) => {
-              const pctMembro = Math.min(100, Math.round((p.paginas / livro.paginas_totais) * 100))
+              const pctMembro = p.terminou ? 100 : Math.min(99, Math.round((p.paginas / livro.paginas_totais) * 100))
               const souEu = p.membro_id === perfil.id
               return (
                 <li key={p.membro_id} className="flex items-center gap-3">
@@ -392,6 +500,16 @@ export default function Inicio({ perfil, livro, onIr, onBuscar, onPerfilAtualiza
               )
             })}
           </ul>
+          {!erroGrupo && progresso && (() => {
+            const comecaram = new Set(progresso.map((p) => p.membro_id))
+            const faltam = membrosClube.filter((id) => !comecaram.has(id)).length
+            if (!faltam) return null
+            return (
+              <p className="text-xs text-texto/65 dark:text-bege/55 mt-4 pt-3 border-t border-marinho/[0.07] dark:border-bege/[0.08]">
+                {faltam === 1 ? 'Mais 1 pessoa do clube ainda não registrou leitura neste livro.' : `Mais ${faltam} pessoas do clube ainda não registraram leitura neste livro.`} Cada um no seu ritmo.
+              </p>
+            )
+          })()}
         </section>
       </>
     ),
@@ -401,9 +519,11 @@ export default function Inicio({ perfil, livro, onIr, onBuscar, onPerfilAtualiza
         <section className="cartao p-5">
           <div className="flex items-baseline justify-between mb-3">
             <h2 className="titulo-secao">Do mural</h2>
-            <button onClick={() => onIr('notas')} className="botao-texto">Ver anotações</button>
+            <button onClick={() => onIr('mural')} className="botao-texto">Ver o mural</button>
           </div>
-          {mural.length === 0 ? (
+          {erroMural ? (
+            <p className="legenda">Sem conexão agora. O mural aparece quando a internet voltar.</p>
+          ) : mural.length === 0 ? (
             <Vazio compacto texto="Quando alguém puser um trecho, reflexão, pergunta ou aplicação no mural, aparece aqui." />
           ) : (
             <ul className="space-y-4">
@@ -476,6 +596,7 @@ export default function Inicio({ perfil, livro, onIr, onBuscar, onPerfilAtualiza
         <h1 className="font-serif text-[30px] leading-tight text-marinho dark:text-bege">
           {saudacao()}, {perfil.nome_exibicao}
         </h1>
+        {resumoDoDia && <p className="text-[15px] text-texto/70 dark:text-bege/65 mt-1.5 leading-snug">{resumoDoDia}</p>}
       </header>
 
       <main className="px-5 space-y-5 max-w-md mx-auto">
@@ -538,12 +659,23 @@ export default function Inicio({ perfil, livro, onIr, onBuscar, onPerfilAtualiza
                 Faltam {faltamPaginas} {faltamPaginas === 1 ? 'página' : 'páginas'}, cerca de <span className="text-bege/85 font-semibold">{formatarTempoEstimado(minutosFaltam)}</span> de leitura no seu ritmo
               </p>
             )}
+            {!leitura.carregando && ultimaLeitura && (
+              <p className="text-xs text-bege/60 mt-1 flex items-center gap-1.5">
+                <Icone nome="relogio" className="w-3.5 h-3.5 text-dourado" />
+                <span>Última leitura {diaRelativo(ultimaLeitura.registrado_em)}: {ultimaLeitura.paginas_lidas
+                  ? contar(ultimaLeitura.paginas_lidas, 'página', 'páginas')
+                  : `${formatarTempoEstimado(ultimaLeitura.minutos_lidos ?? 0)} de leitura`}</span>
+              </p>
+            )}
           </div>
           <dl className="grid grid-cols-3 border-t border-bege/10">
-            <Dado valor={restantes === null ? '—' : String(restantes)} rotulo={restantes === null ? 'sem data de fim' : restantes === 1 ? 'dia restante' : 'dias restantes'} />
             <Dado
-              valor={pct >= 100 ? '✓' : ritmoNecessario === null ? '—' : String(ritmoNecessario)}
-              rotulo={pct >= 100 ? 'livro concluído' : 'páginas por dia'}
+              valor={restantes === null ? '—' : cicloEncerrado ? formatarData(livro.ciclo_fim!) : String(restantes)}
+              rotulo={restantes === null ? 'sem data de fim' : cicloEncerrado ? 'fim do ciclo' : restantes === 1 ? 'último dia' : 'dias restantes'}
+            />
+            <Dado
+              valor={pct >= 100 ? '✓' : cicloEncerrado ? String(faltamPaginas) : ritmoNecessario === null ? '—' : String(ritmoNecessario)}
+              rotulo={pct >= 100 ? 'livro concluído' : cicloEncerrado ? (faltamPaginas === 1 ? 'página falta' : 'páginas faltam') : 'páginas por dia'}
               meio
             />
             <Dado
@@ -664,8 +796,9 @@ const NOME_META: Record<MetaResumo['tipo'], string> = {
   dias_semanais: 'Dias de leitura na semana'
 }
 
-function CartaoMetas({ metas, leitura, livro, onAbrir }: {
+function CartaoMetas({ metas, erro, leitura, livro, onAbrir }: {
   metas: MetaResumo[] | null
+  erro?: boolean
   leitura: ReturnType<typeof useMinhaLeitura>
   livro: LivroAtivo
   onAbrir: () => void
@@ -683,6 +816,14 @@ function CartaoMetas({ metas, leitura, livro, onAbrir }: {
     if (m.tipo === 'livro_total') return [leitura.paginasLivro, livro.paginas_totais]
     const soma = leitura.doLivro.filter((r) => dentro(r.registrado_em)).reduce((a, r) => a + paginasEquivalentes(r, ritmo), 0)
     return [Math.round(soma), m.valor_paginas ?? 0]
+  }
+  if (erro) {
+    return (
+      <section className="cartao px-5 py-4">
+        <h2 className="font-serif text-lg leading-tight text-marinho dark:text-bege">Metas</h2>
+        <p className="text-xs text-texto/65 dark:text-bege/55 mt-0.5">Sem conexão agora. Suas metas aparecem quando a internet voltar.</p>
+      </section>
+    )
   }
   if (metas !== null && ativas.length === 0) {
     return (
@@ -829,6 +970,9 @@ const LETRAS = ['D', 'S', 'T', 'Q', 'Q', 'S', 'S']
 function MapaAtividade({ porDia }: { porDia: Map<string, number> }) {
   const grade = gradeSemanas(15)
   const hoje = chaveDia(new Date())
+  const meses = rotulosMeses(grade)
+  const diasNoPeriodo = grade.flat().filter((d) => { const k = chaveDia(d); return k <= hoje && (porDia.get(k) ?? 0) > 0 }).length
+  const paginasNoPeriodo = Math.round(grade.flat().reduce((a, d) => a + (porDia.get(chaveDia(d)) ?? 0), 0))
   function nivel(p: number) {
     if (p <= 0) return 'bg-marinho/[0.06] dark:bg-bege/[0.07]'
     if (p < 6) return 'bg-dourado/30'
@@ -838,6 +982,13 @@ function MapaAtividade({ porDia }: { porDia: Map<string, number> }) {
   }
   return (
     <div>
+      <p className="text-sm text-texto/70 dark:text-bege/65 mb-3">
+        {contar(paginasNoPeriodo, 'página', 'páginas')} em {contar(diasNoPeriodo, 'dia', 'dias')} de leitura nas últimas 15 semanas.
+      </p>
+      <div className="grid gap-1 mb-1" style={{ gridTemplateColumns: 'auto repeat(15, minmax(0, 1fr))' }} aria-hidden="true">
+        <span className="pr-1 text-[10px] invisible">S</span>
+        {meses.map((m, i) => <span key={i} className="text-[10px] text-texto/65 dark:text-bege/55 whitespace-nowrap overflow-visible">{m}</span>)}
+      </div>
       <div className="grid grid-rows-7 grid-flow-col gap-1" style={{ gridTemplateColumns: 'auto repeat(15, minmax(0, 1fr))' }}>
         {LETRAS.map((l, i) => (
           <span key={'l' + i} className="pr-1 text-[10px] text-texto/65 dark:text-bege/55 flex items-center">{i % 2 === 1 ? l : ''}</span>
@@ -886,8 +1037,9 @@ function RitmoCiclo({ leitura, livro }: { leitura: ReturnType<typeof useMinhaLei
   const frase = leitura.paginasLivro >= livro.paginas_totais ? 'Livro concluído. A linha mostra o caminho até aqui.'
     : diferenca === null ? 'O ciclo ainda não tem data de término. Quando o admin definir, aparece a linha do ritmo do ciclo para comparar.'
     : Math.abs(diferenca) <= 2 ? 'Você está no ritmo do ciclo.'
-    : diferenca > 0 ? `${diferenca} ${diferenca === 1 ? 'página' : 'páginas'} adiante do ritmo do ciclo.`
-    : `${-diferenca} ${diferenca === -1 ? 'página' : 'páginas'} atrás do ritmo. Sem pressa: cada página conta.`
+    : diferenca > 0 ? `${contar(diferenca, 'página', 'páginas')} adiante do ritmo do ciclo.`
+    // incentivo, não cobrança: mostra onde o plano está, sem "atrasado"
+    : `O ritmo do ciclo está na página ${Math.min(livro.paginas_totais, leitura.paginasLivro - diferenca)}; você está na ${leitura.paginasLivro}. Sem pressa: cada página conta.`
   return (
     <div className="mt-4">
       <GraficoRitmo pontos={pontos} total={livro.paginas_totais} />

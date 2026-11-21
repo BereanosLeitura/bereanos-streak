@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { Fragment, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { supabase, type Perfil } from '../lib/supabase'
 import { apagarComDesfazer, useAviso } from '../components/Toast'
 import Icone, { type NomeIcone } from '../components/Icone'
@@ -9,6 +9,7 @@ import RespostasMural from '../components/RespostasMural'
 import ProtecaoSpoiler, { aFrente } from '../components/ProtecaoSpoiler'
 import CadernoAnotacoes from '../components/CadernoAnotacoes'
 import Vazio from '../components/Vazio'
+import { entreAspas } from '../lib/regras'
 import { useMinhaLeitura } from '../lib/leitura'
 
 // Anotações de leitura: trecho, reflexão, pergunta para o encontro e aplicação
@@ -92,6 +93,50 @@ export default function Notas({ perfil, livro, inicial, onCompartilhar }: Props)
   // página em que a pessoa está (null enquanto carrega: protege por garantia)
   const minhaPagina = leitura.carregando ? 0 : leitura.paginasLivro >= livro.paginas_totais ? null : leitura.paginasLivro
   const avisar = useAviso()
+  const [expandidas, setExpandidas] = useState<Set<string>>(new Set())
+  const [recuperado, setRecuperado] = useState(false)
+  const [ditando, setDitando] = useState(false)
+  const reconhecimento = useRef<any>(null)
+  const podeDitar = typeof window !== 'undefined' && !!((window as any).SpeechRecognition || (window as any).webkitSpeechRecognition)
+
+  // Rascunho da anotação nova: se a pessoa sair da tela ou o app fechar no
+  // meio, o texto volta na próxima vez que tocar em "Nova".
+  const chaveRascunho = `bereanos-streak-rascunho-${perfil.id}-${livro.id}`
+  useEffect(() => {
+    if (!editor || editor.id !== null) return
+    try {
+      if (texto.trim()) localStorage.setItem(chaveRascunho, JSON.stringify({ tipo, texto, pagina, referencia, noMural }))
+      else localStorage.removeItem(chaveRascunho)
+    } catch { /* ok */ }
+  }, [editor, tipo, texto, pagina, referencia, noMural])
+  function descartarRascunho() {
+    try { localStorage.removeItem(chaveRascunho) } catch { /* ok */ }
+    setRecuperado(false)
+    setTexto(''); setPagina(''); setReferencia(''); setNoMural(false)
+  }
+
+  // Ditado por voz (Chrome no Android e no computador; o Safari do iPhone usa o microfone do teclado).
+  function alternarDitado() {
+    if (ditando) { reconhecimento.current?.stop(); return }
+    const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
+    if (!SR) return
+    const r = new SR()
+    r.lang = 'pt-BR'
+    r.continuous = true
+    r.interimResults = false
+    r.onresult = (e: any) => {
+      let novo = ''
+      for (let i = e.resultIndex; i < e.results.length; i++) if (e.results[i].isFinal) novo += e.results[i][0].transcript
+      if (novo.trim()) setTexto((t) => (t && !/\s$/.test(t) ? t + ' ' : t) + novo.trim())
+    }
+    r.onerror = () => { setDitando(false); avisar('Não deu para usar o microfone agora', 'erro') }
+    r.onend = () => setDitando(false)
+    reconhecimento.current = r
+    r.start()
+    setDitando(true)
+  }
+  useEffect(() => () => reconhecimento.current?.stop(), [])
+  useEffect(() => { if (!editor) reconhecimento.current?.stop() }, [editor])
 
   useEffect(() => {
     if (inicial?.novaTipo) { abrirNova(); setTipo(inicial.novaTipo) }
@@ -123,11 +168,14 @@ export default function Notas({ perfil, livro, inicial, onCompartilhar }: Props)
 
   function abrirNova() {
     setEditor({ id: null })
-    setTipo('trecho')
-    setTexto('')
-    setPagina('')
-    setReferencia('')
-    setNoMural(false)
+    let r: { tipo: Tipo; texto: string; pagina: string; referencia: string; noMural: boolean } | null = null
+    try { r = JSON.parse(localStorage.getItem(chaveRascunho) ?? 'null') } catch { r = null }
+    setTipo(r?.tipo ?? 'trecho')
+    setTexto(r?.texto ?? '')
+    setPagina(r?.pagina ?? '')
+    setReferencia(r?.referencia ?? '')
+    setNoMural(r?.noMural ?? false)
+    setRecuperado(!!r?.texto)
   }
 
   function abrirEdicao(n: Nota) {
@@ -151,6 +199,8 @@ export default function Notas({ perfil, livro, inicial, onCompartilhar }: Props)
     setSalvando(false)
     if (error) return avisar('Não foi possível salvar a anotação', 'erro')
     avisar(editor.id ? 'Anotação atualizada' : noMural ? 'Anotação salva e posta no mural' : 'Anotação salva')
+    if (!editor.id) { try { localStorage.removeItem(chaveRascunho) } catch { /* ok */ } }
+    setRecuperado(false)
     setEditor(null)
     carregar()
   }
@@ -192,10 +242,11 @@ export default function Notas({ perfil, livro, inicial, onCompartilhar }: Props)
   }
 
   async function copiarParaEncontro() {
-    const minhas = (notas ?? []).filter((n) => n.membro_id === perfil.id)
+    // só deste livro, mesmo quando a busca está em todos os livros
+    const minhas = (notas ?? []).filter((n) => n.membro_id === perfil.id && n.livro_id === livro.id)
     if (minhas.length === 0) return avisar('Você ainda não tem anotações neste livro', 'erro')
     const porTipo = (t: Tipo) => minhas.filter((n) => n.tipo === t).sort((a, b) => (a.pagina ?? 9999) - (b.pagina ?? 9999))
-    const linha = (n: Nota) => `${n.pagina ? `(p. ${n.pagina}) ` : ''}${n.tipo === 'trecho' ? `“${n.texto}”` : n.texto}${n.referencia ? ` [${n.referencia}]` : ''}`
+    const linha = (n: Nota) => `${n.pagina ? `(p. ${n.pagina}) ` : ''}${n.tipo === 'trecho' ? entreAspas(n.texto) : n.texto}${n.referencia ? ` [${n.referencia}]` : ''}`
     const partes = [`${livro.titulo}${livro.autor ? `, ${livro.autor}` : ''}`, `Anotações de ${perfil.nome_exibicao}`]
     ORDEM_TIPOS.forEach((t) => {
       const l = porTipo(t)
@@ -224,7 +275,7 @@ export default function Notas({ perfil, livro, inicial, onCompartilhar }: Props)
 
   const contagem = useMemo(() => {
     const c = { trecho: 0, reflexao: 0, pergunta: 0, aplicacao: 0 }
-    for (const n of notas ?? []) c[n.tipo]++
+    for (const n of notas ?? []) if (n.livro_id === livro.id) c[n.tipo]++
     return c
   }, [notas])
 
@@ -267,9 +318,24 @@ export default function Notas({ perfil, livro, inicial, onCompartilhar }: Props)
                 </button>
               ))}
             </div>
+            {recuperado && (
+              <p className="text-xs text-dourado-escuro dark:text-dourado mb-2 flex items-center gap-2">
+                Rascunho recuperado.
+                <button type="button" onClick={descartarRascunho} className="underline underline-offset-2">Descartar</button>
+              </p>
+            )}
             <textarea aria-label="Texto da anotação" value={texto} onChange={(e) => setTexto(e.target.value)} rows={5} maxLength={2000} autoFocus placeholder={TIPOS[tipo].dica}
+              onKeyDown={(e) => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); salvar() } }}
               className={`campo resize-none ${tipo === 'trecho' ? 'font-serif italic text-[18px]' : ''}`} />
-            <p className="text-xs text-right text-texto/65 dark:text-bege/55 mt-1">{texto.length}/2000</p>
+            <div className="flex items-center justify-between mt-1">
+              {podeDitar ? (
+                <button type="button" onClick={alternarDitado} aria-pressed={ditando}
+                  className={`chip text-[12px] flex items-center gap-1.5 ${ditando ? 'chip-ativo animate-pulse' : ''}`}>
+                  <Icone nome="som" className="w-3.5 h-3.5" /> {ditando ? 'Ouvindo… toque para parar' : 'Ditar'}
+                </button>
+              ) : <span />}
+              <p className="text-xs text-texto/65 dark:text-bege/55">{texto.length}/2000</p>
+            </div>
             <label className="block mt-2">
               <span className="text-sm text-texto/70 dark:text-bege/70">Referência bíblica <span className="text-texto/65 dark:text-bege/55">(opcional)</span></span>
               <input value={referencia} onChange={(e) => setReferencia(e.target.value)} maxLength={80} placeholder="Ex.: Atos 17:11" className="campo mt-1 py-2" />
@@ -307,10 +373,12 @@ export default function Notas({ perfil, livro, inicial, onCompartilhar }: Props)
           <div className="cartao mt-4 p-4 flex items-center gap-4">
             <dl className="flex gap-3 flex-1">
               {(Object.keys(TIPOS) as Tipo[]).map((t) => (
-                <div key={t}>
+                <button key={t} type="button" onClick={() => setFiltro(filtro === t ? 'todas' : t)} aria-pressed={filtro === t}
+                  title={`Mostrar só ${TIPOS[t].plural.toLowerCase()}`}
+                  className={`text-left rounded-lg -m-1 p-1 transition-colors ${filtro === t ? 'bg-dourado/15' : 'hover:bg-marinho/[0.04] dark:hover:bg-bege/[0.05]'}`}>
                   <dd className="font-serif tabular text-xl text-marinho dark:text-bege leading-none">{contagem[t]}</dd>
-                  <dt className="text-[10px] text-texto/65 dark:text-bege/55 mt-0.5">{TIPOS[t].plural.toLowerCase()}</dt>
-                </div>
+                  <dt className="text-[10px] text-texto/65 dark:text-bege/55 mt-0.5">{(contagem[t] === 1 ? TIPOS[t].rotulo : TIPOS[t].plural).toLowerCase()}</dt>
+                </button>
               ))}
             </dl>
             <div className="flex flex-col items-end gap-2 shrink-0">
@@ -369,11 +437,17 @@ export default function Notas({ perfil, livro, inicial, onCompartilhar }: Props)
         )}
 
         <ul className="space-y-3 mt-5">
-          {visiveis.map((n) => {
+          {visiveis.map((n, i) => {
             const minha = n.membro_id === perfil.id
             const protegida = vista === 'mural' && !revelarTudo && !revelados.has(n.id) && aFrente(n, perfil.id, minhaPagina)
+            const longa = n.texto.length > 420 && !expandidas.has(n.id)
+            // em "Por página", um título a cada 25 páginas ajuda a achar o trecho
+            const grupo = ordem === 'pagina' ? faixaDePaginas(n.pagina) : null
+            const novoGrupo = grupo !== null && (i === 0 || faixaDePaginas(visiveis[i - 1].pagina) !== grupo)
             return (
-              <li key={n.id} className={`cartao p-4 ${(n.favorita && vista === 'minhas') || (vista === 'mural' && destaques.has(n.id)) ? 'border-dourado/45' : ''}`}>
+              <Fragment key={n.id}>
+              {novoGrupo && <li className="pt-2 text-xs font-semibold uppercase tracking-[.14em] text-dourado-escuro dark:text-dourado" aria-hidden="true">{grupo}</li>}
+              <li className={`cartao p-4 ${(n.favorita && vista === 'minhas') || (vista === 'mural' && destaques.has(n.id)) ? 'border-dourado/45' : ''}`}>
                 {buscaGeral && n.livro_titulo && <p className="text-[11px] font-semibold text-texto/65 dark:text-bege/55 mb-1 truncate">{n.livro_titulo}</p>}
                 {vista === 'mural' && destaques.has(n.id) && <p className="text-[11px] font-semibold text-dourado-escuro dark:text-dourado mb-1">Destaque do clube</p>}
                 <div className="flex items-center gap-2 text-sm text-dourado-escuro dark:text-dourado mb-2">
@@ -391,9 +465,13 @@ export default function Notas({ perfil, livro, inicial, onCompartilhar }: Props)
                   )}
                 </div>
                 <ProtecaoSpoiler ativo={protegida} pagina={n.pagina} minhaPagina={minhaPagina} onRevelar={() => setRevelados((r) => new Set(r).add(n.id))}>
-                <p className={`texto-nota text-marinho dark:text-bege whitespace-pre-line ${n.tipo === 'trecho' ? 'font-serif italic text-[18px] leading-relaxed' : 'text-[15px] leading-relaxed'}`}>
-                  {n.tipo === 'trecho' ? `“${n.texto}”` : n.texto}
+                <p className={`texto-nota text-marinho dark:text-bege whitespace-pre-line ${longa ? 'line-clamp-[8]' : ''} ${n.tipo === 'trecho' ? 'font-serif italic text-[18px] leading-relaxed' : 'text-[15px] leading-relaxed'}`}>
+                  <ComDestaque texto={n.tipo === 'trecho' ? entreAspas(n.texto) : n.texto} termo={busca} />
                 </p>
+                {n.texto.length > 420 && (
+                  <button onClick={() => setExpandidas((s) => { const x = new Set(s); if (x.has(n.id)) x.delete(n.id); else x.add(n.id); return x })}
+                    className="botao-texto text-sm mt-1">{longa ? 'Ler mais' : 'Mostrar menos'}</button>
+                )}
                 </ProtecaoSpoiler>
                 {n.referencia && (
                   <p className="inline-flex items-center gap-1.5 mt-2 rounded-full bg-marinho/[0.05] dark:bg-bege/[0.07] px-2.5 py-1 text-xs font-semibold text-marinho/80 dark:text-bege/80">
@@ -428,12 +506,37 @@ export default function Notas({ perfil, livro, inicial, onCompartilhar }: Props)
                 </div>
                 {vista === 'mural' && !protegida && <RespostasMural anotacaoId={n.id} perfil={perfil} autorNota={n.membro_id} />}
               </li>
+              </Fragment>
             )
           })}
         </ul>
       </div>
     </div>
   )
+}
+
+/** "p. 1–25", "p. 26–50"... ou "Sem página". */
+function faixaDePaginas(pagina: number | null): string {
+  if (!pagina) return 'Sem página'
+  const ini = Math.floor((pagina - 1) / 25) * 25 + 1
+  return `p. ${ini}–${ini + 24}`
+}
+
+/** Marca o termo buscado dentro do texto (sem diferenciar maiúsculas). */
+function ComDestaque({ texto, termo }: { texto: string; termo: string }) {
+  const t = termo.trim()
+  if (t.length < 2) return <>{texto}</>
+  const partes: ReactNode[] = []
+  const baixo = texto.toLowerCase()
+  const alvo = t.toLowerCase()
+  let i = 0
+  for (let j = baixo.indexOf(alvo); j !== -1; j = baixo.indexOf(alvo, i)) {
+    if (j > i) partes.push(texto.slice(i, j))
+    partes.push(<mark key={j} className="bg-dourado/30 text-inherit rounded px-0.5">{texto.slice(j, j + t.length)}</mark>)
+    i = j + t.length
+  }
+  partes.push(texto.slice(i))
+  return <>{partes}</>
 }
 
 function BotaoIcone({ icone, rotulo, onClick, ativo, perigo }: { icone: NomeIcone; rotulo: string; onClick: () => void; ativo?: boolean; perigo?: boolean }) {

@@ -1482,7 +1482,7 @@ export async function desenharLeitura(canvas: HTMLCanvasElement, modelo: ModeloL
     const tamTot = compacto ? 150 : 210
     texto1(ctx, String(gr?.paginas ?? 0), W / 2, y + tamTot * 0.8, `600 ${tamTot}px ${SERIFA}`, P.titulo)
     y += tamTot * 0.8 + 56
-    texto1(ctx, 'páginas lidas juntos', W / 2, y, `600 34px ${SANS}`, P.corpo)
+    texto1(ctx, 'páginas lidas pelo clube', W / 2, y, `600 34px ${SANS}`, P.corpo)
     y += compacto ? 50 : 80
     const txt = await logo('texto', P.logo)
     const lTxt = compacto ? 220 : 280

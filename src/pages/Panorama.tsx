@@ -51,7 +51,7 @@ export default function Panorama({ livro, onVoltar, onCompartilhar, onMural, onM
           <>
             <section className="cartao p-6 mt-6 text-center bg-marinho dark:bg-noite-cartao border-transparent">
               <p className="font-serif tabular text-[64px] leading-none text-bege"><Contador v={p.paginasGrupo} /></p>
-              <p className="text-bege/75 mt-2">páginas lidas juntos</p>
+              <p className="text-bege/75 mt-2">páginas lidas pelo clube</p>
               <dl className="grid grid-cols-3 gap-2 mt-6 pt-5 border-t border-dourado/30">
                 <Item v={p.leitores} r={p.leitores === 1 ? 'leitor' : 'leitores'} />
                 <Item v={p.terminaram} r={p.terminaram === 1 ? 'terminou' : 'terminaram'} />

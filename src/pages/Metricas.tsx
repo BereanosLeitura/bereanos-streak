@@ -167,7 +167,7 @@ function Grupo({ m, livro }: { m: MetricasGrupo; livro: LivroAtivo }) {
     <>
       <section className="cartao p-6 mt-6 text-center bg-marinho dark:bg-noite-cartao border-transparent">
         <p className="font-serif tabular text-[56px] leading-none text-bege"><NumeroAnimado v={m.paginasCiclo} /></p>
-        <p className="text-bege/75 mt-2">páginas lidas juntos em {livro.titulo}</p>
+        <p className="text-bege/75 mt-2">páginas lidas pelo clube em {livro.titulo}</p>
         <dl className="grid grid-cols-3 gap-2 mt-6 pt-5 border-t border-dourado/30">
           <NumEscuro v={`${m.ativosCiclo} de ${m.membros}`} r="já leram" />
           <NumEscuro v={`${m.mediaPct}%`} r="média lida" />
@@ -219,7 +219,7 @@ function Grupo({ m, livro }: { m: MetricasGrupo; livro: LivroAtivo }) {
             <li key={l.titulo} className="py-2.5">
               <p className="text-[15px] text-marinho dark:text-bege leading-snug">{l.titulo}{l.atual && <span className="text-xs text-dourado-escuro dark:text-dourado font-semibold"> · atual</span>}</p>
               <p className="text-xs text-texto/65 dark:text-bege/55 mt-0.5">
-                {l.paginas} páginas lidas juntos, {l.leitores} {l.leitores === 1 ? 'leitor' : 'leitores'}, {l.terminaram} {l.terminaram === 1 ? 'terminou' : 'terminaram'}
+                {l.paginas} páginas lidas pelo clube, {l.leitores} {l.leitores === 1 ? 'leitor' : 'leitores'}, {l.terminaram} {l.terminaram === 1 ? 'terminou' : 'terminaram'}
               </p>
             </li>
           ))}

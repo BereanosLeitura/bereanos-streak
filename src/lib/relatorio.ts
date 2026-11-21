@@ -1,4 +1,5 @@
 import { supabase } from './supabase'
+import { entreAspas } from './regras'
 import { calcularPanorama } from './infograficos'
 
 // Relatório do ciclo: página A4 pronta para "Salvar como PDF" no navegador.
@@ -32,7 +33,7 @@ export async function abrirRelatorioCiclo(livro: LivroBase): Promise<boolean> {
   }
 
   const item = (n: (typeof notas)[number], marcar = false) =>
-    `<li>${n.tipo === 'trecho' ? `<em>“${esc(n.texto)}”</em>` : esc(n.texto)}<span class="meta"> ${esc(n.perfis?.nome_exibicao ?? 'Membro')}${n.pagina ? `, p. ${n.pagina}` : ''}${n.referencia ? `, ${esc(n.referencia)}` : ''}${marcar ? ', discutida no encontro' : ''}</span></li>`
+    `<li>${n.tipo === 'trecho' ? `<em>${esc(entreAspas(n.texto))}</em>` : esc(n.texto)}<span class="meta"> ${esc(n.perfis?.nome_exibicao ?? 'Membro')}${n.pagina ? `, p. ${n.pagina}` : ''}${n.referencia ? `, ${esc(n.referencia)}` : ''}${marcar ? ', discutida no encontro' : ''}</span></li>`
   const perguntas = notas.filter((n) => n.tipo === 'pergunta')
   const aplicacoes = notas.filter((n) => n.tipo === 'aplicacao')
   const destacadas = notas.filter((n) => destaques.has(n.id))
@@ -74,7 +75,7 @@ ${ciclo ? `<p class="sub">${ciclo}</p>` : ''}
 
 <h2>O clube neste livro</h2>
 <div class="nums">
-<div><b>${pan.paginasGrupo}</b><small>páginas lidas juntos</small></div>
+<div><b>${pan.paginasGrupo}</b><small>páginas lidas pelo clube</small></div>
 <div><b>${pan.leitores}</b><small>${pan.leitores === 1 ? 'leitor' : 'leitores'}</small></div>
 <div><b>${pan.terminaram}</b><small>${pan.terminaram === 1 ? 'terminou' : 'terminaram'}</small></div>
 <div><b>${pan.mediaPct}%</b><small>média lida</small></div>

@@ -7,7 +7,7 @@ import Icone, { type NomeIcone } from '../components/Icone'
 import Avatar from '../components/Avatar'
 import { chaveDia, formatarData, paginasEquivalentes, tempoRelativo } from '../lib/estatisticas'
 import { buscarConclusoes, type StatusLeitura } from '../lib/pendentes'
-import { terminouLivro } from '../lib/regras'
+import { terminouLivro, entreAspas } from '../lib/regras'
 import { apagarRegistroLeitura } from '../lib/sync'
 import { useContagem } from '../lib/preferencias'
 import { abrirRelatorioCiclo } from '../lib/relatorio'
@@ -143,7 +143,7 @@ export default function LivroDetalhe({ perfil, livroId, onVoltar, rotuloVoltar =
     const linhas = [`${livro.titulo}${livro.autor ? `, ${livro.autor}` : ''}`, `Anotações de ${perfil.nome_exibicao}`]
     for (const t of ['pergunta', 'trecho', 'reflexao', 'aplicacao'] as Tipo[]) {
       const l = minhas.filter((n) => n.tipo === t)
-      if (l.length) linhas.push('', `${TIPO[t].plural}:`, ...l.map((n) => `- ${n.pagina ? `(p. ${n.pagina}) ` : ''}${n.tipo === 'trecho' ? `“${n.texto}”` : n.texto}${n.referencia ? ` [${n.referencia}]` : ''}`))
+      if (l.length) linhas.push('', `${TIPO[t].plural}:`, ...l.map((n) => `- ${n.pagina ? `(p. ${n.pagina}) ` : ''}${n.tipo === 'trecho' ? entreAspas(n.texto) : n.texto}${n.referencia ? ` [${n.referencia}]` : ''}`))
     }
     return linhas.join('\n')
   }
@@ -402,7 +402,7 @@ function ListaNotas({ notas, comAutor = false, vazio, onImagem, podeApagar, onAp
             {n.favorita && !comAutor && <span className="ml-auto text-dourado text-xs">favorita</span>}
           </div>
           <p className={`texto-nota text-marinho dark:text-bege whitespace-pre-line ${n.tipo === 'trecho' ? 'font-serif italic text-[18px] leading-relaxed' : 'text-[15px] leading-relaxed'}`}>
-            {n.tipo === 'trecho' ? `“${n.texto}”` : n.texto}
+            {n.tipo === 'trecho' ? entreAspas(n.texto) : n.texto}
           </p>
           {n.referencia && <p className="text-xs font-semibold text-marinho/70 dark:text-bege/70 mt-2 flex items-center gap-1.5"><Icone nome="livro" className="w-3.5 h-3.5 text-dourado" />{n.referencia}</p>}
           <div className="flex items-center gap-2 mt-3">

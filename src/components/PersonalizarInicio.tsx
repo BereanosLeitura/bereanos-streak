@@ -4,27 +4,34 @@ import Icone from './Icone'
 // Cada pessoa escolhe quais cartões aparecem no Início e em que ordem.
 // Guardado neste aparelho.
 
-export type IdBlocoInicio = 'encontro' | 'hoje' | 'semana' | 'metas' | 'grupo' | 'mural' | 'atalhos'
+export type IdBlocoInicio = 'encontro' | 'hoje' | 'destaque' | 'semana' | 'metas' | 'grupo' | 'mural' | 'atalhos'
 export interface LayoutInicio { ordem: IdBlocoInicio[]; ocultos: IdBlocoInicio[] }
 
 export const NOMES_BLOCOS: Record<IdBlocoInicio, string> = {
   encontro: 'Próximo encontro',
   hoje: 'Hoje e registro rápido',
+  destaque: 'Destaque do clube',
   semana: 'Semana, ciclo e meses',
   metas: 'Metas',
   grupo: 'O grupo neste livro',
   mural: 'Do mural',
   atalhos: 'Próximas leituras e Encontro'
 }
-const PADRAO: LayoutInicio = { ordem: ['encontro', 'hoje', 'semana', 'metas', 'grupo', 'mural', 'atalhos'], ocultos: [] }
+const PADRAO: LayoutInicio = { ordem: ['encontro', 'hoje', 'destaque', 'semana', 'metas', 'grupo', 'mural', 'atalhos'], ocultos: [] }
 const CHAVE = 'bereanos-streak-inicio'
 
 export function layoutSalvo(): LayoutInicio {
   try {
     const v = JSON.parse(localStorage.getItem(CHAVE) ?? 'null') as LayoutInicio | null
     if (!v) return PADRAO
-    // garante que blocos novos apareçam e removidos sumam
-    const ordem = [...v.ordem.filter((id) => id in NOMES_BLOCOS), ...PADRAO.ordem.filter((id) => !v.ordem.includes(id))]
+    // blocos removidos somem; blocos novos entram no lugar padrão deles
+    // (logo depois do bloco que vem antes na ordem padrão), não no fim da tela
+    const ordem = v.ordem.filter((id) => id in NOMES_BLOCOS)
+    PADRAO.ordem.forEach((id, i) => {
+      if (ordem.includes(id)) return
+      const antes = PADRAO.ordem.slice(0, i).reverse().find((x) => ordem.includes(x))
+      ordem.splice(antes ? ordem.indexOf(antes) + 1 : 0, 0, id)
+    })
     return { ordem, ocultos: v.ocultos.filter((id) => id in NOMES_BLOCOS) }
   } catch { return PADRAO }
 }

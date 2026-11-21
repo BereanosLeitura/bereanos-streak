@@ -5,6 +5,7 @@ import { useMinhaLeitura } from '../lib/leitura'
 import { useAviso } from '../components/Toast'
 import Icone, { type NomeIcone } from '../components/Icone'
 import { chaveDia, contar } from '../lib/estatisticas'
+import { formatarTempo } from '../lib/tempo'
 import { planoCiclo } from '../lib/infograficos'
 import type { LivroAtivo } from './Inicio'
 
@@ -50,7 +51,7 @@ interface SessaoAtiva {
 
 const LIMITE_LIVRE = 240 // minutos: teto do modo livre
 
-type Som = 'nenhum' | 'suave' | 'chuva'
+type Som = 'nenhum' | 'suave' | 'chuva' | 'lareira'
 
 // O timer NUNCA conta a partir de um intervalo em memória: sempre recalcula a
 // partir do horário de início salvo (e do tempo pausado). Assim o tempo
@@ -92,17 +93,24 @@ function focadoMin(s: SessaoAtiva) {
 function criarSom(tipo: Exclude<Som, 'nenhum'>) {
   const Ctx = window.AudioContext || (window as any).webkitAudioContext
   const ctx: AudioContext = new Ctx()
-  const segundos = 4
+  const segundos = tipo === 'lareira' ? 12 : 4 // a lareira precisa de mais tempo para os estalos não repetirem
   const buffer = ctx.createBuffer(1, ctx.sampleRate * segundos, ctx.sampleRate)
   const dados = buffer.getChannelData(0)
   let ultimo = 0
   let b0 = 0, b1 = 0, b2 = 0
+  let estalo = 0
   for (let i = 0; i < dados.length; i++) {
     const branco = Math.random() * 2 - 1
     if (tipo === 'suave') {
       // ruído marrom: grave e contínuo
       ultimo = (ultimo + 0.02 * branco) / 1.02
       dados[i] = ultimo * 3.2
+    } else if (tipo === 'lareira') {
+      // lareira: fundo grave com estalos curtos e irregulares da lenha
+      ultimo = (ultimo + 0.02 * branco) / 1.02
+      if (estalo < 0.02 && Math.random() < 0.00035) estalo = 0.6 + Math.random() * 0.4
+      dados[i] = ultimo * 2.4 + (estalo > 0.02 ? branco * estalo : 0)
+      estalo *= 0.985
     } else {
       // ruído rosa: mais aberto, lembra chuva fina
       b0 = 0.99765 * b0 + branco * 0.099046
@@ -116,10 +124,10 @@ function criarSom(tipo: Exclude<Som, 'nenhum'>) {
   fonte.loop = true
   const filtro = ctx.createBiquadFilter()
   filtro.type = 'lowpass'
-  filtro.frequency.value = tipo === 'suave' ? 900 : 5000
+  filtro.frequency.value = tipo === 'suave' ? 900 : tipo === 'lareira' ? 3200 : 5000
   const ganho = ctx.createGain()
   ganho.gain.value = 0
-  ganho.gain.linearRampToValueAtTime(tipo === 'suave' ? 0.5 : 0.35, ctx.currentTime + 1.5)
+  ganho.gain.linearRampToValueAtTime(tipo === 'suave' ? 0.5 : tipo === 'lareira' ? 0.45 : 0.35, ctx.currentTime + 1.5)
   fonte.connect(filtro).connect(ganho).connect(ctx.destination)
   fonte.start()
   return () => {
@@ -185,6 +193,13 @@ export default function Pomodoro({ perfil, livro, onFocoAtivo }: Props) {
   const [metaPagina, setMetaPagina] = useState('')
   const [, forcar] = useState(0)
   const pararSom = useRef<(() => void) | null>(null)
+  // apagar 25 minutos de leitura com um toque só era fácil demais: pede o segundo toque
+  const [confirmando, setConfirmando] = useState<'cancelar' | 'descartar' | null>(null)
+  useEffect(() => {
+    if (!confirmando) return
+    const t = setTimeout(() => setConfirmando(null), 4000)
+    return () => clearTimeout(t)
+  }, [confirmando])
   const wakeLock = useRef<any>(null)
   const avisar = useAviso()
 
@@ -278,6 +293,28 @@ export default function Pomodoro({ perfil, livro, onFocoAtivo }: Props) {
     return () => { pararSom.current?.(); pararSom.current = null }
   }, [som, sessao?.pausadoEm, !!sessao, terminada])
 
+  // O navegador solta a tela acesa quando o app vai para segundo plano;
+  // ao voltar com a sessão rodando, pede de novo.
+  useEffect(() => {
+    if (!sessao || terminada) return
+    const aoVoltar = () => { if (document.visibilityState === 'visible') pedirWakeLock() }
+    document.addEventListener('visibilitychange', aoVoltar)
+    return () => document.removeEventListener('visibilitychange', aoVoltar)
+  }, [sessao, terminada])
+
+  // Atalhos no computador: espaço pausa ou continua, A abre a anotação.
+  useEffect(() => {
+    if (!sessao || terminada || anotando) return
+    const aoTeclar = (e: KeyboardEvent) => {
+      const alvo = e.target as HTMLElement | null
+      if (alvo && /input|textarea|select/i.test(alvo.tagName)) return
+      if (e.code === 'Space') { e.preventDefault(); alternarPausa() }
+      else if (e.key.toLowerCase() === 'a') { e.preventDefault(); setAnotando(true) }
+    }
+    window.addEventListener('keydown', aoTeclar)
+    return () => window.removeEventListener('keydown', aoTeclar)
+  })
+
   async function pedirWakeLock() {
     try { wakeLock.current = await (navigator as any).wakeLock?.request('screen') } catch { /* sem suporte */ }
   }
@@ -329,11 +366,15 @@ export default function Pomodoro({ perfil, livro, onFocoAtivo }: Props) {
   function encerrarAgora() {
     if (!sessao) return
     const min = focadoMin(sessao)
-    if (min < 1) return cancelar()
+    if (min < 1) {
+      avisar('Menos de 1 minuto de leitura: a sessão não foi registrada.')
+      return cancelar()
+    }
     terminar(min, false)
   }
 
   function cancelar() {
+    setConfirmando(null)
     gravar(CHAVE_SESSAO, null)
     setSessao(null)
     setTerminada(null)
@@ -351,6 +392,10 @@ export default function Pomodoro({ perfil, livro, onFocoAtivo }: Props) {
       avisar('Espere seu progresso carregar', 'erro')
       return
     }
+    if (comPaginas && modoFim === 'pagina' && parseInt(valorFim, 10) > livro.paginas_totais) {
+      avisar(`O livro tem ${livro.paginas_totais} páginas`, 'erro')
+      return
+    }
     if (comPaginas && paginasDoFim <= 0) {
       avisar(modoFim === 'pagina' ? `Informe uma página depois da ${leitura.paginasLivro}` : 'Informe quantas páginas leu', 'erro')
       return
@@ -363,13 +408,17 @@ export default function Pomodoro({ perfil, livro, onFocoAtivo }: Props) {
     // com páginas, o registro usa só as páginas (dado real); sem elas, os minutos
     await criarRegistroLeitura({
       membro_id: perfil.id, livro_id: sessao.livro_id, origem: 'pomodoro',
-      minutos_lidos: comPaginas ? null : terminada.minutos, paginas_lidas: comPaginas ? paginasDoFim : null
+      // "quantas li" não passa do fim do livro
+      minutos_lidos: comPaginas ? null : terminada.minutos,
+      paginas_lidas: comPaginas ? Math.min(paginasDoFim, Math.max(1, livro.paginas_totais - leitura.paginasLivro)) : null
     })
     setSalvando(false)
     gravar(CHAVE_SESSAO, null)
     setSessao(null)
     setTerminada(null)
-    avisar(`Sessão de ${terminada.minutos} min registrada`)
+    avisar(comPaginas
+      ? `Sessão de ${formatarTempo(terminada.minutos)} registrada, com ${contar(paginasDoFim, 'página', 'páginas')}`
+      : `Sessão de ${formatarTempo(terminada.minutos)} registrada`)
     leitura.recarregar()
     carregarSemana()
     // ciclo Pomodoro: pausa longa a cada N sessões concluídas no dia
@@ -384,6 +433,7 @@ export default function Pomodoro({ perfil, livro, onFocoAtivo }: Props) {
   const hojeChaveP = chaveDia(new Date())
   const feitasHojeP = sessoesSemana.filter((x) => chaveDia(x.fim) === hojeChaveP).length
   const posicaoCiclo = feitasHojeP % config.ciclo // quantas do ciclo atual já foram
+  const minutosDeHoje = sessoesSemana.filter((x) => chaveDia(x.fim) === hojeChaveP).reduce((a, x) => a + (x.duracao_minutos ?? 0), 0)
 
   if (sessao && terminada) {
     return (
@@ -394,9 +444,14 @@ export default function Pomodoro({ perfil, livro, onFocoAtivo }: Props) {
           </span>
           <h1 className="font-serif text-[26px] text-marinho dark:text-bege mt-4">{contar(terminada.minutos, 'minuto', 'minutos')} de leitura</h1>
           <p className="legenda mt-1">
-            Você começou na página {leitura.paginasLivro}{sessao.metaPagina ? ` e queria chegar à ${sessao.metaPagina}` : ''}.
+            {leitura.carregando ? 'Carregando seu progresso…' : <>Você começou na página {leitura.paginasLivro}{sessao.metaPagina ? ` e queria chegar à ${sessao.metaPagina}` : ''}.</>}
             {sessao.notas ? ` ${sessao.notas} ${sessao.notas === 1 ? 'anotação feita' : 'anotações feitas'} nesta sessão.` : ''}
           </p>
+          <dl className="grid grid-cols-3 gap-2 mt-4 py-3 rounded-xl bg-marinho/[0.04] dark:bg-bege/[0.05]">
+            <div><dd className="font-serif tabular text-xl text-marinho dark:text-bege">{formatarTempo(terminada.minutos)}</dd><dt className="text-[11px] text-texto/65 dark:text-bege/55">desta sessão</dt></div>
+            <div><dd className="font-serif tabular text-xl text-marinho dark:text-bege">{formatarTempo(minutosDeHoje + terminada.minutos)}</dd><dt className="text-[11px] text-texto/65 dark:text-bege/55">de foco hoje</dt></div>
+            <div><dd className="font-serif tabular text-xl text-marinho dark:text-bege">{contar(feitasHojeP + 1, 'sessão', 'sessões')}</dd><dt className="text-[11px] text-texto/65 dark:text-bege/55">hoje</dt></div>
+          </dl>
           {sessao.metaPagina && modoFim === 'pagina' && !valorFim && (
             <button onClick={() => setValorFim(String(sessao.metaPagina))} className="botao-texto text-sm mt-2">Cheguei à página {sessao.metaPagina}</button>
           )}
@@ -425,7 +480,10 @@ export default function Pomodoro({ perfil, livro, onFocoAtivo }: Props) {
           <p className="text-xs text-texto/65 dark:text-bege/55 mt-3">
             "Só o tempo" converte os minutos em páginas pelo seu ritmo ({String(perfil.ritmo_leitura_min_por_pagina).replace('.', ',')} min por página).
           </p>
-          <button onClick={cancelar} className="text-sm text-texto/65 dark:text-bege/55 mt-4 hover:underline underline-offset-4">Descartar sessão</button>
+          <button onClick={() => (confirmando === 'descartar' ? cancelar() : setConfirmando('descartar'))}
+            className={`text-sm mt-4 hover:underline underline-offset-4 ${confirmando === 'descartar' ? 'font-semibold text-red-700 dark:text-red-400' : 'text-texto/65 dark:text-bege/55'}`}>
+            {confirmando === 'descartar' ? `Toque de novo para descartar ${formatarTempo(terminada.minutos)}` : 'Descartar sessão'}
+          </button>
         </div>
       </Tela>
     )
@@ -466,10 +524,33 @@ export default function Pomodoro({ perfil, livro, onFocoAtivo }: Props) {
           </div>
         </div>
 
+        {/* rumo à página escolhida, pela estimativa do ritmo */}
+        {(() => {
+          const inicioPg = leitura.paginasLivro
+          const alvo = sessao.metaPagina ?? null
+          const agoraPg = Math.min(livro.paginas_totais, inicioPg + estimadas)
+          const pctAlvo = alvo && alvo > inicioPg ? Math.min(100, Math.round(((agoraPg - inicioPg) / (alvo - inicioPg)) * 100)) : null
+          return (
+            <div className="w-full max-w-sm">
+              <div className="flex justify-between text-xs text-texto/65 dark:text-bege/55 mb-1.5 tabular">
+                <span>p. {inicioPg}</span>
+                <span className="text-dourado-escuro dark:text-dourado font-semibold">{estimadas > 0 ? `cerca da p. ${agoraPg}` : 'boa leitura'}</span>
+                <span>{alvo ? `meta: p. ${alvo}` : `p. ${livro.paginas_totais}`}</span>
+              </div>
+              <div className="h-1.5 rounded-full bg-marinho/[0.07] dark:bg-bege/10 overflow-hidden" role="img"
+                aria-label={alvo ? `Rumo à página ${alvo}: cerca de ${pctAlvo}% do caminho` : `Cerca da página ${agoraPg} de ${livro.paginas_totais}`}>
+                <div className="h-full rounded-full barra-progresso transition-all duration-1000"
+                  style={{ width: `${pctAlvo ?? Math.round((agoraPg / livro.paginas_totais) * 100)}%` }} />
+              </div>
+            </div>
+          )
+        })()}
+
         <div className="w-full max-w-sm space-y-4">
-          <div className="flex justify-center gap-2">
-            {([['nenhum', 'Silêncio', 'x'], ['suave', 'Ruído suave', 'som'], ['chuva', 'Chuva fina', 'gota']] as [Som, string, NomeIcone][]).map(([s, rot, ic]) => (
-              <button key={s} onClick={() => setSom(s)} className={`chip flex items-center gap-1.5 ${som === s ? 'chip-ativo' : ''}`}>
+          <div className="grid grid-cols-4 gap-1.5" role="radiogroup" aria-label="Som de fundo">
+            {([['nenhum', 'Silêncio', 'x'], ['suave', 'Ruído', 'som'], ['chuva', 'Chuva', 'gota'], ['lareira', 'Lareira', 'chama']] as [Som, string, NomeIcone][]).map(([s, rot, ic]) => (
+              <button key={s} role="radio" aria-checked={som === s} onClick={() => setSom(s)}
+                className={`rounded-xl border py-2 flex flex-col items-center gap-1 text-[12px] transition-colors ${som === s ? 'border-dourado bg-dourado/10 text-dourado-escuro dark:text-dourado font-semibold' : 'border-marinho/15 dark:border-bege/15 text-texto/70 dark:text-bege/60'}`}>
                 <Icone nome={ic} className="w-4 h-4" /> {rot}
               </button>
             ))}
@@ -479,7 +560,10 @@ export default function Pomodoro({ perfil, livro, onFocoAtivo }: Props) {
             <BotaoRedondo icone="pena" rotulo="Anotar" onClick={() => setAnotando(true)} />
             <BotaoRedondo icone="check" rotulo="Encerrar" onClick={encerrarAgora} />
           </div>
-          <button onClick={cancelar} className="w-full text-sm text-texto/65 dark:text-bege/55 hover:underline underline-offset-4">Cancelar sem registrar</button>
+          <button onClick={() => (confirmando === 'cancelar' ? cancelar() : setConfirmando('cancelar'))}
+            className={`w-full text-sm hover:underline underline-offset-4 ${confirmando === 'cancelar' ? 'font-semibold text-red-700 dark:text-red-400' : 'text-texto/65 dark:text-bege/55'}`}>
+            {confirmando === 'cancelar' ? 'Toque de novo para cancelar sem registrar' : 'Cancelar sem registrar'}
+          </button>
         </div>
 
         {anotando && <AnotacaoRapida perfil={perfil} livro={livro} paginaSugerida={leitura.paginasLivro} onFechar={() => setAnotando(false)}
@@ -501,13 +585,18 @@ export default function Pomodoro({ perfil, livro, onFocoAtivo }: Props) {
         <h1 className="font-serif text-[28px] text-marinho dark:text-bege mt-1">Hora de descansar</h1>
         <Ciclo feitas={posicaoCiclo === 0 && feitasHojeP > 0 ? config.ciclo : posicaoCiclo} total={config.ciclo} />
         <div className="relative w-60 h-60 my-6">
-          <svg className="w-full h-full -rotate-90" viewBox="0 0 100 100" aria-hidden="true">
+          {/* guia de respiração: 4 s inspirando, 4 s soltando o ar */}
+          <span aria-hidden="true" className="absolute inset-6 rounded-full bg-dourado/10 animate-respirar" />
+          <svg className="relative w-full h-full -rotate-90" viewBox="0 0 100 100" aria-hidden="true">
             <circle cx="50" cy="50" r={r} fill="none" strokeWidth="1.5" className="stroke-marinho/10 dark:stroke-bege/10" />
             <circle cx="50" cy="50" r={r} fill="none" strokeWidth="3" strokeLinecap="round" className="stroke-marinho/60 dark:stroke-bege/70"
               strokeDasharray={c} strokeDashoffset={c * (1 - prog)} style={{ transition: 'stroke-dashoffset 1s linear' }} />
           </svg>
-          <div className="absolute inset-0 flex items-center justify-center">
+          <div className="absolute inset-0 flex flex-col items-center justify-center">
             <p className="font-serif tabular text-[60px] leading-none text-marinho dark:text-bege">{formatar(seg)}</p>
+            <p className="text-sm text-dourado-escuro dark:text-dourado mt-2 motion-reduce:hidden" aria-hidden="true">
+              {Math.floor((Date.now() - (intervalo.fim - intervalo.total * 1000)) / 4000) % 2 === 0 ? 'inspire…' : 'solte o ar…'}
+            </p>
           </div>
         </div>
         <p className="legenda max-w-[280px]">
@@ -593,18 +682,40 @@ export default function Pomodoro({ perfil, livro, onFocoAtivo }: Props) {
         )}
 
         {(() => {
-          const sugestao = planoCiclo(livro)?.find((x) => x.atual)?.ate
+          // Sugestões realistas de onde parar: o que cabe nesta sessão no seu ritmo,
+          // a meta do dia e o marco da semana do plano do ciclo.
+          const atual = leitura.paginasLivro
+          const ritmo = perfil.ritmo_leitura_min_por_pagina || 2
+          const nestaSessao = config.modo === 'pomodoro' ? Math.min(livro.paginas_totais, atual + Math.max(1, Math.round(duracao / ritmo))) : null
+          const metaDia = perfil.meta_diaria_paginas ?? 10
+          const doDia = leitura.paginasHoje < metaDia ? Math.min(livro.paginas_totais, atual + metaDia - leitura.paginasHoje) : null
+          const marco = planoCiclo(livro)?.find((x) => x.atual)?.ate ?? null
+          const opcoes = ([
+            nestaSessao && ['Cabe nesta sessão', nestaSessao],
+            doDia && ['Meta do dia', doDia],
+            marco && ['Marco da semana', marco]
+          ].filter(Boolean) as [string, number][])
+            .filter(([, p], i, l) => p > atual && l.findIndex(([, q]) => q === p) === i)
           return (
-            <div className="cartao p-4 mb-6 text-left flex items-center gap-3">
-              <Icone nome="alvo" className="w-5 h-5 text-dourado shrink-0" />
-              <label className="flex-1 text-sm text-texto/75 dark:text-bege/75" htmlFor="meta-sessao">
-                Até onde quer ler? <span className="text-texto/65 dark:text-bege/55">(opcional)</span>
-                {sugestao && sugestao > leitura.paginasLivro && (
-                  <button type="button" onClick={() => setMetaPagina(String(sugestao))} className="block text-xs botao-texto mt-0.5">Marco da semana: página {sugestao}</button>
-                )}
-              </label>
-              <input id="meta-sessao" type="number" inputMode="numeric" min={leitura.paginasLivro + 1} max={livro.paginas_totais} value={metaPagina}
-                onChange={(e) => setMetaPagina(e.target.value)} placeholder="página" className="campo w-24 py-2 text-center" />
+            <div className="cartao p-4 mb-6 text-left">
+              <div className="flex items-center gap-3">
+                <Icone nome="alvo" className="w-5 h-5 text-dourado shrink-0" />
+                <label className="flex-1 text-sm text-texto/75 dark:text-bege/75" htmlFor="meta-sessao">
+                  Até onde quer ler? <span className="text-texto/65 dark:text-bege/55">(opcional)</span>
+                </label>
+                <input id="meta-sessao" type="number" inputMode="numeric" min={atual + 1} max={livro.paginas_totais} value={metaPagina}
+                  onChange={(e) => setMetaPagina(e.target.value)} placeholder="página" className="campo w-24 py-2 text-center" />
+              </div>
+              {opcoes.length > 0 && !leitura.carregando && (
+                <div className="flex flex-wrap gap-1.5 mt-3">
+                  {opcoes.map(([rotulo, p]) => (
+                    <button key={rotulo} type="button" onClick={() => setMetaPagina(String(p))}
+                      className={`chip text-[12px] ${metaPagina === String(p) ? 'chip-ativo' : ''}`}>
+                      {rotulo}: p. {p}
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
           )
         })()}
@@ -635,7 +746,7 @@ export default function Pomodoro({ perfil, livro, onFocoAtivo }: Props) {
         <section className="cartao p-5 mt-8 text-left">
           <div className="flex items-baseline justify-between">
             <h2 className="titulo-secao">Seu foco</h2>
-            <span className="legenda">{deHoje.length} {deHoje.length === 1 ? 'sessão' : 'sessões'}, {minutosHoje} min hoje</span>
+            <span className="legenda">{contar(deHoje.length, 'sessão', 'sessões')}, {formatarTempo(minutosHoje)} hoje</span>
           </div>
           <div className="flex items-end gap-2 h-24 mt-4">
             {dias.map((d) => (
@@ -651,7 +762,7 @@ export default function Pomodoro({ perfil, livro, onFocoAtivo }: Props) {
             const diasComFoco = dias.filter((d) => d.min > 0).length
             return (
               <dl className="grid grid-cols-3 gap-2 text-center mt-4 pt-4 border-t border-marinho/[0.07] dark:border-bege/[0.08]">
-                <div><dd className="font-serif tabular text-xl text-marinho dark:text-bege">{totalSemana >= 60 ? `${Math.floor(totalSemana / 60)}h${String(totalSemana % 60).padStart(2, '0')}` : `${totalSemana} min`}</dd><dt className="text-[11px] text-texto/65 dark:text-bege/55">na semana</dt></div>
+                <div><dd className="font-serif tabular text-xl text-marinho dark:text-bege">{formatarTempo(totalSemana)}</dd><dt className="text-[11px] text-texto/65 dark:text-bege/55">na semana</dt></div>
                 <div><dd className="font-serif tabular text-xl text-marinho dark:text-bege">{sessoesSemana.length}</dd><dt className="text-[11px] text-texto/65 dark:text-bege/55">{sessoesSemana.length === 1 ? 'sessão' : 'sessões'}</dt></div>
                 <div><dd className="font-serif tabular text-xl text-marinho dark:text-bege">{diasComFoco}</dd><dt className="text-[11px] text-texto/65 dark:text-bege/55">{diasComFoco === 1 ? 'dia com foco' : 'dias com foco'}</dt></div>
               </dl>

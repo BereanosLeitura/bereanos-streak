@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { supabase } from '../lib/supabase'
 import { paginasEquivalentes, formatarData, contar } from '../lib/estatisticas'
+import { entreAspas } from '../lib/regras'
 import Icone from './Icone'
 
 // Relatório do ciclo: uma folha A4 com o que ficou daquele livro, para o
@@ -174,7 +175,7 @@ export default function RelatorioCiclo({ livro, onFechar }: Props) {
                       <span className="text-[12px] text-[#8A6D2B] pt-1 tabular">{n.pagina ? `p. ${n.pagina}` : ''}</span>
                       <div>
                         <p className={`whitespace-pre-line leading-relaxed ${s.tipo === 'trecho' ? 'italic text-[16px]' : 'text-[15px]'}`}>
-                          {s.tipo === 'trecho' ? `“${n.texto}”` : n.texto}
+                          {s.tipo === 'trecho' ? entreAspas(n.texto) : n.texto}
                         </p>
                         {n.referencia && <p className="text-[12px] text-[#1B2A4A] mt-0.5 font-sans font-semibold">{n.referencia}</p>}
                         <p className="text-[12px] text-[#6b6b6b] mt-0.5">{n.autor}</p>

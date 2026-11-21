@@ -337,3 +337,8 @@ html.sem-efeitos .faiscas,
 html.sem-efeitos .borda-luz::before,
 html.sem-efeitos .chuva-faiscas { display: none !important; }
 html.sem-efeitos .brilho-capa { animation: none !important; }
+
+/* Foco: guia de respiração na pausa (4 s inspirando, 4 s soltando o ar) */
+@keyframes respirar { 0%, 100% { transform: scale(.72); opacity: .5; } 50% { transform: scale(1); opacity: 1; } }
+.animate-respirar { animation: respirar 8s ease-in-out infinite; }
+@media (prefers-reduced-motion: reduce) { .animate-respirar { animation: none; } }

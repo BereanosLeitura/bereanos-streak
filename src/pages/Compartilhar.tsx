@@ -13,6 +13,8 @@ import {
 import type { LivroAtivo } from './Inicio'
 import { calcularPanorama, calcularRetrospectiva, type Panorama, type Retrospectiva } from '../lib/infograficos'
 import { contar, formatarData } from '../lib/estatisticas'
+import { entreAspas } from '../lib/regras'
+import { buscarConclusoes } from '../lib/pendentes'
 import { useContagem } from '../lib/preferencias'
 
 export interface PreCarga {
@@ -58,9 +60,20 @@ export default function Compartilhar({ perfil, livro, preCarga }: Props) {
   const leitura = useMinhaLeitura(perfil, livro)
   const contagem = useContagem()
   const [modo, setModo] = useState<'texto' | 'leitura'>(preCarga?.modo ?? 'texto')
-  const [formato, setFormato] = useState<Formato>('story')
-  const [modeloTexto, setModeloTexto] = useState<ModeloTexto>('pergaminho')
-  const [modeloLeitura, setModeloLeitura] = useState<ModeloLeitura>(preCarga?.modeloLeitura ?? 'lendo')
+  // formato e modelos ficam lembrados neste aparelho (a pré-escolha de outra tela vale mais)
+  const lembrado = (() => { try { return JSON.parse(localStorage.getItem('bereanos-streak-compartilhar-escolhas') || '{}') as { formato?: Formato; modeloTexto?: ModeloTexto; modeloLeitura?: ModeloLeitura } } catch { return {} } })()
+  const [formato, setFormato] = useState<Formato>(lembrado.formato && lembrado.formato in FORMATOS ? lembrado.formato : 'story')
+  const [modeloTexto, setModeloTexto] = useState<ModeloTexto>(lembrado.modeloTexto && MODELOS_TEXTO.some((m) => m.id === lembrado.modeloTexto) ? lembrado.modeloTexto : 'pergaminho')
+  const [modeloLeitura, setModeloLeitura] = useState<ModeloLeitura>(preCarga?.modeloLeitura ?? (lembrado.modeloLeitura && lembrado.modeloLeitura !== 'terminei' && MODELOS_LEITURA.some((m) => m.id === lembrado.modeloLeitura) ? lembrado.modeloLeitura : 'lendo'))
+  useEffect(() => {
+    try { localStorage.setItem('bereanos-streak-compartilhar-escolhas', JSON.stringify({ formato, modeloTexto, modeloLeitura })) } catch { /* ok */ }
+  }, [formato, modeloTexto, modeloLeitura])
+  // "Terminei" também vale para quem marcou o livro como lido (pela pessoa ou pelo admin)
+  const [marcadoTerminou, setMarcadoTerminou] = useState(false)
+  useEffect(() => {
+    buscarConclusoes({ membroId: perfil.id, livroId: livro.id })
+      .then((m) => setMarcadoTerminou(m.get(`${livro.id}:${perfil.id}`) === 'terminou')).catch(() => {})
+  }, [livro.id])
   // sem texto vindo de uma anotação, volta o rascunho que ficou na tela
   const [rascunhoInicial] = useState(() => (preCarga?.texto ? null : lerRascunho(livro.id)))
   const [tipo, setTipo] = useState<TipoTexto>(preCarga?.tipo ?? rascunhoInicial?.tipo ?? 'trecho')
@@ -225,7 +238,7 @@ export default function Compartilhar({ perfil, livro, preCarga }: Props) {
     if (modo === 'texto') {
       const t = texto.trim()
       if (!t) return ''
-      if (tipo === 'trecho') return `“${t.replace(/^["“]|["”]$/g, '')}”${fonte ? `\n${fonte}` : ''}\n\nLendo com o Clube do Livro Bereanos.`
+      if (tipo === 'trecho') return `${entreAspas(t)}${fonte ? `\n${fonte}` : ''}\n\nLendo com o Clube do Livro Bereanos.`
       if (tipo === 'reflexao') return `${t}${autorTexto !== perfil.nome_exibicao ? `\n(${autorTexto})` : ''}\n\n${nomeLivro ? `Reflexão da leitura de ${nomeLivro}.\n` : ''}Clube do Livro Bereanos`
       if (tipo === 'aplicacao') return `${t}\n\n${nomeLivro ? `O que levo para a vida da leitura de ${nomeLivro}.\n` : ''}Ler, examinar, dialogar e aplicar. Clube do Livro Bereanos`
       return `${t}\n\n${nomeLivro ? `Uma pergunta da leitura de ${nomeLivro}. ` : ''}O que você acha?`
@@ -235,23 +248,25 @@ export default function Compartilhar({ perfil, livro, preCarga }: Props) {
     switch (modeloLeitura) {
       case 'progresso':
       case 'anel':
-        return `${leitura.pct}% lido de${de}: página ${leitura.paginasLivro} de ${livro.paginas_totais}. Seguimos com o Clube do Livro Bereanos.`
+        return `Li ${leitura.pct}% de${de}: estou na página ${leitura.paginasLivro} de ${livro.paginas_totais}. Seguimos com o Clube do Livro Bereanos.`
       case 'semana':
         return `Minha semana de leitura: ${contar(leitura.paginasSemana, 'página', 'páginas')}. Uma página por vez, com o Clube do Livro Bereanos.`
       case 'constancia':
-        return `${s} ${s === 1 ? 'dia seguido' : 'dias seguidos'} de leitura${nomeLivro ? `, lendo ${nomeLivro}` : ''}. Clube do Livro Bereanos.`
+        return s === 1
+          ? `Mais um dia de leitura${nomeLivro ? `, com ${nomeLivro}` : ''}. Uma página por vez, no Clube do Livro Bereanos.`
+          : `${s} dias seguidos de leitura${nomeLivro ? `, lendo ${nomeLivro}` : ''}. Clube do Livro Bereanos.`
       case 'retrospectiva':
         return retro
           ? `Minha leitura de${de}: ${contar(retro.paginas, 'página', 'páginas')} em ${retro.dias} ${retro.dias === 1 ? 'dia' : 'dias'}${retro.anotacoes.trecho + retro.anotacoes.reflexao + retro.anotacoes.pergunta + retro.anotacoes.aplicacao ? `, com ${contar(retro.anotacoes.trecho + retro.anotacoes.reflexao + retro.anotacoes.pergunta + retro.anotacoes.aplicacao, 'anotação', 'anotações')}` : ''}. Clube do Livro Bereanos.`
           : ''
       case 'grupo':
         return panorama
-          ? `${contar(panorama.paginasGrupo, 'página lida', 'páginas lidas')} juntos${nomeLivro ? ` em ${nomeLivro}` : ''}, por ${panorama.leitores} ${panorama.leitores === 1 ? 'leitor' : 'leitores'}. Ler, examinar, dialogar e aplicar, no Clube do Livro Bereanos.`
+          ? `${contar(panorama.paginasGrupo, 'página lida', 'páginas lidas')} pelo clube${nomeLivro ? ` em ${nomeLivro}` : ''}, por ${panorama.leitores} ${panorama.leitores === 1 ? 'leitor' : 'leitores'}. Ler, examinar, dialogar e aplicar, no Clube do Livro Bereanos.`
           : ''
       case 'terminei':
         return `Terminei de ler${nomeLivro ? ` ${nomeLivro}` : ' mais um livro'}. ${livro.paginas_totais} páginas com o Clube do Livro Bereanos.`
       default:
-        return `Estou lendo${de} com o Clube do Livro Bereanos. Já li ${leitura.pct}%.`
+        return `Estou lendo${de}, com o Clube do Livro Bereanos. Já li ${leitura.pct}%.`
     }
   }
 
@@ -415,6 +430,22 @@ export default function Compartilhar({ perfil, livro, preCarga }: Props) {
     }
   }
 
+  // Computador: copia a imagem pronta para colar no WhatsApp Web, e-mail etc.
+  const podeCopiarImagem = typeof window !== 'undefined' && 'ClipboardItem' in window && !!navigator.clipboard?.write
+  async function copiarImagem() {
+    if (!canvasRef.current || !podeGerar) return
+    try {
+      await desenharEm(canvasRef.current)
+      const blob = await new Promise<Blob | null>((ok) => canvasRef.current!.toBlob(ok, 'image/png'))
+      if (!blob) throw new Error('sem imagem')
+      await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })])
+      avisar('Imagem copiada. É só colar onde quiser.')
+      marcarConquista()
+    } catch {
+      avisar('Este navegador não deixou copiar a imagem. Use Baixar.', 'erro')
+    }
+  }
+
   async function baixar() {
     if (!canvasRef.current || !podeGerar) return
     const arquivos = await gerarArquivos()
@@ -443,7 +474,16 @@ export default function Compartilhar({ perfil, livro, preCarga }: Props) {
     }
   }
 
-  const podeGerar = modo === 'leitura' || texto.trim().length > 0
+  // Modelos que afirmam algo só saem quando é verdade: "Terminei" sem ter
+  // terminado, "0 dias seguidos" ou "semana com 0 páginas" não viram imagem.
+  const terminouEste = leitura.pct >= 100 || marcadoTerminou
+  const bloqueio = modo !== 'leitura' ? null
+    : modeloLeitura === 'terminei' && !terminouEste ? 'Esse modelo é para quando você terminar o livro.'
+    : modeloLeitura === 'constancia' && leitura.seq.dias === 0 ? 'Você ainda não tem dias seguidos. Registre uma leitura hoje para começar.'
+    : modeloLeitura === 'retrospectiva' && retro && retro.dias === 0 ? 'Você ainda não registrou leitura neste livro.'
+    : modeloLeitura === 'semana' && leitura.paginasSemana === 0 ? 'Nenhuma página registrada nesta semana ainda.'
+    : null
+  const podeGerar = modo === 'leitura' ? !bloqueio && !leitura.carregando : texto.trim().length > 0
   const { w, h } = FORMATOS[formato]
   const fundoPrevia = transparente
     ? corAdesivo === 'claro'
@@ -702,10 +742,7 @@ export default function Compartilhar({ perfil, livro, preCarga }: Props) {
               <Num valor={leitura.paginasSemana} rotulo="na semana" />
               {contagem && <Num valor={leitura.seq.dias} rotulo="dias seguidos" />}
             </dl>
-            {modeloLeitura === 'terminei' && leitura.pct < 100 && <Dica>Esse modelo é para quando você terminar o livro.</Dica>}
-            {modeloLeitura === 'constancia' && leitura.seq.dias === 0 && <Dica>Você ainda não tem dias seguidos. Registre uma leitura hoje para começar.</Dica>}
-            {modeloLeitura === 'retrospectiva' && retro && retro.dias === 0 && <Dica>Você ainda não registrou leitura neste livro.</Dica>}
-            {modeloLeitura === 'semana' && leitura.paginasSemana === 0 && <Dica>Nenhuma página registrada nesta semana ainda.</Dica>}
+            {bloqueio && <Dica>{bloqueio}</Dica>}
           </section>
         )}
 
@@ -737,7 +774,8 @@ export default function Compartilhar({ perfil, livro, preCarga }: Props) {
             {enviando ? 'Preparando…' : partes.length > 1 && modo === 'texto' ? `Compartilhar ${partes.length} imagens e legenda` : 'Compartilhar imagem e legenda'}
           </button>
           {precisaFoto && !foto && <p className="text-xs text-center text-texto/65 dark:text-bege/55">Escolha uma foto para esse modelo.</p>}
-          <div className="grid grid-cols-3 gap-2">
+          <div className={`grid gap-2 ${podeCopiarImagem && partes.length <= 1 ? 'grid-cols-4' : 'grid-cols-3'}`}>
+            {podeCopiarImagem && partes.length <= 1 && <BotaoAcao icone="imagem" rotulo="Copiar imagem" onClick={copiarImagem} desativado={!podeGerar || (precisaFoto && !foto)} />}
             <BotaoAcao icone="baixar" rotulo={transparente ? 'Baixar PNG' : 'Baixar'} onClick={baixar} desativado={!podeGerar || (precisaFoto && !foto)} />
             <BotaoAcao icone="copiar" rotulo="Copiar legenda" onClick={() => copiarTexto(legenda)} desativado={!legenda} />
             <BotaoAcao icone="whatsapp" rotulo="WhatsApp" desativado={!legenda}

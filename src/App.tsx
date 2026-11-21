@@ -286,6 +286,11 @@ function Aplicativo() {
       setAba('notas')
       return
     }
+    if (destino === 'mural') {
+      setNotasInicial({ vista: 'mural', filtro: 'todas' })
+      setAba('notas')
+      return
+    }
     if (destino === 'perguntas-encontro') {
       setNotasInicial({ vista: 'mural', filtro: 'pergunta' })
       setAba('notas')

@@ -35,7 +35,7 @@ Protótipo pessoal de Felipe para acompanhar a leitura coletiva do Clube do Livr
 | Código | GitHub `BereanosLeitura/bereanos-streak`, branch `main` | A `main` é a versão oficial. Tudo o que entra nela vai para o ar. |
 | Site | Vercel, projeto `bereanos-streak` | Publica sozinho a cada envio para a `main`. Endereço: bereanos-streak.vercel.app |
 | Banco, login e capas | Supabase | Tabelas, regras de acesso (RLS), contas e a função `admin-membros`. |
-| Pasta no computador | `Desktop\Bereano` | `Publicar.bat` na raiz, este projeto e a pasta `documentos` (discursos e apresentações). |
+| Pasta no computador | `Desktop\Bereano` | `Testar.bat` e `Publicar.bat` na raiz, este projeto e a pasta `documentos` (discursos e apresentações). |
 
 ## Pastas do projeto
 
@@ -64,7 +64,7 @@ Dê dois cliques em `Publicar.bat`, na pasta `Bereano`. Ele:
 4. salva (commit), junta na `main` se você estiver em outra branch, e envia ao GitHub;
 5. a Vercel publica em 1 ou 2 minutos.
 
-Mudança grande e arriscada: crie uma branch antes (`git switch -c melhorias/nome`) e use `git push -u origin melhorias/nome` para ganhar um link de pré-visualização na Vercel. Depois de testar, rode o `Publicar.bat` dessa branch: ele junta na `main`.
+Para conferir antes de o grupo ver, use o `Testar.bat`: ele confere tipos e testes e envia para a branch `teste/versao-nova`, que ganha um link próprio na Vercel (`bereanos-streak-git-teste-versao-nova-bereanos.vercel.app`). Gostou? Rode o `Publicar.bat`: ele junta o teste na `main` e apaga a branch de teste.
 
 ## Banco de dados (Supabase)
 
