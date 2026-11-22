@@ -50,7 +50,7 @@ export default function RelatorioCiclo({ livro, onFechar }: Props) {
       supabase.from('perfis').select('id, nome_exibicao, ritmo_leitura_min_por_pagina').order('nome_exibicao'),
       supabase.from('registros_leitura').select('membro_id, paginas_lidas, minutos_lidos, registrado_em').eq('livro_id', livro.id),
       supabase.from('leituras_status').select('membro_id, status').eq('livro_id', livro.id),
-      supabase.from('anotacoes').select('tipo, texto, pagina, referencia, perfis(nome_exibicao)')
+      supabase.from('anotacoes').select('tipo, texto, pagina, referencia, perfis!anotacoes_membro_id_fkey(nome_exibicao)')
         .eq('livro_id', livro.id).eq('compartilhada', true).order('pagina', { ascending: true, nullsFirst: false }),
       supabase.from('encontros').select('id, data, local').eq('livro_id', livro.id).order('data')
     ])

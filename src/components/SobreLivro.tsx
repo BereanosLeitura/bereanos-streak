@@ -30,12 +30,25 @@ function limparHtml(t: string) {
   return (d.textContent ?? '').replace(/\n{3,}/g, '\n\n').trim()
 }
 
+// Cada consulta tem limite de 6 s. O Google Books sem chave estoura a cota
+// diária com frequência (resposta 429): na primeira recusa, o app para de
+// tentar o Google nesta busca e vai direto para as outras fontes.
+let googleRecusou = false
+async function buscar(url: string): Promise<Response | null> {
+  if (googleRecusou && url.includes('googleapis.com')) return null
+  try {
+    const r = await fetch(url, { signal: AbortSignal.timeout(6000) })
+    if (r.status === 429 && url.includes('googleapis.com')) { googleRecusou = true; return null }
+    return r
+  } catch { return null }
+}
+
 async function buscarSinopse(titulo: string, autor: string | null): Promise<{ texto: string; link: string; fonte: string } | null> {
   // 1) Google Books (tem limite diário compartilhado; quando estoura, segue para a Wikipédia)
   const consultas = [`intitle:${titulo}${autor ? `+inauthor:${autor}` : ''}`, `${titulo} ${autor ?? ''}`.trim()]
   for (const q of consultas) {
     for (const idioma of ['&langRestrict=pt', '']) {
-      const r = await fetch(`https://www.googleapis.com/books/v1/volumes?q=${encodeURIComponent(q)}&maxResults=8${idioma}`).catch(() => null)
+      const r = await buscar(`https://www.googleapis.com/books/v1/volumes?q=${encodeURIComponent(q)}&maxResults=8${idioma}`)
       if (!r || !r.ok) continue
       const j = await r.json()
       const item = (j.items ?? []).find((i: any) => (i.volumeInfo?.description ?? '').length > 120)
@@ -43,12 +56,12 @@ async function buscarSinopse(titulo: string, autor: string | null): Promise<{ te
     }
   }
   // 2) Wikipédia: artigo do próprio livro (às vezes com o título original)
-  const busca = await fetch(`https://pt.wikipedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(`${titulo} livro`)}&srlimit=5&format=json&origin=*`).catch(() => null)
+  const busca = await buscar(`https://pt.wikipedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(titulo + ' livro')}&srlimit=5&format=json&origin=*`)
   if (!busca || !busca.ok) return null
   const titulos: string[] = ((await busca.json())?.query?.search ?? []).map((x: any) => x.title)
   for (const t of titulos) {
     if (autor && t.toLowerCase() === autor.toLowerCase()) continue
-    const r = await fetch(`https://pt.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(t.replace(/ /g, '_'))}`).catch(() => null)
+    const r = await buscar(`https://pt.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(t.replace(/ /g, '_'))}`)
     if (!r || !r.ok) continue
     const j = await r.json()
     if (j.type === 'disambiguation' || !j.extract) continue
@@ -63,17 +76,17 @@ async function buscarSinopse(titulo: string, autor: string | null): Promise<{ te
 /** Sinopse da edição exata, pelo ISBN (Google Books; o Open Library confirma a edição). */
 async function buscarPorIsbn(isbn: { isbn13: string; isbn10: string | null }): Promise<{ texto: string; link: string; fonte: string } | null> {
   for (const codigo of [isbn.isbn13, isbn.isbn10].filter(Boolean) as string[]) {
-    const r = await fetch(`https://www.googleapis.com/books/v1/volumes?q=isbn:${codigo}`).catch(() => null)
+    const r = await buscar(`https://www.googleapis.com/books/v1/volumes?q=isbn:${codigo}`)
     if (!r || !r.ok) continue
     const item = ((await r.json()).items ?? []).find((i: any) => (i.volumeInfo?.description ?? '').length > 80)
     if (item) return { texto: limparHtml(item.volumeInfo.description), link: item.volumeInfo.infoLink ?? 'https://books.google.com', fonte: `Google Books, ISBN ${isbn.isbn13}` }
   }
-  const ol = await fetch(`https://openlibrary.org/isbn/${isbn.isbn13}.json`).catch(() => null)
+  const ol = await buscar(`https://openlibrary.org/isbn/${isbn.isbn13}.json`)
   if (ol && ol.ok) {
     const ed = await ol.json()
     let desc = typeof ed.description === 'string' ? ed.description : ed.description?.value
     if (!desc && ed.works?.[0]?.key) {
-      const w = await fetch(`https://openlibrary.org${ed.works[0].key}.json`).then((x) => x.json()).catch(() => null)
+      const w = await buscar(`https://openlibrary.org${ed.works[0].key}.json`).then((x) => x?.json()).catch(() => null)
       desc = typeof w?.description === 'string' ? w.description : w?.description?.value
     }
     if (desc && desc.length > 80) return { texto: desc, link: `https://openlibrary.org/isbn/${isbn.isbn13}`, fonte: `Open Library, ISBN ${isbn.isbn13}` }
@@ -83,16 +96,16 @@ async function buscarPorIsbn(isbn: { isbn13: string; isbn10: string | null }): P
 
 async function buscarAutor(autor: string): Promise<{ texto: string; link: string } | null> {
   const resumo = async (titulo: string) => {
-    const r = await fetch(`https://pt.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(titulo.replace(/ /g, '_'))}`)
-    if (!r.ok) return null
+    const r = await buscar(`https://pt.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(titulo.replace(/ /g, '_'))}`)
+    if (!r || !r.ok) return null
     const j = await r.json()
     if (j.type === 'disambiguation' || !j.extract) return null
     return { texto: j.extract as string, link: j.content_urls?.desktop?.page ?? `https://pt.wikipedia.org/wiki/${encodeURIComponent(titulo)}` }
   }
   const direto = await resumo(autor)
   if (direto) return direto
-  const busca = await fetch(`https://pt.wikipedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(autor + ' escritor')}&srlimit=1&format=json&origin=*`)
-  if (!busca.ok) return null
+  const busca = await buscar(`https://pt.wikipedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(autor + ' escritor')}&srlimit=1&format=json&origin=*`)
+  if (!busca || !busca.ok) return null
   const primeiro = (await busca.json())?.query?.search?.[0]?.title
   return primeiro ? resumo(primeiro) : null
 }
@@ -136,6 +149,7 @@ export default function SobreLivro({ livro, admin, onFechar }: { livro: LivroSob
       isbn = r
     }
     setBuscando(true)
+    googleRecusou = false
     try {
       const [s, a] = await Promise.all([
         (isbn ? buscarPorIsbn(isbn) : Promise.resolve(null)).then((x) => x ?? buscarSinopse(livro.titulo, livro.autor)).catch(() => null),

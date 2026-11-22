@@ -273,6 +273,10 @@ export default function Compartilhar({ perfil, livro, preCarga }: Props) {
         return panorama
           ? `${contar(panorama.paginasGrupo, 'página lida', 'páginas lidas')} pelo clube${nomeLivro ? ` em ${nomeLivro}` : ''}, por ${panorama.leitores} ${panorama.leitores === 1 ? 'leitor' : 'leitores'}. Ler, examinar, dialogar e aplicar, no Clube do Livro Bereanos.`
           : ''
+      case 'jornada':
+        return `Minha jornada em${de}: página ${leitura.paginasLivro} de ${livro.paginas_totais}, ${leitura.pct}% do caminho. Uma página por vez, com o Clube do Livro Bereanos.`
+      case 'bilhete':
+        return `Bilhete de leitura:${de}, página ${leitura.paginasLivro} de ${livro.paginas_totais}. Seguimos lendo com o Clube do Livro Bereanos.`
       case 'terminei':
         return `Terminei de ler${nomeLivro ? ` ${nomeLivro}` : ' mais um livro'}. ${livro.paginas_totais} páginas com o Clube do Livro Bereanos.`
       default:
@@ -284,6 +288,7 @@ export default function Compartilhar({ perfil, livro, preCarga }: Props) {
     if (modo === 'texto') {
       await desenharTexto(canvas, modeloTexto, formato, {
         fonteCartao, tipo, texto: partes[indiceParte], fonte, nome: mostrarNome ? autorTexto : null, foto, ajuste, versao,
+        capa: mostrarLivro ? capa : null,
         parte: partes.length > 1 ? { i: indiceParte + 1, n: partes.length } : undefined
       })
     } else if (transparente) {

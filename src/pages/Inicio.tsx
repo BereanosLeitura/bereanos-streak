@@ -203,7 +203,7 @@ export default function Inicio({ perfil, livro, onIr, onBuscar, onPerfilAtualiza
   async function carregarDestaque() {
     const { data, error } = await supabase
       .from('destaques')
-      .select('created_at, anotacoes!inner(id, membro_id, texto, tipo, pagina, livro_id, perfis(nome_exibicao))')
+      .select('created_at, anotacoes!inner(id, membro_id, texto, tipo, pagina, livro_id, perfis!anotacoes_membro_id_fkey(nome_exibicao))')
       .eq('anotacoes.livro_id', livro.id)
       .order('created_at', { ascending: false })
       .limit(1)
@@ -230,7 +230,7 @@ export default function Inicio({ perfil, livro, onIr, onBuscar, onPerfilAtualiza
   async function carregarMural() {
     const { data, error } = await supabase
       .from('anotacoes')
-      .select('id, membro_id, texto, tipo, pagina, created_at, perfis(nome_exibicao)')
+      .select('id, membro_id, texto, tipo, pagina, created_at, perfis!anotacoes_membro_id_fkey(nome_exibicao)')
       .eq('livro_id', livro.id)
       .eq('compartilhada', true)
       .order('created_at', { ascending: false })

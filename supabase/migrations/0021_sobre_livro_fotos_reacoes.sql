@@ -45,7 +45,8 @@ create policy "avatares_apaga_propria" on storage.objects for delete to authenti
 -- 3) reações no mural
 create table if not exists public.reacoes_mural (
   anotacao_id uuid not null references public.anotacoes(id) on delete cascade,
-  membro_id uuid not null references public.perfis(id) on delete cascade,
+  -- aponta para auth.users, não para perfis: ver 0022 (evita ambiguidade anotacoes <-> perfis)
+  membro_id uuid not null references auth.users(id) on delete cascade,
   tipo text not null check (tipo in ('ajudou', 'encontro')),
   created_at timestamptz not null default now(),
   primary key (anotacao_id, membro_id, tipo)

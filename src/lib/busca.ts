@@ -62,7 +62,7 @@ export async function buscarTudo(membroId: string, termo: string, limite = 8): P
 
   const [livrosR, notasR, regsR] = await Promise.all([
     supabase.from('livros').select('id, titulo, autor, paginas_totais, status, ciclo_inicio'),
-    supabase.from('anotacoes').select('id, tipo, texto, pagina, referencia, livro_id, membro_id, compartilhada, perfis(nome_exibicao)')
+    supabase.from('anotacoes').select('id, tipo, texto, pagina, referencia, livro_id, membro_id, compartilhada, perfis!anotacoes_membro_id_fkey(nome_exibicao)')
       .or(`membro_id.eq.${membroId},compartilhada.eq.true`),
     supabase.from('registros_leitura').select('livro_id, paginas_lidas').eq('membro_id', membroId)
   ])

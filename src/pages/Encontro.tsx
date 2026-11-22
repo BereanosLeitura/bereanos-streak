@@ -36,7 +36,7 @@ export default function Encontro({ perfil, livro, onVoltar, rotuloVoltar = 'Volt
   async function carregar() {
     const [e, p, m] = await Promise.all([
       supabase.from('encontros').select('*').eq('livro_id', livro.id).order('data', { ascending: false }).limit(1).maybeSingle(),
-      supabase.from('anotacoes').select('id, texto, pagina, perfis(nome_exibicao)').eq('livro_id', livro.id).eq('compartilhada', true).eq('tipo', 'pergunta').order('pagina', { ascending: true, nullsFirst: false }),
+      supabase.from('anotacoes').select('id, texto, pagina, perfis!anotacoes_membro_id_fkey(nome_exibicao)').eq('livro_id', livro.id).eq('compartilhada', true).eq('tipo', 'pergunta').order('pagina', { ascending: true, nullsFirst: false }),
       supabase.from('perfis').select('id, nome_exibicao').order('nome_exibicao')
     ])
     let row = (e.data ?? null) as EncontroRow | null
@@ -469,7 +469,7 @@ function MarcadasParaEncontro({ livroId }: { livroId: string }) {
   const [lista, setLista] = useState<{ id: string; texto: string; tipo: string; pagina: number | null; nome: string; votos: number }[] | null>(null)
   useEffect(() => {
     supabase.from('reacoes_mural')
-      .select('anotacao_id, anotacoes!inner(id, texto, tipo, pagina, livro_id, compartilhada, perfis(nome_exibicao))')
+      .select('anotacao_id, anotacoes!inner(id, texto, tipo, pagina, livro_id, compartilhada, perfis!anotacoes_membro_id_fkey(nome_exibicao))')
       .eq('tipo', 'encontro').eq('anotacoes.livro_id', livroId).eq('anotacoes.compartilhada', true)
       .then(({ data, error }) => {
         if (error) { setLista([]); return } // banco ainda sem a 0021

@@ -70,7 +70,7 @@ export default function LivroDetalhe({ perfil, livroId, onVoltar, rotuloVoltar =
         supabase.from('livros').select('id, titulo, autor, capa_url, paginas_totais, ciclo_inicio, ciclo_fim, status').eq('id', livroId).single(),
         supabase.from('registros_leitura').select('id, membro_id, origem, paginas_lidas, minutos_lidos, registrado_em, perfis(nome_exibicao, ritmo_leitura_min_por_pagina)')
           .eq('livro_id', livroId).order('registrado_em', { ascending: false }),
-        supabase.from('anotacoes').select('id, membro_id, tipo, texto, pagina, referencia, compartilhada, favorita, created_at, perfis(nome_exibicao)')
+        supabase.from('anotacoes').select('id, membro_id, tipo, texto, pagina, referencia, compartilhada, favorita, created_at, perfis!anotacoes_membro_id_fkey(nome_exibicao)')
           .eq('livro_id', livroId).order('pagina', { ascending: true, nullsFirst: false }),
         supabase.from('sessoes_pomodoro').select('duracao_minutos').eq('livro_id', livroId).eq('membro_id', perfil.id).eq('status', 'concluida'),
         supabase.from('membro_conquistas').select('conquistas(nome)').eq('membro_id', perfil.id).eq('livro_id', livroId)

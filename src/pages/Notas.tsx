@@ -102,9 +102,6 @@ export default function Notas({ perfil, livro, inicial, onCompartilhar }: Props)
   const avisar = useAviso()
   const [expandidas, setExpandidas] = useState<Set<string>>(new Set())
   const [recuperado, setRecuperado] = useState(false)
-  const [ditando, setDitando] = useState(false)
-  const reconhecimento = useRef<any>(null)
-  const podeDitar = typeof window !== 'undefined' && !!((window as any).SpeechRecognition || (window as any).webkitSpeechRecognition)
 
   // Rascunho da anotação nova: se a pessoa sair da tela ou o app fechar no
   // meio, o texto volta na próxima vez que tocar em "Nova".
@@ -122,28 +119,6 @@ export default function Notas({ perfil, livro, inicial, onCompartilhar }: Props)
     setTexto(''); setPagina(''); setReferencia(''); setNoMural(false); setComentario('')
   }
 
-  // Ditado por voz (Chrome no Android e no computador; o Safari do iPhone usa o microfone do teclado).
-  function alternarDitado() {
-    if (ditando) { reconhecimento.current?.stop(); return }
-    const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
-    if (!SR) return
-    const r = new SR()
-    r.lang = 'pt-BR'
-    r.continuous = true
-    r.interimResults = false
-    r.onresult = (e: any) => {
-      let novo = ''
-      for (let i = e.resultIndex; i < e.results.length; i++) if (e.results[i].isFinal) novo += e.results[i][0].transcript
-      if (novo.trim()) setTexto((t) => (t && !/\s$/.test(t) ? t + ' ' : t) + novo.trim())
-    }
-    r.onerror = () => { setDitando(false); avisar('Não deu para usar o microfone agora', 'erro') }
-    r.onend = () => setDitando(false)
-    reconhecimento.current = r
-    r.start()
-    setDitando(true)
-  }
-  useEffect(() => () => reconhecimento.current?.stop(), [])
-  useEffect(() => { if (!editor) reconhecimento.current?.stop() }, [editor])
 
   useEffect(() => {
     if (inicial?.novaTipo) { abrirNova(); setTipo(inicial.novaTipo) }
@@ -213,7 +188,7 @@ export default function Notas({ perfil, livro, inicial, onCompartilhar }: Props)
     if (vista === 'mural') {
       supabase.from('destaques').select('anotacao_id').then(({ data }) => setDestaques(new Set((data ?? []).map((d) => d.anotacao_id))))
     }
-    const base = 'id, membro_id, livro_id, tipo, texto, pagina, referencia, compartilhada, favorita, created_at, perfis(nome_exibicao), livros(titulo)'
+    const base = 'id, membro_id, livro_id, tipo, texto, pagina, referencia, compartilhada, favorita, created_at, perfis!anotacoes_membro_id_fkey(nome_exibicao), livros(titulo)'
     let { data, error } = await montar(base + ', comentario')
     if (error) {
       // banco ainda sem a 0020: busca sem o comentário
@@ -395,13 +370,7 @@ export default function Notas({ perfil, livro, inicial, onCompartilhar }: Props)
             <textarea aria-label="Texto da anotação" value={texto} onChange={(e) => setTexto(e.target.value)} rows={5} maxLength={2000} autoFocus placeholder={TIPOS[tipo].dica}
               onKeyDown={(e) => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); salvar() } }}
               className={`campo resize-none ${tipo === 'trecho' ? 'font-serif italic text-[18px]' : ''}`} />
-            <div className="flex items-center justify-between mt-1">
-              {podeDitar ? (
-                <button type="button" onClick={alternarDitado} aria-pressed={ditando}
-                  className={`chip text-[12px] flex items-center gap-1.5 ${ditando ? 'chip-ativo animate-pulse' : ''}`}>
-                  <Icone nome="som" className="w-3.5 h-3.5" /> {ditando ? 'Ouvindo… toque para parar' : 'Ditar'}
-                </button>
-              ) : <span />}
+            <div className="flex items-center justify-end mt-1">
               <p className="text-xs text-texto/65 dark:text-bege/55">{texto.length}/2000</p>
             </div>
             {tipo === 'trecho' && temComentario && (

@@ -20,7 +20,7 @@ export async function abrirRelatorioCiclo(livro: LivroBase): Promise<boolean> {
   const [pan, enc, mural, dest] = await Promise.all([
     calcularPanorama(livro),
     supabase.from('encontros').select('id, data, local, mediador, ata, perguntas_discutidas').eq('livro_id', livro.id).order('data', { ascending: false }).limit(1).maybeSingle(),
-    supabase.from('anotacoes').select('id, tipo, texto, pagina, referencia, perfis(nome_exibicao)').eq('livro_id', livro.id).eq('compartilhada', true).order('pagina', { ascending: true, nullsFirst: false }),
+    supabase.from('anotacoes').select('id, tipo, texto, pagina, referencia, perfis!anotacoes_membro_id_fkey(nome_exibicao)').eq('livro_id', livro.id).eq('compartilhada', true).order('pagina', { ascending: true, nullsFirst: false }),
     supabase.from('destaques').select('anotacao_id')
   ])
   const notas = (mural.data ?? []) as unknown as { id: string; tipo: string; texto: string; pagina: number | null; referencia: string | null; perfis: { nome_exibicao: string } | null }[]

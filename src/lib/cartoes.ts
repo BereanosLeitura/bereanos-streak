@@ -7,8 +7,8 @@ import { formatarTempo } from './regras'
 
 export type Formato = 'story' | 'post' | 'quadrado'
 export type TipoTexto = 'trecho' | 'reflexao' | 'pergunta' | 'aplicacao'
-export type ModeloTexto = 'pergaminho' | 'marinho' | 'caderno' | 'noturno' | 'debate' | 'polaroid' | 'foto' | 'foto-faixa' | 'foto-dividida' | 'foto-moldura' | 'foto-destaque' | 'minimal'
-export type ModeloLeitura = 'lendo' | 'progresso' | 'anel' | 'semana' | 'constancia' | 'terminei' | 'foto-leitura' | 'retrospectiva' | 'grupo'
+export type ModeloTexto = 'pergaminho' | 'marinho' | 'caderno' | 'noturno' | 'debate' | 'polaroid' | 'foto' | 'foto-faixa' | 'foto-dividida' | 'foto-moldura' | 'foto-destaque' | 'minimal' | 'capa-livro'
+export type ModeloLeitura = 'lendo' | 'progresso' | 'anel' | 'semana' | 'constancia' | 'terminei' | 'foto-leitura' | 'retrospectiva' | 'grupo' | 'capa-destaque' | 'jornada' | 'bilhete'
 
 export const FORMATOS: Record<Formato, { w: number; h: number; rotulo: string; dica: string }> = {
   story: { w: 1080, h: 1920, rotulo: 'Story', dica: 'Instagram e WhatsApp Status' },
@@ -28,7 +28,8 @@ export const MODELOS_TEXTO: { id: ModeloTexto; nome: string; cores: [string, str
   { id: 'foto-dividida', nome: 'Foto dividida', cores: ['#3a3a3a', '#F6F1E3'] },
   { id: 'foto-moldura', nome: 'Foto emoldurada', cores: ['#F6F1E3', '#3a3a3a'] },
   { id: 'foto-destaque', nome: 'Foto em destaque', cores: ['#2b2b2b', '#F6F1E3'] },
-  { id: 'minimal', nome: 'Minimal', cores: ['#FFFCF4', '#1B2A4A'] }
+  { id: 'minimal', nome: 'Minimal', cores: ['#FFFCF4', '#1B2A4A'] },
+  { id: 'capa-livro', nome: 'Trecho com a capa', cores: ['#2a2f3a', '#B8912F'] }
 ]
 
 export const MODELOS_LEITURA: { id: ModeloLeitura; nome: string; cores: [string, string] }[] = [
@@ -40,7 +41,10 @@ export const MODELOS_LEITURA: { id: ModeloLeitura; nome: string; cores: [string,
   { id: 'terminei', nome: 'Terminei', cores: ['#FFFCF4', '#B8912F'] },
   { id: 'foto-leitura', nome: 'Sua foto', cores: ['#3a3a3a', '#B8912F'] },
   { id: 'retrospectiva', nome: 'Retrospectiva', cores: ['#1B2A4A', '#B8912F'] },
-  { id: 'grupo', nome: 'O clube', cores: ['#F6F1E3', '#1B2A4A'] }
+  { id: 'grupo', nome: 'O clube', cores: ['#F6F1E3', '#1B2A4A'] },
+  { id: 'capa-destaque', nome: 'Capa em destaque', cores: ['#2a2f3a', '#B8912F'] },
+  { id: 'jornada', nome: 'Jornada do livro', cores: ['#F6F1E3', '#B8912F'] },
+  { id: 'bilhete', nome: 'Bilhete de leitura', cores: ['#1B2A4A', '#F6F1E3'] }
 ]
 
 
@@ -61,6 +65,7 @@ export const VERSOES: Record<ModeloTexto | ModeloLeitura, string[]> = {
   'foto-moldura': ['Bege', 'Branco', 'Marinho'],
   'foto-destaque': ['Escuro', 'Claro'],
   minimal: ['Claro', 'Bege', 'Escuro'],
+  'capa-livro': ['Escuro', 'Claro'],
   lendo: ['Marinho', 'Preto', 'Bege'],
   progresso: ['Bege', 'Marinho', 'Branco'],
   anel: ['Marinho', 'Preto'],
@@ -69,7 +74,10 @@ export const VERSOES: Record<ModeloTexto | ModeloLeitura, string[]> = {
   terminei: ['Claro', 'Marinho', 'Bege'],
   'foto-leitura': ['Texto embaixo', 'Faixa marinho', 'Faixa bege'],
   retrospectiva: ['Marinho', 'Preto'],
-  grupo: ['Bege', 'Marinho', 'Branco']
+  grupo: ['Bege', 'Marinho', 'Branco'],
+  'capa-destaque': ['Escuro', 'Claro'],
+  jornada: ['Bege', 'Marinho'],
+  bilhete: ['Marinho', 'Bege']
 }
 
 /** Como a foto entra no cartão: enquadramento, giro, filtro. */
@@ -89,7 +97,7 @@ export interface AjusteFoto {
 export const AJUSTE_PADRAO: AjusteFoto = { zoom: 1, dx: 0, dy: 0, rot: 0, espelhar: false, modo: 'preencher', fundo: 'desfocado', escurecer: 60, filtro: 'original' }
 
 /** Modelos que dependem da página inteira e não viram adesivo sem fundo. */
-export const SO_COM_FUNDO: ModeloLeitura[] = ['foto-leitura', 'retrospectiva', 'grupo']
+export const SO_COM_FUNDO: ModeloLeitura[] = ['foto-leitura', 'retrospectiva', 'grupo', 'capa-destaque', 'jornada', 'bilhete']
 
 export interface DadosTexto {
   fonteCartao?: FonteCartao
@@ -101,6 +109,8 @@ export interface DadosTexto {
   ajuste?: AjusteFoto
   versao?: number
   parte?: { i: number; n: number } // texto longo dividido em vários cartões
+  /** capa do livro, usada no modelo "Trecho com a capa" */
+  capa?: HTMLImageElement | null
 }
 
 export interface DadosLeitura {
@@ -667,7 +677,7 @@ export function limiteDeCaracteres(modelo: ModeloTexto, formato: Formato): numbe
   const base = formato === 'story' ? 380 : formato === 'post' ? 270 : 200
   const fator: Partial<Record<ModeloTexto, number>> = {
     polaroid: 0.55, debate: 0.8, noturno: 0.85,
-    'foto-faixa': 0.62, 'foto-dividida': 0.5, 'foto-moldura': 0.5, 'foto-destaque': 0.5
+    'foto-faixa': 0.62, 'foto-dividida': 0.5, 'foto-moldura': 0.5, 'foto-destaque': 0.5, 'capa-livro': 0.7
   }
   return Math.round(base * (fator[modelo] ?? 1))
 }
@@ -687,6 +697,34 @@ async function desenharTextoModelo(canvas: HTMLCanvasElement, modelo: ModeloText
   const italico = d.tipo === 'trecho'
   const fonteCorpo = (tam: number) => `${italico ? 'italic ' : ''}500 ${tam}px ${SERIFA}`
   const assinatura = d.nome ? (d.tipo === 'trecho' ? `Destacado por ${d.nome}` : d.nome) : ''
+
+  if (modelo === 'capa-livro') {
+    // Trecho escrito sobre a capa do livro desfocada, com a capa nítida no topo.
+    const claro = v === 1
+    const P = claro ? PAL.bege : PAL.marinho
+    if (d.capa) {
+      fundoDesfocado(ctx, d.capa, 'original', 0, 0, W, H)
+      ctx.fillStyle = claro ? 'rgba(246,241,227,0.80)' : 'rgba(12,16,28,0.66)'
+      ctx.fillRect(0, 0, W, H)
+    } else pintarFundo(ctx, P, W, H)
+    let y = z.topo
+    const hCapa = formato === 'story' ? 330 : formato === 'post' ? 230 : 170
+    if (d.capa) { desenharCapa(ctx, d.capa, W / 2, y, hCapa, !claro); y += hCapa + 60 }
+    else { const simb = await logo('simbolo', P.logo); desenharLogoAltura(ctx, simb, W / 2, y, 120); y += 170 }
+    texto1(ctx, ROTULO_TIPO[d.tipo], W / 2, y, `600 30px ${SANS}`, P.rotulo)
+    y += 40
+    const fimTexto = z.base - (formato === 'quadrado' ? 190 : 230)
+    const a = ajustar(ctx, corpo, W - 220, fimTexto - y, fonteCorpo, formato === 'quadrado' ? 52 : 60, 28, 1.32)
+    ctx.fillStyle = P.titulo
+    ctx.font = fonteCorpo(a.tam)
+    escrever(ctx, a.linhas, W / 2, y + Math.max(0, (fimTexto - y - a.alturaTotal) / 2), a.alturaLinha, a.tam)
+    ornamento(ctx, W / 2, fimTexto + 34, 180, C.dourado)
+    if (d.fonte) texto1(ctx, d.fonte, W / 2, fimTexto + 92, `500 28px ${SANS}`, P.suave, 'center', W - 200)
+    if (assinatura) texto1(ctx, assinatura, W / 2, fimTexto + 134, `400 24px ${SANS}`, P.fraco, 'center', W - 200)
+    const hor = await logo('texto', P.logo)
+    desenharLogo(ctx, hor, W / 2, z.base - 30, 200)
+    return
+  }
 
   if (modelo === 'pergaminho') {
     const P = escolher([PAL.bege, PAL.bege, PAL.marinho], v)
@@ -1114,6 +1152,155 @@ export async function desenharLeitura(canvas: HTMLCanvasElement, modelo: ModeloL
   // capa do livro, quando a pessoa deixou à mostra
   const cp = d.mostrarCapa === false ? null : d.capa
   const porFormato = (story: number, post: number, quadrado: number) => (formato === 'story' ? story : formato === 'post' ? post : quadrado)
+
+  if (modelo === 'capa-destaque') {
+    // A capa grande no centro, com a própria capa desfocada como fundo.
+    const claro = v === 1
+    const P = claro ? PAL.bege : PAL.marinho
+    if (cp) {
+      fundoDesfocado(ctx, cp, 'original', 0, 0, W, H)
+      ctx.fillStyle = claro ? 'rgba(246,241,227,0.78)' : 'rgba(12,16,28,0.6)'
+      ctx.fillRect(0, 0, W, H)
+    } else pintarFundo(ctx, P, W, H)
+    const hCapa = porFormato(780, 560, 400)
+    let y = z.topo + porFormato(20, 0, 0)
+    texto1(ctx, 'Estou lendo', W / 2, y + 30, `600 34px ${SANS}`, P.rotulo)
+    y += 64
+    if (cp) desenharCapa(ctx, cp, W / 2, y, hCapa, !claro)
+    else { const simb = await logo('simbolo', P.logo); desenharLogoAltura(ctx, simb, W / 2, y + hCapa * 0.15, hCapa * 0.7) }
+    y += hCapa + 56
+    if (d.titulo) {
+      const a = ajustar(ctx, d.titulo, W - 200, porFormato(150, 110, 70), fonteTitulo, porFormato(62, 54, 44), 30, 1.12)
+      ctx.fillStyle = P.titulo
+      ctx.font = fonteTitulo(a.tam)
+      escrever(ctx, a.linhas, W / 2, y, a.alturaLinha, a.tam)
+      y += a.alturaTotal + 6
+    }
+    if (d.autor) { texto1(ctx, d.autor, W / 2, y + 36, `400 32px ${SANS}`, P.suave); y += 54 }
+    barra(ctx, 260, y + 28, W - 520, 10, pct, P.trilho, C.dourado)
+    texto1(ctx, `${pct}%  ·  página ${Math.round(d.paginas)} de ${d.total}`, W / 2, y + 82, `600 28px ${SANS}`, P.rotulo)
+    const hor = await logo('texto', P.logo)
+    desenharLogo(ctx, hor, W / 2, z.base - 60, 220)
+    return
+  }
+
+  if (modelo === 'jornada') {
+    // Linha do tempo do livro: início, um quarto, metade, três quartos e fim.
+    const P = escolher([PAL.bege, PAL.marinho], v)
+    pintarFundo(ctx, P, W, H)
+    moldura(ctx, W, H)
+    let y = z.topo
+    texto1(ctx, 'A jornada do livro', W / 2, y + 24, `600 32px ${SANS}`, P.rotulo)
+    y += 54
+    if (d.titulo) {
+      const a = ajustar(ctx, d.titulo, W - 260, porFormato(140, 100, 64), fonteTitulo, porFormato(56, 48, 40), 28, 1.12)
+      ctx.fillStyle = P.titulo
+      ctx.font = fonteTitulo(a.tam)
+      escrever(ctx, a.linhas, W / 2, y, a.alturaLinha, a.tam)
+      y += a.alturaTotal
+    }
+    const yIni = y + porFormato(80, 50, 40)
+    const yFim = z.base - porFormato(220, 180, 160)
+    const x = W * 0.34
+    const linha = (y1: number, y2: number, cor: string) => {
+      ctx.save(); ctx.strokeStyle = cor; ctx.lineWidth = 10; ctx.lineCap = 'round'
+      ctx.beginPath(); ctx.moveTo(x, y1); ctx.lineTo(x, y2); ctx.stroke(); ctx.restore()
+    }
+    linha(yIni, yFim, P.trilho)
+    const yPct = yIni + ((yFim - yIni) * pct) / 100
+    if (pct > 0) linha(yIni, yPct, C.dourado)
+    const marcos: [number, string][] = [[0, 'Primeira página'], [25, 'Um quarto'], [50, 'Metade'], [75, 'Três quartos'], [100, 'Última página']]
+    for (const [m, rot] of marcos) {
+      const yy = yIni + ((yFim - yIni) * m) / 100
+      const ok = pct >= m && (m > 0 || pct > 0)
+      ctx.save()
+      ctx.beginPath(); ctx.arc(x, yy, 20, 0, Math.PI * 2)
+      ctx.fillStyle = ok ? C.dourado : P.fundo
+      ctx.fill()
+      ctx.lineWidth = 4; ctx.strokeStyle = C.dourado; ctx.stroke()
+      ctx.restore()
+      texto1(ctx, rot, x + 54, yy + 4, `600 34px ${SANS}`, ok ? P.titulo : P.suave, 'left')
+      texto1(ctx, `p. ${Math.max(1, Math.round((d.total * m) / 100))}`, x + 54, yy + 42, `400 26px ${SANS}`, P.fraco, 'left')
+    }
+    if (pct > 0 && pct < 100 && ![25, 50, 75].includes(pct)) {
+      ctx.save()
+      ctx.beginPath(); ctx.arc(x, yPct, 14, 0, Math.PI * 2)
+      ctx.fillStyle = P.titulo; ctx.fill()
+      ctx.restore()
+      texto1(ctx, `p. ${Math.round(d.paginas)}`, x - 40, yPct + 12, `700 34px ${SANS}`, P.escuro ? C.dourado : C.douradoEscuro, 'right')
+      texto1(ctx, 'você está aqui', x - 40, yPct + 46, `400 22px ${SANS}`, P.fraco, 'right')
+    }
+    texto1(ctx, `${pct}% do caminho`, W / 2, yFim + 96, `600 34px ${SANS}`, P.rotulo)
+    if (d.nome) texto1(ctx, d.nome, W / 2, yFim + 138, `400 26px ${SANS}`, P.fraco)
+    const hor = await logo('texto', P.logo)
+    desenharLogo(ctx, hor, W / 2, z.base - 30, 200)
+    return
+  }
+
+  if (modelo === 'bilhete') {
+    // Bilhete de leitura: um ingresso com o livro, o leitor e os números.
+    const P = escolher([PAL.marinho, PAL.bege], v)
+    pintarFundo(ctx, P, W, H)
+    const cw = W - 160
+    const ch = porFormato(1060, 900, 760)
+    const cx = 80
+    const cy = Math.max(z.topo, (H - ch) / 2 - porFormato(40, 0, 0))
+    const corCartao = P.escuro ? '#F6F1E3' : '#1B2A4A'
+    const Q = P.escuro ? PAL.bege : PAL.marinho // paleta do texto dentro do bilhete
+    ctx.save()
+    ctx.shadowColor = 'rgba(0,0,0,0.35)'; ctx.shadowBlur = 40; ctx.shadowOffsetY = 16
+    retArredondado(ctx, cx, cy, cw, ch, 36)
+    ctx.fillStyle = corCartao; ctx.fill()
+    ctx.restore()
+    // recortes laterais e picote
+    const yCorte = cy + ch * 0.64
+    ctx.save()
+    ctx.globalCompositeOperation = 'destination-out'
+    ctx.beginPath(); ctx.arc(cx, yCorte, 34, 0, Math.PI * 2); ctx.arc(cx + cw, yCorte, 34, 0, Math.PI * 2); ctx.fill()
+    ctx.restore()
+    ctx.save()
+    ctx.globalCompositeOperation = 'destination-over'
+    ctx.fillStyle = P.fundo; ctx.fillRect(0, 0, W, H)
+    ctx.restore()
+    ctx.save()
+    ctx.strokeStyle = Q.trilho; ctx.lineWidth = 3; ctx.setLineDash([14, 12])
+    ctx.beginPath(); ctx.moveTo(cx + 50, yCorte); ctx.lineTo(cx + cw - 50, yCorte); ctx.stroke()
+    ctx.restore()
+    // parte de cima
+    let y = cy + 70
+    texto1(ctx, 'BILHETE DE LEITURA', cx + 60, y, `700 26px ${SANS}`, Q.rotulo, 'left')
+    texto1(ctx, `Nº ${String(Math.round(d.paginas)).padStart(3, '0')}`, cx + cw - 60, y, `700 26px ${SANS}`, Q.rotulo, 'right')
+    y += 50
+    const hCapa = porFormato(330, 270, 210)
+    let xTexto = cx + 60
+    if (cp) { const wc = desenharCapa(ctx, cp, cx + 60, y, hCapa, !Q.escuro, 'esq'); xTexto = cx + 60 + wc + 40 }
+    const larg = cx + cw - 60 - xTexto
+    if (d.titulo) {
+      const a = ajustar(ctx, d.titulo, larg, hCapa - (d.autor ? 60 : 0), fonteTitulo, porFormato(54, 48, 40), 28, 1.12)
+      ctx.fillStyle = Q.titulo; ctx.font = fonteTitulo(a.tam)
+      escrever(ctx, a.linhas, xTexto, y, a.alturaLinha, a.tam, 'left')
+      if (d.autor) texto1(ctx, d.autor, xTexto, y + a.alturaTotal + 40, `400 30px ${SANS}`, Q.suave, 'left', larg)
+    }
+    y += hCapa + 50
+    const campos: [string, string][] = [
+      ['LEITOR', d.nome ?? 'Clube do Livro Bereanos'],
+      ['PÁGINA', `${Math.round(d.paginas)} de ${d.total}`]
+    ]
+    campos.forEach(([r, val], i) => {
+      const xx = cx + 60 + i * (cw - 120) / 2
+      texto1(ctx, r, xx, y, `700 22px ${SANS}`, Q.rotulo, 'left')
+      texto1(ctx, val, xx, y + 44, `600 34px ${SANS}`, Q.titulo, 'left', (cw - 160) / 2)
+    })
+    // parte de baixo (canhoto)
+    const yb = yCorte + 70
+    texto1(ctx, `${pct}%`, cx + 60, yb + 60, `600 ${porFormato(120, 110, 96)}px ${SERIFA}`, Q.escuro ? C.dourado : C.douradoEscuro, 'left')
+    texto1(ctx, 'lido', cx + 60, yb + 104, `600 26px ${SANS}`, Q.suave, 'left')
+    barra(ctx, cx + cw * 0.42, yb + 20, cw * 0.58 - 60, 12, pct, Q.trilho, C.dourado)
+    if (d.sequencia > 1) texto1(ctx, `${d.sequencia} dias seguidos de leitura`, cx + cw - 60, yb + 84, `600 26px ${SANS}`, Q.suave, 'right')
+    const hor = await logo('texto', P.logo)
+    desenharLogo(ctx, hor, W / 2, Math.min(z.base - 60, cy + ch + 50), 220)
+    return
+  }
 
   if (modelo === 'lendo') {
     const P = escolher([PAL.marinho, PAL.preto, PAL.bege], v)

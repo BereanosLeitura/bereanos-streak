@@ -578,7 +578,7 @@ function ConfigClube({ livro, resumo, onAbrirIndicacoes }: { livro: LivroAtivo |
       const [regs, notas, pres] = await Promise.all([
         // de 1.000 em 1.000: o backup não pode sair cortado quando o histórico crescer
         buscarTodas(() => supabase.from('registros_leitura').select('id, registrado_em, origem, paginas_lidas, minutos_lidos, tempo_minutos, perfis(nome_exibicao), livros(titulo)').order('registrado_em').order('id')),
-        buscarTodas(() => supabase.from('anotacoes').select('id, created_at, tipo, pagina, referencia, texto, compartilhada, perfis(nome_exibicao), livros(titulo)').eq('compartilhada', true).order('created_at').order('id')),
+        buscarTodas(() => supabase.from('anotacoes').select('id, created_at, tipo, pagina, referencia, texto, compartilhada, perfis!anotacoes_membro_id_fkey(nome_exibicao), livros(titulo)').eq('compartilhada', true).order('created_at').order('id')),
         supabase.from('presencas').select('perfis(nome_exibicao), encontros(data, livros(titulo))')
       ])
       if (regs.error || notas.error || pres.error) throw new Error('falha')
