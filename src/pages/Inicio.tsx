@@ -14,6 +14,7 @@ import { buscarConclusoes, buscarPendentes, type LivroPendente, type StatusLeitu
 import { useAviso } from '../components/Toast'
 import Logo from '../components/Logo'
 import InstalarApp from '../components/InstalarApp'
+import SobreLivro from '../components/SobreLivro'
 import { ICONE_CONQUISTA } from '../lib/conquistas'
 import Avatar from '../components/Avatar'
 import Icone, { type NomeIcone } from '../components/Icone'
@@ -108,6 +109,7 @@ export default function Inicio({ perfil, livro, onIr, onBuscar, onPerfilAtualiza
   const [vista, setVista] = useState<'semana' | 'ciclo' | 'meses'>('semana')
   const [layout, setLayout] = useState<LayoutInicio>(() => layoutSalvo())
   const [personalizando, setPersonalizando] = useState(false)
+  const [verSobre, setVerSobre] = useState(false)
   function salvarLayout(l: LayoutInicio) { setLayout(l); gravarLayout(l) }
   const timerDesfazer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const avisar = useAviso()
@@ -346,7 +348,7 @@ export default function Inicio({ perfil, livro, onIr, onBuscar, onPerfilAtualiza
                   ? 'Comece uma sequência hoje'
                   : leitura.seq.leuHoje
                     ? `${leitura.seq.dias} ${leitura.seq.dias === 1 ? 'dia seguido' : 'dias seguidos'} de leitura`
-                    : `${leitura.seq.dias} ${leitura.seq.dias === 1 ? 'dia seguido' : 'dias seguidos'}. Leia hoje para manter`}
+                    : `${leitura.seq.dias} ${leitura.seq.dias === 1 ? 'dia seguido' : 'dias seguidos'}. Uma leitura hoje continua a sequência`}
               </p>}
             </div>
           </div>
@@ -502,7 +504,7 @@ export default function Inicio({ perfil, livro, onIr, onBuscar, onPerfilAtualiza
               return (
                 <li key={p.membro_id} className="flex items-center gap-3">
                   <span className="relative">
-                    <Avatar nome={p.nome_exibicao} tamanho={36} destaque={pctMembro >= 100} />
+                    <Avatar nome={p.nome_exibicao} id={p.membro_id} tamanho={36} destaque={pctMembro >= 100} />
                     {leramHoje.has(p.membro_id) && (
                       <span className="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full bg-dourado border-2 border-folha dark:border-noite-cartao" title="Leu hoje" />
                     )}
@@ -608,7 +610,7 @@ export default function Inicio({ perfil, livro, onIr, onBuscar, onPerfilAtualiza
             aria-label="Abrir seu perfil"
             className="rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dourado"
           >
-            <Avatar nome={perfil.nome_exibicao} tamanho={40} />
+            <Avatar nome={perfil.nome_exibicao} id={perfil.id} url={perfil.avatar_url} tamanho={40} />
           </button>
         </div>
       </div>
@@ -644,8 +646,10 @@ export default function Inicio({ perfil, livro, onIr, onBuscar, onPerfilAtualiza
         {/* Livro do ciclo, com a fita marcadora mostrando o progresso */}
         <section className="borda-luz relative overflow-hidden rounded-3xl bg-marinho text-bege dark:bg-noite-cartao dark:ring-1 dark:ring-dourado/20 transition-[background-image] duration-700"
           style={corCapa ? { backgroundImage: `radial-gradient(140% 95% at 0% 0%, ${corCapa.replace(')', ' / 0.9)')} 0%, transparent 72%)` } : undefined}>
-          <div className="absolute top-0 right-7 w-6 fita animate-fita-desce shadow-md" style={{ height: `${Math.max(10, pct)}%` }} aria-hidden="true" />
-          <div className="p-5 pr-16">
+          {/* A fita mede só a parte de cima do cartão (capa, título e progresso):
+              mesmo em 100% ela termina antes dos números e dos botões. */}
+          <div className="relative p-5 pr-16">
+            <div className="absolute top-0 right-7 w-6 fita animate-fita-desce shadow-md" style={{ height: `${Math.max(10, Math.min(100, pct))}%` }} aria-hidden="true" />
             <div className="flex gap-4">
               {livro.capa_url ? (
                 <img src={livro.capa_url} alt="" className="w-[104px] h-[156px] object-cover rounded shadow-lg shadow-black/30 shrink-0" />
@@ -658,6 +662,10 @@ export default function Inicio({ perfil, livro, onIr, onBuscar, onPerfilAtualiza
                 <p className="text-sm text-dourado">Leitura do ciclo</p>
                 <h2 className="font-serif text-[22px] leading-snug">{livro.titulo}</h2>
                 {livro.autor && <p className="text-sm text-bege/65 mt-0.5">{livro.autor}</p>}
+                <button onClick={() => setVerSobre(true)} aria-label="Sobre o livro: sinopse e autor" title="Sobre o livro"
+                  className="mt-2 inline-flex items-center gap-1.5 rounded-full border border-bege/20 pl-1 pr-2.5 py-0.5 text-xs text-bege/70 hover:text-bege hover:border-bege/40 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dourado">
+                  <Icone nome="info" className="w-4 h-4 text-dourado" /> Sobre o livro
+                </button>
               </div>
             </div>
             <div className="mt-6 flex items-end gap-3">
@@ -803,6 +811,7 @@ export default function Inicio({ perfil, livro, onIr, onBuscar, onPerfilAtualiza
         <button onClick={() => setPersonalizando(true)} className="w-full flex items-center justify-center gap-2 py-2 text-sm text-texto/65 dark:text-bege/55 hover:text-dourado-escuro dark:hover:text-dourado">
           <Icone nome="engrenagem" className="w-4 h-4" /> Personalizar o Início
         </button>
+        {verSobre && <SobreLivro livro={livro} admin={perfil.role === 'admin'} onFechar={() => setVerSobre(false)} />}
         {personalizando && <PersonalizarInicio layout={layout} onMudar={salvarLayout} onFechar={() => setPersonalizando(false)} />}
 
         <p className="text-center font-serif italic text-[15px] text-texto/65 dark:text-bege/55 pt-2 pb-2">

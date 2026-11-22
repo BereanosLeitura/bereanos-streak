@@ -123,11 +123,17 @@ export default function Encontro({ perfil, livro, onVoltar, rotuloVoltar = 'Volt
         <h1 className="font-serif text-[28px] leading-tight text-marinho dark:text-bege">{livro.titulo}</h1>
 
         {!enc && !livro.encontro_em && (
-          <p className="cartao p-5 mt-5 legenda">
-            {admin
-              ? 'Defina a data do encontro em Painel do admin, Livro do ciclo, Próximo encontro. Depois disso esta tela libera mediação e presença.'
-              : 'A data do encontro ainda não foi definida. Enquanto isso, deixe suas perguntas no mural: elas entram aqui.'}
-          </p>
+          admin && livro.status === 'concluido'
+            ? <RegistrarEncontroPassado livro={livro} adminId={perfil.id} onRegistrado={carregar} />
+            : (
+              <p className="cartao p-5 mt-5 legenda">
+                {admin
+                  ? 'Defina a data do encontro em Painel do admin, Livro do ciclo, Próximo encontro. Depois disso esta tela libera mediação e presença.'
+                  : livro.status === 'concluido'
+                    ? 'O encontro deste ciclo não foi registrado no app.'
+                    : 'A data do encontro ainda não foi definida. Enquanto isso, deixe suas perguntas no mural: elas entram aqui.'}
+              </p>
+            )
         )}
         {!enc && livro.encontro_em && new Date(livro.encontro_em).getTime() > Date.now() && (() => {
           const ev = { titulo: `Encontro Bereanos: ${livro.titulo}`, local: livro.encontro_local ?? undefined, descricao: 'Encontro do Clube do Livro Bereanos.', inicio: new Date(livro.encontro_em), duracaoMin: 90 }
@@ -156,6 +162,7 @@ export default function Encontro({ perfil, livro, onVoltar, rotuloVoltar = 'Volt
                     </li>
                   ))}</ul>}
             </section>
+            <MarcadasParaEncontro livroId={livro.id} />
           </>
         )}
 
@@ -264,6 +271,8 @@ export default function Encontro({ perfil, livro, onVoltar, rotuloVoltar = 'Volt
                 })}
               </ul>
             </section>
+
+            <MarcadasParaEncontro livroId={livro.id} />
 
             <section className="cartao p-5 mt-4">
               <div className="flex items-baseline justify-between">
@@ -400,4 +409,99 @@ function paraCampo(iso: string | null) {
   const d = new Date(iso)
   const p = (n: number) => String(n).padStart(2, '0')
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`
+}
+
+/**
+ * Encontro de um ciclo já encerrado que não ficou registrado no app (ex.:
+ * encontros de antes do app). O admin informa data e local; depois disso a
+ * tela libera presença e ata, e o encontro passa a contar na Memória do clube.
+ */
+function RegistrarEncontroPassado({ livro, adminId, onRegistrado }: { livro: LivroAtivo; adminId: string; onRegistrado: () => void }) {
+  const [data, setData] = useState(livro.ciclo_fim ?? '')
+  const [hora, setHora] = useState('15:00')
+  const [local, setLocal] = useState('')
+  const [salvando, setSalvando] = useState(false)
+  const avisar = useAviso()
+  const hoje = new Date().toISOString().slice(0, 10)
+  async function salvar() {
+    if (!data) return avisar('Informe a data do encontro', 'erro')
+    const [a, m, d] = data.split('-').map(Number)
+    const [h, min] = (hora || '15:00').split(':').map(Number)
+    const quando = new Date(a, m - 1, d, h, min)
+    if (quando.getTime() > Date.now()) return avisar('Para um encontro que ainda vai acontecer, use o Painel do admin', 'erro')
+    setSalvando(true)
+    const { error } = await supabase.from('encontros').insert({
+      livro_id: livro.id, data: quando.toISOString(), local: local.trim() || null, roteiro: ROTEIRO_PADRAO, created_by: adminId
+    })
+    setSalvando(false)
+    if (error) return avisar('Não foi possível registrar o encontro', 'erro')
+    avisar('Encontro registrado. Agora dá para marcar a presença.')
+    onRegistrado()
+  }
+  return (
+    <section className="cartao p-5 mt-5 space-y-3">
+      <h2 className="titulo-secao">Registrar o encontro deste ciclo</h2>
+      <p className="legenda">Este encontro aconteceu antes de ficar registrado no app. Informe quando e onde foi: ele entra na Memória do clube e libera a presença e a ata.</p>
+      <div className="grid grid-cols-[1fr_110px] gap-2">
+        <label>
+          <span className="rotulo">Data</span>
+          <input type="date" value={data} max={hoje} onChange={(e) => setData(e.target.value)} className="campo" />
+        </label>
+        <label>
+          <span className="rotulo">Hora</span>
+          <input type="time" value={hora} onChange={(e) => setHora(e.target.value)} className="campo" />
+        </label>
+      </div>
+      <label className="block">
+        <span className="rotulo">Local <span className="font-normal text-texto/60 dark:text-bege/50">(opcional)</span></span>
+        <input value={local} onChange={(e) => setLocal(e.target.value)} maxLength={120} placeholder="Ex.: Igreja, Sala dos Jovens" className="campo" />
+      </label>
+      <button onClick={salvar} disabled={salvando || !data} className="botao-primario">{salvando ? 'Salvando…' : 'Registrar encontro'}</button>
+    </section>
+  )
+}
+
+/**
+ * Anotações do mural que o grupo marcou com "Levar ao encontro" (0021),
+ * das mais marcadas para as menos. Ajuda o mediador a montar a conversa.
+ */
+function MarcadasParaEncontro({ livroId }: { livroId: string }) {
+  const [lista, setLista] = useState<{ id: string; texto: string; tipo: string; pagina: number | null; nome: string; votos: number }[] | null>(null)
+  useEffect(() => {
+    supabase.from('reacoes_mural')
+      .select('anotacao_id, anotacoes!inner(id, texto, tipo, pagina, livro_id, compartilhada, perfis(nome_exibicao))')
+      .eq('tipo', 'encontro').eq('anotacoes.livro_id', livroId).eq('anotacoes.compartilhada', true)
+      .then(({ data, error }) => {
+        if (error) { setLista([]); return } // banco ainda sem a 0021
+        const m = new Map<string, { id: string; texto: string; tipo: string; pagina: number | null; nome: string; votos: number }>()
+        for (const r of (data ?? []) as any[]) {
+          const a = r.anotacoes
+          const x = m.get(a.id) ?? { id: a.id, texto: a.texto, tipo: a.tipo, pagina: a.pagina, nome: a.perfis?.nome_exibicao ?? 'Membro', votos: 0 }
+          x.votos++
+          m.set(a.id, x)
+        }
+        setLista([...m.values()].sort((a, b) => b.votos - a.votos || (a.pagina ?? 9999) - (b.pagina ?? 9999)))
+      })
+  }, [livroId])
+  if (!lista || lista.length === 0) return null
+  const ROTULO: Record<string, string> = { trecho: 'Trecho', reflexao: 'Reflexão', pergunta: 'Pergunta', aplicacao: 'Aplicação' }
+  return (
+    <section className="cartao p-5 mt-4">
+      <h2 className="titulo-secao">O grupo quer conversar sobre</h2>
+      <p className="legenda mt-1">Anotações do mural marcadas com “Levar ao encontro”.</p>
+      <ul className="mt-3 space-y-2">
+        {lista.map((n) => (
+          <li key={n.id} className="rounded-xl p-3 bg-marinho/[0.03] dark:bg-bege/[0.04]">
+            <span className="block text-[11px] font-semibold text-dourado-escuro dark:text-dourado">
+              {ROTULO[n.tipo] ?? 'Anotação'} · {n.votos === 1 ? '1 pessoa marcou' : `${n.votos} pessoas marcaram`}
+            </span>
+            <span className={`block text-[15px] text-marinho dark:text-bege mt-0.5 ${n.tipo === 'trecho' ? 'font-serif italic' : ''}`}>
+              {n.tipo === 'trecho' ? `“${n.texto.trim().replace(/^["“”]+|["“”]+$/g, '')}”` : n.texto}
+            </span>
+            <span className="block text-xs text-texto/65 dark:text-bege/55 mt-0.5">{n.nome}{n.pagina ? `, p. ${n.pagina}` : ''}</span>
+          </li>
+        ))}
+      </ul>
+    </section>
+  )
 }

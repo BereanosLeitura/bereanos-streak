@@ -46,7 +46,7 @@ src/
   lib/          regras e acesso a dados (regras.ts é coberto pelos testes)
   styles/       CSS e tema
 supabase/
-  migrations/   mudanças do banco, em ordem (0001 a 0020); não editar as já aplicadas
+  migrations/   mudanças do banco, em ordem (0001 a 0021); não editar as já aplicadas
   functions/    Edge Function admin-membros
   scripts/      SQL avulso, rodado uma vez (catálogo de conquistas, leituras antes do app)
 tests/          testes das regras (npm test)
@@ -68,7 +68,7 @@ Para conferir antes de o grupo ver, use o `Testar.bat`: ele confere tipos e test
 
 ## Banco de dados (Supabase)
 
-- As migrações de `supabase/migrations` já foram aplicadas até a `0019`; a `0020` (comentário no trecho, grupo e mural ao vivo, nomes das conquistas por nível) precisa rodar antes de publicar esta versão. Mudança nova no banco vira um arquivo novo (`0020_...sql`), rodado no SQL Editor **antes** de publicar o app que depende dele. Nunca edite uma migração antiga.
+- As migrações de `supabase/migrations` já foram aplicadas até a `0019`; a `0020` (comentário no trecho, ao vivo, nomes das conquistas) já foi aplicada; a `0021` (Sobre o livro, foto de perfil, reações no mural) precisa rodar antes de publicar a versão que a usa. Mudança nova no banco vira um arquivo novo (`0020_...sql`), rodado no SQL Editor **antes** de publicar o app que depende dele. Nunca edite uma migração antiga.
 - `supabase/scripts` guarda SQL de uso único, já rodado; fica como registro.
 - A função `supabase/functions/admin-membros` roda no Supabase (Edge Functions). Para atualizar: painel do Supabase, Edge Functions, `admin-membros`, colar o `index.ts` e clicar em Deploy. Ela usa a `service_role key` do servidor, que nunca vai para o app.
 
@@ -88,4 +88,6 @@ Checagens (o `Publicar.bat` roda as três): `npm run typecheck`, `npm test`, `np
 - O bucket de capas é público pelo link, mas não permite listar os arquivos (0016)
 - O anotador do encontro só edita roteiro, perguntas discutidas, ata e presença (0016)
 - O admin retira uma anotação do mural sem apagá-la do caderno de quem escreveu (0019)
+- Fotos de perfil: cada pessoa só envia, troca ou apaga arquivos na própria pasta do bucket `avatares` (0021)
+- Reações no mural: cada um marca e desmarca só as próprias, e só em anotação que está no mural (0021)
 - O `.env` nunca vai para o GitHub (está no `.gitignore`); o `Publicar.bat` também confere isso

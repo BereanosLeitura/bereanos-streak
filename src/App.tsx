@@ -5,6 +5,7 @@ import { tokenDaUrl, limparTokenDaUrl } from './lib/adminMembros'
 import { sincronizarTudo } from './lib/sync'
 import { aplicarTema, temaSalvoLocal, type TemaPreferido } from './lib/tema'
 import { ProvedorAvisos } from './components/Toast'
+import { ProvedorFotos } from './lib/fotos'
 import Icone, { type NomeIcone } from './components/Icone'
 import Login from './pages/Login'
 import CompletarPerfil from './pages/CompletarPerfil'
@@ -67,7 +68,9 @@ type Aba = 'inicio' | 'foco' | 'registrar' | 'notas' | 'compartilhar' | 'metas' 
 export default function App() {
   return (
     <ProvedorAvisos>
-      <Aplicativo />
+      <ProvedorFotos>
+        <Aplicativo />
+      </ProvedorFotos>
     </ProvedorAvisos>
   )
 }
@@ -96,6 +99,12 @@ function Aplicativo() {
   const [verGuia, setVerGuia] = useState(false)
   const [livroEncontro, setLivroEncontro] = useState<LivroAtivo | null>(null) // encontro de um ciclo passado
   const [entreCiclos, setEntreCiclos] = useState<'menu' | 'indicacoes' | 'memoria'>('menu')
+  const [versaoNova, setVersaoNova] = useState(false)
+  useEffect(() => {
+    const aoChegar = () => setVersaoNova(true)
+    window.addEventListener('app-versao-nova', aoChegar)
+    return () => window.removeEventListener('app-versao-nova', aoChegar)
+  }, [])
   // Caminho percorrido até a tela de agora. O botão voltar desempilha, então
   // Perfil > Memória > Livro volta para Memória, e não para a última tela
   // que por acaso tenha sido aberta antes.
@@ -342,6 +351,14 @@ function Aplicativo() {
     <ContagemContext.Provider value={contagem}>
     <div className="min-h-screen">
       <EstadoConexao />
+      {versaoNova && !(focoAtivo && aba === 'foco') && (
+        <div className="fixed top-3 inset-x-3 z-50 max-w-md mx-auto rounded-2xl bg-marinho text-bege shadow-lg shadow-black/25 px-4 py-3 flex items-center gap-3 animate-subir-suave" role="status">
+          <Icone nome="check" className="w-5 h-5 text-dourado shrink-0" />
+          <p className="flex-1 text-sm">Há uma versão nova do app.</p>
+          <button onClick={() => location.reload()} className="rounded-lg bg-dourado text-marinho px-3 py-1.5 text-sm font-semibold">Atualizar</button>
+          <button onClick={() => setVersaoNova(false)} aria-label="Depois" className="p-1 text-bege/70"><Icone nome="x" className="w-4 h-4" /></button>
+        </div>
+      )}
       {buscando && (
         <Suspense fallback={null}>
           <BuscaGlobal

@@ -408,7 +408,7 @@ function FormRegistro({ perfil, livro, seletor, pendente, onRegistrado, onAnotar
               {leitura.pct >= 100 ? 'concluído' : leitura.previsao ? formatarData(chaveDia(leitura.previsao.data)) : '—'}
             </p>
             <p className="text-xs text-texto/65 dark:text-bege/55">
-              {porDiaNecessario ? `precisa de ${porDiaNecessario}/dia até ${formatarData(livro.ciclo_fim!)}` : leitura.previsao ? `em ${contar(leitura.previsao.dias, 'dia', 'dias')}` : 'registre para calcular'}
+              {porDiaNecessario ? `${porDiaNecessario} por dia fecham o ciclo em ${formatarData(livro.ciclo_fim!)}` : leitura.previsao ? `em ${contar(leitura.previsao.dias, 'dia', 'dias')}` : 'registre para calcular'}
             </p>
           </div>
         </section>

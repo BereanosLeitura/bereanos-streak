@@ -42,14 +42,26 @@ export default function CadastrarLivro({ adminId, onCriado }: Props) {
     try {
       const resp = await fetch(
         `https://www.googleapis.com/books/v1/volumes?q=${encodeURIComponent(termoBusca)}&maxResults=5`
-      )
-      const json = await resp.json()
-      const lista: CandidatoGoogleBooks[] = (json.items ?? []).map((item: any) => ({
+      ).catch(() => null)
+      const json = resp && resp.ok ? await resp.json() : {}
+      let lista: CandidatoGoogleBooks[] = (json.items ?? []).map((item: any) => ({
         titulo: item.volumeInfo?.title ?? 'Sem título',
         autor: (item.volumeInfo?.authors ?? []).join(', '),
         capaUrl: item.volumeInfo?.imageLinks?.thumbnail?.replace('http://', 'https://') ?? null,
         paginas: item.volumeInfo?.pageCount ?? null
       }))
+      // O Google Books sem chave tem limite diário compartilhado e às vezes
+      // recusa a busca. Nesse caso (ou sem resultado), tenta o Open Library.
+      if (lista.length === 0) {
+        const ol = await fetch(`https://openlibrary.org/search.json?q=${encodeURIComponent(termoBusca)}&limit=5&fields=title,author_name,number_of_pages_median,cover_i`).catch(() => null)
+        const j = ol && ol.ok ? await ol.json() : {}
+        lista = (j.docs ?? []).map((d: any) => ({
+          titulo: d.title ?? 'Sem título',
+          autor: (d.author_name ?? []).slice(0, 2).join(', '),
+          capaUrl: d.cover_i ? `https://covers.openlibrary.org/b/id/${d.cover_i}-L.jpg` : null,
+          paginas: d.number_of_pages_median ?? null
+        }))
+      }
       setCandidatos(lista)
       if (lista.length === 0) {
         setErro('Nenhum resultado. Tente outro termo ou use o cadastro manual.')
@@ -89,6 +101,10 @@ export default function CadastrarLivro({ adminId, onCriado }: Props) {
     const paginasNum = parseInt(paginas, 10)
     if (!titulo.trim() || !paginasNum || paginasNum <= 0) {
       setErro('Preencha pelo menos o título e o número de páginas.')
+      return
+    }
+    if (cicloInicio && cicloFim && cicloFim < cicloInicio) {
+      setErro('O fim do ciclo está antes do início. Confira as datas.')
       return
     }
 

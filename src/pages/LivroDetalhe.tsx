@@ -10,6 +10,7 @@ import { buscarConclusoes, type StatusLeitura } from '../lib/pendentes'
 import { terminouLivro, entreAspas } from '../lib/regras'
 import { apagarRegistroLeitura } from '../lib/sync'
 import { useContagem } from '../lib/preferencias'
+import SobreLivro from '../components/SobreLivro'
 import { abrirRelatorioCiclo } from '../lib/relatorio'
 import { MapaDoLivro } from '../components/Graficos'
 import { baixarTexto } from '../lib/exportar'
@@ -60,6 +61,7 @@ export default function LivroDetalhe({ perfil, livroId, onVoltar, rotuloVoltar =
   const [retro, setRetro] = useState<Retrospectiva | null>(null)
   const [destaques, setDestaques] = useState<Set<string>>(new Set())
   const [mapaDe, setMapaDe] = useState<'eu' | 'grupo'>('eu')
+  const [verSobre, setVerSobre] = useState(false)
   const avisar = useAviso()
 
   useEffect(() => {
@@ -190,6 +192,10 @@ export default function LivroDetalhe({ perfil, livroId, onVoltar, rotuloVoltar =
                 Ciclo {livro.ciclo_inicio ? `de ${formatarData(livro.ciclo_inicio)} ` : ''}{livro.ciclo_fim ? `até ${formatarData(livro.ciclo_fim)}` : ''}
               </p>
             )}
+            <button onClick={() => setVerSobre(true)} className="mt-2 inline-flex items-center gap-1.5 text-xs botao-texto" aria-label="Sobre o livro: sinopse e autor">
+              <Icone nome="info" className="w-4 h-4" /> Sobre o livro
+            </button>
+            {verSobre && <SobreLivro livro={livro} admin={perfil.role === 'admin'} onFechar={() => setVerSobre(false)} />}
           </div>
         </header>
 
@@ -237,7 +243,7 @@ export default function LivroDetalhe({ perfil, livroId, onVoltar, rotuloVoltar =
               <span className="text-xs text-bege/60">{retro.inicio && retro.fim && chaveDia(retro.inicio) !== chaveDia(retro.fim) ? `${formatarData(retro.inicio)} a ${formatarData(retro.fim)}` : retro.inicio ? formatarData(retro.inicio) : ''}</span>
             </div>
             <ul className="mt-4 space-y-3 text-[15px]">
-              {contagem && <Destaque icone="chama" texto={`${retro.maiorSequencia} ${retro.maiorSequencia === 1 ? 'dia seguido' : 'dias seguidos'} foi sua maior sequência neste livro.`} />}
+              {contagem && retro.maiorSequencia >= 2 && <Destaque icone="chama" texto={`Sua maior sequência neste livro foi de ${retro.maiorSequencia} dias seguidos.`} />}
               {retro.melhorDia && <Destaque icone="alvo" texto={`Seu melhor dia foi ${formatarData(retro.melhorDia.data, { day: 'numeric', month: 'long' })}, com ${retro.melhorDia.paginas} ${retro.melhorDia.paginas === 1 ? 'página' : 'páginas'}.`} />}
               {retro.horarioPreferido && <Destaque icone="relogio" texto={`Você leu mais ${retro.horarioPreferido}.`} />}
               {retro.minutos > 0 && <Destaque icone="relogio" texto={`${formatarTempo(retro.minutos)} de leitura${retro.sessoes ? `, com ${retro.sessoes} ${retro.sessoes === 1 ? 'sessão' : 'sessões'} de foco` : ''}.`} />}

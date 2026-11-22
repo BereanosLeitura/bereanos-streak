@@ -89,6 +89,9 @@ export default function Notas({ perfil, livro, inicial, onCompartilhar }: Props)
   const [revelarTudo, setRevelarTudo] = useState(false)
   const [revelados, setRevelados] = useState<Set<string>>(new Set())
   const [qtdMural, setQtdMural] = useState<number | null>(null)
+  // reações do mural (0021): por anotação, quantas de cada tipo e as minhas
+  const [reacoes, setReacoes] = useState<Map<string, { ajudou: number; encontro: number; minhas: Set<TipoReacao> }>>(new Map())
+  const [reacoesOk, setReacoesOk] = useState(false)
   useEffect(() => {
     supabase.from('anotacoes').select('id', { count: 'exact', head: true }).eq('livro_id', livro.id).eq('compartilhada', true)
       .then(({ count }) => setQtdMural(count ?? null))
@@ -149,6 +152,37 @@ export default function Notas({ perfil, livro, inicial, onCompartilhar }: Props)
   const buscaGeral = todosLivros && vista === 'minhas'
   useEffect(() => { carregar() }, [livro.id, vista, buscaGeral])
 
+  // reações das anotações que estão na tela do mural
+  const idsMural = vista === 'mural' ? (notas ?? []).map((n) => n.id).join(',') : ''
+  async function carregarReacoes() {
+    const ids = idsMural ? idsMural.split(',') : []
+    if (!ids.length) { setReacoes(new Map()); return }
+    const { data, error } = await supabase.from('reacoes_mural').select('anotacao_id, membro_id, tipo').in('anotacao_id', ids)
+    if (error) { setReacoesOk(false); return } // banco ainda sem a 0021
+    setReacoesOk(true)
+    const m = new Map<string, { ajudou: number; encontro: number; minhas: Set<TipoReacao> }>()
+    for (const r of (data ?? []) as { anotacao_id: string; membro_id: string; tipo: TipoReacao }[]) {
+      const x = m.get(r.anotacao_id) ?? { ajudou: 0, encontro: 0, minhas: new Set<TipoReacao>() }
+      x[r.tipo]++
+      if (r.membro_id === perfil.id) x.minhas.add(r.tipo)
+      m.set(r.anotacao_id, x)
+    }
+    setReacoes(m)
+  }
+  useEffect(() => { carregarReacoes() }, [idsMural])
+
+  async function alternarReacao(n: Nota, tipo: TipoReacao) {
+    const atual = reacoes.get(n.id) ?? { ajudou: 0, encontro: 0, minhas: new Set<TipoReacao>() }
+    const tem = atual.minhas.has(tipo)
+    const novo = { ...atual, minhas: new Set(atual.minhas), [tipo]: atual[tipo] + (tem ? -1 : 1) }
+    if (tem) novo.minhas.delete(tipo); else novo.minhas.add(tipo)
+    setReacoes((m) => new Map(m).set(n.id, novo))
+    const { error } = tem
+      ? await supabase.from('reacoes_mural').delete().eq('anotacao_id', n.id).eq('membro_id', perfil.id).eq('tipo', tipo)
+      : await supabase.from('reacoes_mural').insert({ anotacao_id: n.id, membro_id: perfil.id, tipo })
+    if (error) { avisar('Não foi possível marcar agora', 'erro'); carregarReacoes() }
+  }
+
   // mural ao vivo: quando alguém posta, edita ou tira uma anotação deste livro
   useEffect(() => {
     if (vista !== 'mural') return
@@ -157,6 +191,10 @@ export default function Notas({ perfil, livro, inicial, onCompartilhar }: Props)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'anotacoes', filter: `livro_id=eq.${livro.id}` }, () => {
         if (espera) clearTimeout(espera)
         espera = setTimeout(() => carregar(true), 600)
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'reacoes_mural' }, () => {
+        if (espera) clearTimeout(espera)
+        espera = setTimeout(() => carregarReacoes(), 600)
       })
       .subscribe()
     return () => { if (espera) clearTimeout(espera); supabase.removeChannel(canal) }
@@ -521,7 +559,7 @@ export default function Notas({ perfil, livro, inicial, onCompartilhar }: Props)
                   </p>
                 )}
                 <div className="flex items-center gap-2 mt-3">
-                  {vista === 'mural' && <Avatar nome={n.nome} tamanho={22} />}
+                  {vista === 'mural' && <Avatar nome={n.nome} id={n.membro_id} tamanho={22} />}
                   <span className="text-xs text-texto/65 dark:text-bege/55">{vista === 'mural' ? `${n.nome}, ` : ''}{tempoRelativo(n.created_at)}</span>
                   <div className="ml-auto flex items-center">
                     {/* anotação protegida contra spoiler não vira imagem antes de ser revelada */}
@@ -547,6 +585,22 @@ export default function Notas({ perfil, livro, inicial, onCompartilhar }: Props)
                     ))}
                   </div>
                 </div>
+                {vista === 'mural' && !protegida && reacoesOk && (
+                  <div className="flex flex-wrap gap-1.5 mt-3">
+                    {(['ajudou', 'encontro'] as TipoReacao[]).map((t) => {
+                      const r = reacoes.get(n.id)
+                      const marcada = !!r?.minhas.has(t)
+                      const qtd = r?.[t] ?? 0
+                      return (
+                        <button key={t} onClick={() => alternarReacao(n, t)} aria-pressed={marcada}
+                          className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs transition-colors ${marcada ? 'border-dourado bg-dourado/15 text-dourado-escuro dark:text-dourado font-semibold' : 'border-marinho/15 dark:border-bege/15 text-texto/70 dark:text-bege/60 hover:border-dourado/60'}`}>
+                          <Icone nome={REACOES[t].icone} className="w-3.5 h-3.5" />
+                          {REACOES[t].rotulo}{qtd > 0 && <span className="tabular">· {qtd}</span>}
+                        </button>
+                      )
+                    })}
+                  </div>
+                )}
                 {vista === 'mural' && !protegida && <RespostasMural anotacaoId={n.id} perfil={perfil} autorNota={n.membro_id} />}
               </li>
               </Fragment>
@@ -556,6 +610,12 @@ export default function Notas({ perfil, livro, inicial, onCompartilhar }: Props)
       </div>
     </div>
   )
+}
+
+type TipoReacao = 'ajudou' | 'encontro'
+const REACOES: Record<TipoReacao, { rotulo: string; icone: NomeIcone }> = {
+  ajudou: { rotulo: 'Me ajudou', icone: 'lampada' },
+  encontro: { rotulo: 'Levar ao encontro', icone: 'calendario' }
 }
 
 /** "p. 1–25", "p. 26–50"... ou "Sem página". */

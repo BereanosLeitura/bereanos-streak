@@ -1,10 +1,11 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { formatarTempo, tempoManual } from '../lib/tempo'
 import { buscarConclusoes } from '../lib/pendentes'
 import { terminouLivro } from '../lib/regras'
 import { supabase, buscarTodas, type Perfil as TPerfil } from '../lib/supabase'
 import { useAviso } from '../components/Toast'
 import Avatar from '../components/Avatar'
+import { prepararFoto, useFotos } from '../lib/fotos'
 import { BarraBrilho } from '../components/BarraBrilho'
 import InstalarApp from '../components/InstalarApp'
 import { GRUPOS_CONQUISTA, ICONE_CONQUISTA } from '../lib/conquistas'
@@ -150,7 +151,7 @@ export default function Perfil({ perfil, tema, onMudarTema, onPerfilAtualizado, 
 
         {/* Cabeçalho */}
         <div className="flex items-center gap-4 mt-4">
-          <Avatar nome={perfil.nome_exibicao} tamanho={64} />
+          <FotoDePerfil perfil={perfil} onMudou={(url) => onPerfilAtualizado({ ...perfil, avatar_url: url })} />
           <div className="min-w-0">
             <h1 className="font-serif text-[28px] leading-tight text-marinho dark:text-bege truncate">{perfil.nome_exibicao}</h1>
             <p className="legenda truncate">{perfil.nome_completo}{perfil.role === 'admin' ? ', admin' : ''}</p>
@@ -529,5 +530,78 @@ function Interruptor({ rotulo, legenda, ligado, onMudar }: { rotulo: string; leg
         <span className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform ${ligado ? 'translate-x-5' : ''}`} />
       </span>
     </button>
+  )
+}
+
+/**
+ * Foto do perfil: toque para escolher, o app recorta em quadrado, reduz e
+ * envia para a pasta da própria pessoa (avatares/<id>/). Dá para remover.
+ */
+function FotoDePerfil({ perfil, onMudou }: { perfil: TPerfil; onMudou: (url: string | null) => void }) {
+  const [enviando, setEnviando] = useState(false)
+  const [menu, setMenu] = useState(false)
+  const entrada = useRef<HTMLInputElement>(null)
+  const avisar = useAviso()
+  const fotos = useFotos()
+
+  async function escolher(arquivo: File | undefined) {
+    if (!arquivo) return
+    setMenu(false)
+    setEnviando(true)
+    try {
+      const blob = await prepararFoto(arquivo)
+      const caminho = `${perfil.id}/${crypto.randomUUID()}.jpg`
+      const { error } = await supabase.storage.from('avatares').upload(caminho, blob, { contentType: 'image/jpeg', cacheControl: '31536000' })
+      if (error) throw new Error(/bucket|not found/i.test(error.message) ? 'Falta rodar a atualização 0021 no Supabase.' : error.message)
+      const url = supabase.storage.from('avatares').getPublicUrl(caminho).data.publicUrl
+      const { error: e2 } = await supabase.from('perfis').update({ avatar_url: url }).eq('id', perfil.id)
+      if (e2) throw new Error(e2.message)
+      await apagarAntiga(perfil.avatar_url)
+      onMudou(url)
+      fotos.recarregar()
+      avisar('Foto atualizada')
+    } catch (e: any) {
+      avisar(e?.message || 'Não foi possível trocar a foto', 'erro')
+    } finally {
+      setEnviando(false)
+      if (entrada.current) entrada.current.value = ''
+    }
+  }
+
+  async function remover() {
+    setMenu(false)
+    const { error } = await supabase.from('perfis').update({ avatar_url: null }).eq('id', perfil.id)
+    if (error) return avisar('Não foi possível remover', 'erro')
+    await apagarAntiga(perfil.avatar_url)
+    onMudou(null)
+    fotos.recarregar()
+    avisar('Foto removida')
+  }
+
+  async function apagarAntiga(url: string | null) {
+    const marca = '/avatares/'
+    if (!url || !url.includes(marca)) return
+    const caminho = decodeURIComponent(url.split(marca)[1].split('?')[0])
+    await supabase.storage.from('avatares').remove([caminho]).catch(() => {})
+  }
+
+  return (
+    <div className="relative shrink-0">
+      <button onClick={() => (perfil.avatar_url ? setMenu((v) => !v) : entrada.current?.click())} disabled={enviando}
+        aria-label={perfil.avatar_url ? 'Trocar ou remover a foto de perfil' : 'Pôr uma foto de perfil'}
+        className="relative rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dourado">
+        <Avatar nome={perfil.nome_exibicao} id={perfil.id} url={perfil.avatar_url} tamanho={64} />
+        <span className="absolute -bottom-0.5 -right-0.5 w-6 h-6 rounded-full bg-dourado text-marinho flex items-center justify-center border-2 border-folha dark:border-noite">
+          {enviando ? <span className="w-3 h-3 rounded-full border-2 border-marinho/30 border-t-marinho animate-spin" /> : <Icone nome="camera" className="w-3.5 h-3.5" />}
+        </span>
+      </button>
+      <input ref={entrada} type="file" accept="image/*" className="hidden" onChange={(e) => escolher(e.target.files?.[0])} />
+      {menu && (
+        <div className="absolute left-0 top-[72px] z-20 cartao p-1.5 w-44 shadow-lg animate-subir-suave">
+          <button onClick={() => entrada.current?.click()} className="w-full text-left rounded-lg px-3 py-2 text-sm hover:bg-marinho/[0.05] dark:hover:bg-bege/[0.06]">Trocar foto</button>
+          <button onClick={remover} className="w-full text-left rounded-lg px-3 py-2 text-sm text-red-700 dark:text-red-400 hover:bg-marinho/[0.05] dark:hover:bg-bege/[0.06]">Remover foto</button>
+        </div>
+      )}
+    </div>
   )
 }
