@@ -17,7 +17,7 @@ import { useMinhaLeitura } from '../lib/leitura'
 
 type Tipo = 'trecho' | 'reflexao' | 'pergunta' | 'aplicacao'
 type Vista = 'minhas' | 'mural'
-type Ordem = 'recentes' | 'pagina'
+type Ordem = 'recentes' | 'antigas' | 'pagina'
 
 interface Nota {
   id: string
@@ -40,6 +40,14 @@ const TIPOS: Record<Tipo, { rotulo: string; plural: string; icone: NomeIcone; di
   reflexao: { rotulo: 'Reflexão', plural: 'Reflexões', icone: 'lampada', dica: 'O que isso te fez pensar? Onde concorda ou discorda?' },
   pergunta: { rotulo: 'Pergunta', plural: 'Perguntas', icone: 'interrogacao', dica: 'Uma dúvida para examinar nas Escrituras ou levar ao encontro.' },
   aplicacao: { rotulo: 'Aplicação', plural: 'Aplicações', icone: 'alvo', dica: 'O que você quer praticar a partir desta leitura? Seja concreto: o quê, quando, com quem.' }
+}
+
+/** Cor de cada tipo no mapa do livro. */
+const COR_TIPO: Record<Tipo, string> = {
+  trecho: 'bg-dourado',
+  reflexao: 'bg-marinho dark:bg-bege',
+  pergunta: 'bg-[#4F6A99]',
+  aplicacao: 'bg-[#6E8B5A]'
 }
 
 /** Ordem em que os tipos aparecem em listas e cópias. */
@@ -102,6 +110,28 @@ export default function Notas({ perfil, livro, inicial, onCompartilhar }: Props)
   const avisar = useAviso()
   const [expandidas, setExpandidas] = useState<Set<string>>(new Set())
   const [recuperado, setRecuperado] = useState(false)
+  // edição de anotação já salva: guarda o original para não perder mudanças sem querer
+  const original = useRef<string>('')
+  const [confirmarFechar, setConfirmarFechar] = useState(false)
+  const estadoEditor = () => JSON.stringify([tipo, texto.trim(), pagina, referencia.trim(), comentario.trim(), noMural])
+  function fecharEditor() {
+    const mudou = !!editor?.id && estadoEditor() !== original.current
+    if (mudou && !confirmarFechar) {
+      setConfirmarFechar(true)
+      setTimeout(() => setConfirmarFechar(false), 4000)
+      return
+    }
+    // anotação nova: o rascunho já fica guardado e volta no próximo "Nova"
+    if (!editor?.id && texto.trim()) avisar('Rascunho guardado. Ele volta quando você tocar em Nova.')
+    setConfirmarFechar(false)
+    setEditor(null)
+  }
+  useEffect(() => {
+    if (!editor) return
+    const tecla = (e: KeyboardEvent) => { if (e.key === 'Escape') fecharEditor() }
+    window.addEventListener('keydown', tecla)
+    return () => window.removeEventListener('keydown', tecla)
+  })
 
   // Rascunho da anotação nova: se a pessoa sair da tela ou o app fechar no
   // meio, o texto volta na próxima vez que tocar em "Nova".
@@ -226,6 +256,8 @@ export default function Notas({ perfil, livro, inicial, onCompartilhar }: Props)
     setReferencia(n.referencia ?? '')
     setComentario(n.comentario ?? '')
     setNoMural(n.compartilhada)
+    original.current = JSON.stringify([n.tipo, n.texto.trim(), n.pagina ? String(n.pagina) : '', (n.referencia ?? '').trim(), (n.comentario ?? '').trim(), n.compartilhada])
+    setConfirmarFechar(false)
     window.scrollTo({ top: 0, behavior: 'smooth' })
   }
 
@@ -284,6 +316,18 @@ export default function Notas({ perfil, livro, inicial, onCompartilhar }: Props)
     })
   }
 
+  async function copiarUma(n: Nota) {
+    const corpo = n.tipo === 'trecho' ? entreAspas(n.texto) : n.texto
+    const onde = [n.pagina ? `p. ${n.pagina}` : '', n.referencia ?? ''].filter(Boolean).join(' · ')
+    const quem = n.membro_id === perfil.id ? '' : `\n(${n.nome})`
+    try {
+      await navigator.clipboard.writeText(`${corpo}${n.comentario ? `\n\n${n.comentario}` : ''}${onde ? `\n${onde}` : ''}${quem}`)
+      avisar('Anotação copiada')
+    } catch {
+      avisar('Não foi possível copiar', 'erro')
+    }
+  }
+
   async function copiarParaEncontro() {
     // só deste livro, mesmo quando a busca está em todos os livros
     const minhas = (notas ?? []).filter((n) => n.membro_id === perfil.id && n.livro_id === livro.id)
@@ -311,6 +355,7 @@ export default function Notas({ perfil, livro, inicial, onCompartilhar }: Props)
         (n.livro_titulo ?? '').toLowerCase().includes(termo) || (vista === 'mural' && n.nome.toLowerCase().includes(termo)))
     )
     if (ordem === 'pagina') l = [...l].sort((a, b) => (a.pagina ?? 99999) - (b.pagina ?? 99999))
+    else if (ordem === 'antigas') l = [...l].reverse()
     return l
   }, [notas, filtro, busca, ordem, vista, destaques])
 
@@ -325,6 +370,16 @@ export default function Notas({ perfil, livro, inicial, onCompartilhar }: Props)
   const filtros: Filtro[] = vista === 'minhas'
     ? ['todas', 'favoritas', 'trecho', 'reflexao', 'pergunta', 'aplicacao', 'escrituras']
     : ['todas', 'destaques', 'trecho', 'reflexao', 'pergunta', 'aplicacao', 'escrituras']
+  // mapa do livro: anotações deste livro com página, para ver onde a leitura rendeu mais
+  const mapa = useMemo(() => (notas ?? []).filter((n) => n.livro_id === livro.id && n.membro_id === perfil.id && !!n.pagina && n.pagina <= livro.paginas_totais), [notas])
+  const trechoMaisAnotado = useMemo(() => {
+    if (mapa.length < 3) return null
+    const faixas = new Map<string, number>()
+    for (const n of mapa) { const f = faixaDePaginas(n.pagina); faixas.set(f, (faixas.get(f) ?? 0) + 1) }
+    const [f, q] = [...faixas.entries()].sort((a, b) => b[1] - a[1])[0]
+    return q >= 2 ? f.toLowerCase() : null
+  }, [mapa])
+  const filtroSemResultado = filtro !== 'todas' && (notas?.length ?? 0) > 0
   const ROTULO_FILTRO: Record<string, string> = { todas: 'Todas', favoritas: 'Favoritas', escrituras: 'Com referência bíblica', destaques: 'Destaques do clube' }
 
   return (
@@ -348,7 +403,9 @@ export default function Notas({ perfil, livro, inicial, onCompartilhar }: Props)
           <div className="cartao p-5 mt-5 animate-subir-suave">
             <div className="flex items-center justify-between mb-3">
               <h2 className="titulo-secao">{editor.id ? 'Editar anotação' : 'Nova anotação'}</h2>
-              <button onClick={() => setEditor(null)} aria-label="Fechar" className="p-1 text-texto/65 dark:text-bege/55"><Icone nome="x" /></button>
+              {confirmarFechar
+                ? <button onClick={fecharEditor} className="text-xs font-semibold text-red-700 dark:text-red-400">Descartar alterações?</button>
+                : <button onClick={fecharEditor} aria-label="Fechar" className="p-1 text-texto/65 dark:text-bege/55"><Icone nome="x" /></button>}
             </div>
             <div className="grid grid-cols-4 gap-1.5 mb-4">
               {(Object.keys(TIPOS) as Tipo[]).map((t) => (
@@ -371,7 +428,7 @@ export default function Notas({ perfil, livro, inicial, onCompartilhar }: Props)
               onKeyDown={(e) => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); salvar() } }}
               className={`campo resize-none ${tipo === 'trecho' ? 'font-serif italic text-[18px]' : ''}`} />
             <div className="flex items-center justify-end mt-1">
-              <p className="text-xs text-texto/65 dark:text-bege/55">{texto.length}/2000</p>
+              <p className={`text-xs tabular ${texto.length > 1800 ? 'text-dourado-escuro dark:text-dourado font-semibold' : 'text-texto/65 dark:text-bege/55'}`}>{texto.length}/2000</p>
             </div>
             {tipo === 'trecho' && temComentario && (
               <label className="block mt-2">
@@ -389,14 +446,25 @@ export default function Notas({ perfil, livro, inicial, onCompartilhar }: Props)
                 Página
                 <input type="number" inputMode="numeric" min={1} max={livro.paginas_totais} value={pagina} onChange={(e) => setPagina(e.target.value)} className="campo w-20 py-1.5 text-center" />
               </label>
+              {!leitura.carregando && leitura.paginasLivro > 0 && pagina !== String(Math.min(leitura.paginasLivro, livro.paginas_totais)) && (
+                <button type="button" onClick={() => setPagina(String(Math.min(leitura.paginasLivro, livro.paginas_totais)))} className="chip text-[12px]" title="Usar a página em que você está">
+                  p. {Math.min(leitura.paginasLivro, livro.paginas_totais)}
+                </button>
+              )}
               <label className="ml-auto flex items-center gap-2 text-sm text-texto/70 dark:text-bege/70 cursor-pointer select-none">
                 <input type="checkbox" checked={noMural} onChange={(e) => setNoMural(e.target.checked)} className="w-4 h-4 accent-[#B8912F]" />
                 Pôr no mural
               </label>
             </div>
+            {parseInt(pagina, 10) > livro.paginas_totais && (
+              <p className="text-xs text-red-700 dark:text-red-400 mt-1.5">O livro tem {livro.paginas_totais} páginas. Confira o número.</p>
+            )}
+            {noMural && !!pagina && (
+              <p className="text-xs text-texto/60 dark:text-bege/55 mt-1.5">No mural, quem ainda não chegou nessa página vê a anotação escondida até escolher revelar.</p>
+            )}
             <div className="flex gap-2 mt-4">
-              <button onClick={salvar} disabled={salvando || !texto.trim()} className="botao-primario">{salvando ? 'Salvando…' : editor.id ? 'Salvar alterações' : 'Salvar anotação'}</button>
-              <button onClick={() => setEditor(null)} className="botao-secundario">Cancelar</button>
+              <button onClick={salvar} disabled={salvando || !texto.trim() || parseInt(pagina, 10) > livro.paginas_totais} className="botao-primario">{salvando ? 'Salvando…' : editor.id ? 'Salvar alterações' : 'Salvar anotação'}</button>
+              <button onClick={fecharEditor} className="botao-secundario">{confirmarFechar ? 'Descartar alterações' : 'Cancelar'}</button>
             </div>
           </div>
         )}
@@ -436,6 +504,39 @@ export default function Notas({ perfil, livro, inicial, onCompartilhar }: Props)
           </div>
         )}
 
+        {vista === 'minhas' && mapa.length >= 2 && (
+          <section className="cartao mt-3 p-4" aria-label="Onde estão suas anotações no livro">
+            <div className="flex items-baseline justify-between">
+              <h2 className="text-xs font-semibold uppercase tracking-[.14em] text-dourado-escuro dark:text-dourado">Onde você anotou</h2>
+              {trechoMaisAnotado && <span className="text-[11px] text-texto/65 dark:text-bege/55">mais anotado: {trechoMaisAnotado}</span>}
+            </div>
+            <div className="relative h-7 mt-3">
+              <div className="absolute inset-x-0 top-1/2 h-1 -translate-y-1/2 rounded-full bg-marinho/10 dark:bg-bege/10" />
+              {leitura.paginasLivro > 0 && (
+                <div className="absolute left-0 top-1/2 h-1 -translate-y-1/2 rounded-full bg-dourado/40" style={{ width: `${Math.min(100, (leitura.paginasLivro / livro.paginas_totais) * 100)}%` }} />
+              )}
+              {mapa.map((n) => (
+                <button key={n.id} type="button" onClick={() => { setOrdem('pagina'); setFiltro(n.tipo) }}
+                  title={`${TIPOS[n.tipo].rotulo}, p. ${n.pagina}`} aria-label={`${TIPOS[n.tipo].rotulo} na página ${n.pagina}`}
+                  className={`absolute top-1/2 w-3 h-3 -translate-x-1/2 -translate-y-1/2 rounded-full ring-2 ring-folha dark:ring-noite-cartao ${COR_TIPO[n.tipo]}`}
+                  style={{ left: `${Math.min(100, ((n.pagina ?? 1) / livro.paginas_totais) * 100)}%` }} />
+              ))}
+            </div>
+            <div className="flex justify-between text-[10px] text-texto/60 dark:text-bege/50 tabular">
+              <span>p. 1</span>
+              {leitura.paginasLivro > 0 && leitura.paginasLivro < livro.paginas_totais && <span>você está na p. {leitura.paginasLivro}</span>}
+              <span>p. {livro.paginas_totais}</span>
+            </div>
+            <div className="flex flex-wrap gap-x-3 gap-y-1 mt-2">
+              {ORDEM_TIPOS.filter((t) => mapa.some((n) => n.tipo === t)).map((t) => (
+                <span key={t} className="flex items-center gap-1.5 text-[11px] text-texto/70 dark:text-bege/60">
+                  <span className={`w-2 h-2 rounded-full ${COR_TIPO[t]}`} /> {TIPOS[t].plural}
+                </span>
+              ))}
+            </div>
+          </section>
+        )}
+
         <div className="relative mt-4">
           <svg viewBox="0 0 24 24" className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-texto/65 dark:text-bege/55" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
             <circle cx="11" cy="11" r="6.5" /><path d="m16 16 4 4" />
@@ -456,8 +557,9 @@ export default function Notas({ perfil, livro, inicial, onCompartilhar }: Props)
               {ROTULO_FILTRO[f] ?? TIPOS[f as Tipo].plural}
             </button>
           ))}
-          <button onClick={() => setOrdem((o) => (o === 'recentes' ? 'pagina' : 'recentes'))} className="chip shrink-0 ml-auto" title="Mudar a ordem">
-            {ordem === 'recentes' ? 'Recentes' : 'Por página'}
+          <button onClick={() => setOrdem((o) => (o === 'recentes' ? 'pagina' : o === 'pagina' ? 'antigas' : 'recentes'))} className="chip shrink-0 ml-auto flex items-center gap-1" title="Mudar a ordem: recentes, por página, mais antigas">
+            <svg viewBox="0 0 24 24" className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true"><path d="M7 4v16M3 16l4 4 4-4M17 20V4M13 8l4-4 4 4" /></svg>
+            {ordem === 'recentes' ? 'Recentes' : ordem === 'pagina' ? 'Por página' : 'Mais antigas'}
           </button>
         </div>
 
@@ -466,9 +568,11 @@ export default function Notas({ perfil, livro, inicial, onCompartilhar }: Props)
 
         {notas !== null && visiveis.length === 0 && !erroTabela && (
           <Vazio
-            titulo={busca ? undefined : vista === 'minhas' ? 'Seu caderno começa aqui' : 'O mural está esperando'}
-            texto={busca ? 'Nada encontrado com essa busca.' : vista === 'minhas' ? 'Marque o que te chamou atenção na leitura. Isso ajuda muito na hora do encontro.' : 'Ninguém pôs anotações deste livro no mural ainda. A primeira pode ser sua.'}
-            acao={vista === 'minhas' && !busca ? <button onClick={abrirNova} className="botao-texto">Criar a primeira</button> : undefined}
+            titulo={busca || filtroSemResultado ? undefined : vista === 'minhas' ? 'Seu caderno começa aqui' : 'O mural está esperando'}
+            texto={busca ? 'Nada encontrado com essa busca.' : filtroSemResultado ? `Nada em "${ROTULO_FILTRO[filtro] ?? TIPOS[filtro as Tipo].plural}" por enquanto.` : vista === 'minhas' ? 'Marque o que te chamou atenção na leitura. Isso ajuda muito na hora do encontro.' : 'Ninguém pôs anotações deste livro no mural ainda. A primeira pode ser sua.'}
+            acao={busca || filtroSemResultado
+              ? <button onClick={() => { setBusca(''); setFiltro('todas') }} className="botao-texto">Limpar busca e filtro</button>
+              : vista === 'minhas' ? <button onClick={abrirNova} className="botao-texto">Criar a primeira</button> : undefined}
           />
         )}
 
@@ -532,6 +636,7 @@ export default function Notas({ perfil, livro, inicial, onCompartilhar }: Props)
                   <span className="text-xs text-texto/65 dark:text-bege/55">{vista === 'mural' ? `${n.nome}, ` : ''}{tempoRelativo(n.created_at)}</span>
                   <div className="ml-auto flex items-center">
                     {/* anotação protegida contra spoiler não vira imagem antes de ser revelada */}
+                    {!protegida && <BotaoIcone icone="copiar" rotulo="Copiar texto" onClick={() => copiarUma(n)} />}
                     {!protegida && <BotaoIcone icone="imagem" rotulo="Criar imagem para compartilhar" onClick={() => onCompartilhar({ ...n, autor: n.membro_id === perfil.id ? perfil.nome_exibicao : n.nome })} />}
                     {minha && (
                       <>

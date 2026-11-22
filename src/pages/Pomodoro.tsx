@@ -706,6 +706,15 @@ export default function Pomodoro({ perfil, livro, onFocoAtivo }: Props) {
                 <input id="meta-sessao" type="number" inputMode="numeric" min={atual + 1} max={livro.paginas_totais} value={metaPagina}
                   onChange={(e) => setMetaPagina(e.target.value)} placeholder="página" className="campo w-24 py-2 text-center" />
               </div>
+              {(() => {
+                const alvo = parseInt(metaPagina, 10)
+                if (!metaPagina || leitura.carregando || Number.isNaN(alvo)) return null
+                if (alvo <= atual) return <p className="text-xs text-red-700 dark:text-red-400 mt-2">Você já está na página {atual}. Escolha uma página à frente.</p>
+                if (alvo > livro.paginas_totais) return <p className="text-xs text-red-700 dark:text-red-400 mt-2">O livro tem {livro.paginas_totais} páginas.</p>
+                const min = Math.max(1, Math.round((alvo - atual) * ritmo))
+                const cabe = config.modo === 'pomodoro' ? (min <= duracao ? 'Cabe nesta sessão.' : `Dá cerca de ${Math.ceil(min / duracao)} sessões de ${duracao} min.`) : ''
+                return <p className="text-xs text-texto/70 dark:text-bege/65 mt-2">{contar(alvo - atual, 'página', 'páginas')}, cerca de {formatarTempo(min)} no seu ritmo. {cabe}</p>
+              })()}
               {opcoes.length > 0 && !leitura.carregando && (
                 <div className="flex flex-wrap gap-1.5 mt-3">
                   {opcoes.map(([rotulo, p]) => (
@@ -767,6 +776,18 @@ export default function Pomodoro({ perfil, livro, onFocoAtivo }: Props) {
                 <div><dd className="font-serif tabular text-xl text-marinho dark:text-bege">{diasComFoco}</dd><dt className="text-[11px] text-texto/65 dark:text-bege/55">{diasComFoco === 1 ? 'dia com foco' : 'dias com foco'}</dt></div>
               </dl>
             )
+          })()}
+          {(() => {
+            // horário em que a pessoa mais focou na semana (pelo início de cada sessão)
+            if (sessoesSemana.length < 3) return null
+            const porFaixa = new Map<string, number>()
+            for (const s of sessoesSemana) {
+              const h = new Date(new Date(s.fim).getTime() - (s.duracao_minutos ?? 0) * 60000).getHours()
+              const faixa = h < 6 ? 'de madrugada' : h < 12 ? 'de manhã' : h < 18 ? 'à tarde' : 'à noite'
+              porFaixa.set(faixa, (porFaixa.get(faixa) ?? 0) + (s.duracao_minutos ?? 0))
+            }
+            const [faixa] = [...porFaixa.entries()].sort((a, b) => b[1] - a[1])[0]
+            return <p className="text-sm text-marinho dark:text-bege mt-3">Nesta semana, a maior parte do seu foco foi <span className="font-semibold">{faixa}</span>.</p>
           })()}
           <p className="text-xs text-texto/65 dark:text-bege/55 mt-3">Minutos de foco nos últimos 7 dias.</p>
         </section>

@@ -356,7 +356,7 @@ export default function Inicio({ perfil, livro, onIr, onBuscar, onPerfilAtualiza
           <div className="mt-5">
             <p className="text-sm text-texto/70 dark:text-bege/60 mb-2">Registro rápido</p>
             <div className="grid grid-cols-4 gap-2">
-              {[5, 10, 20].map((n) => (
+              {[...new Set([5, 10, 20].map((n) => (faltamPaginas > 0 ? Math.min(n, faltamPaginas) : n)))].map((n) => (
                 <button
                   key={n}
                   disabled={registrando || faltamPaginas === 0}
@@ -370,6 +370,12 @@ export default function Inicio({ perfil, livro, onIr, onBuscar, onPerfilAtualiza
                 Outro
               </button>
             </div>
+            {!ultimoRapido && !leitura.carregando && leitura.paginasHoje < meta && faltamPaginas > 0 && ![5, 10, 20].includes(Math.min(meta - leitura.paginasHoje, faltamPaginas)) && (
+              <button disabled={registrando} onClick={() => registrarRapido(meta - leitura.paginasHoje)}
+                className="w-full mt-2 rounded-xl bg-dourado/10 border border-dourado/30 py-2 text-sm font-semibold text-dourado-escuro dark:text-dourado hover:bg-dourado/15 disabled:opacity-50">
+                +{Math.min(meta - leitura.paginasHoje, faltamPaginas)} {faltamPaginas <= meta - leitura.paginasHoje ? 'e termino o livro' : 'e fecho a meta de hoje'}
+              </button>
+            )}
             {ultimoRapido && (
               <p className="text-sm text-texto/70 dark:text-bege/60 mt-3 animate-subir-suave">
                 {ultimoRapido.paginas === 1 ? '1 página lançada agora.' : `${ultimoRapido.paginas} páginas lançadas agora.`}{' '}

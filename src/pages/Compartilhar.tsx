@@ -284,9 +284,9 @@ export default function Compartilhar({ perfil, livro, preCarga }: Props) {
     }
   }
 
-  async function desenharEm(canvas: HTMLCanvasElement, indiceParte = parteAtual) {
+  async function desenharEm(canvas: HTMLCanvasElement, indiceParte = parteAtual, f: Formato = formato) {
     if (modo === 'texto') {
-      await desenharTexto(canvas, modeloTexto, formato, {
+      await desenharTexto(canvas, modeloTexto, f, {
         fonteCartao, tipo, texto: partes[indiceParte], fonte, nome: mostrarNome ? autorTexto : null, foto, ajuste, versao,
         capa: mostrarLivro ? capa : null,
         parte: partes.length > 1 ? { i: indiceParte + 1, n: partes.length } : undefined
@@ -294,8 +294,49 @@ export default function Compartilhar({ perfil, livro, preCarga }: Props) {
     } else if (transparente) {
       await desenharAdesivo(canvas, modeloLeitura, dadosLeitura, corAdesivo)
     } else {
-      await desenharLeitura(canvas, modeloLeitura, formato, dadosLeitura)
+      await desenharLeitura(canvas, modeloLeitura, f, dadosLeitura)
     }
+  }
+
+  // Os três formatos de uma vez (story, post e quadrado), para postar em lugares diferentes.
+  const TODOS_FORMATOS: Formato[] = ['story', 'post', 'quadrado']
+  const cabeEmTodos = modo === 'leitura'
+    ? !transparente
+    : !!texto.trim() && TODOS_FORMATOS.every((f) => dividirTexto(texto.trim(), limiteDeCaracteres(modeloTexto, f)).length === 1)
+  async function baixarTodosFormatos() {
+    if (!podeGerar || !cabeEmTodos) return
+    setEnviando(true)
+    try {
+      for (const [i, f] of TODOS_FORMATOS.entries()) {
+        const c = document.createElement('canvas')
+        await desenharEm(c, 0, f)
+        const arq = await canvasParaArquivo(c, nomeArquivo(`-${f}`))
+        setTimeout(() => baixarArquivo(arq), i * 400)
+      }
+      avisar('3 imagens baixadas: story, post e quadrado')
+      marcarConquista()
+    } finally {
+      setEnviando(false)
+    }
+  }
+
+  // Sorteia outro modelo (e uma versão dele) para variar o visual.
+  function sortearModelo() {
+    const lista = (modo === 'texto' ? MODELOS_TEXTO : MODELOS_LEITURA)
+      .filter((m) => !(transparente && SO_COM_FUNDO.includes(m.id as ModeloLeitura)) && !(!contagem && m.id === 'constancia'))
+      .filter((m) => m.id !== (modo === 'texto' ? modeloTexto : modeloLeitura))
+      .filter((m) => modo === 'texto' ? !MODELOS_COM_FOTO.includes(m.id as ModeloTexto) || !!foto : m.id !== 'foto-leitura' || !!foto)
+      // modelos que hoje sairiam bloqueados ficam fora do sorteio
+      .filter((m) => modo === 'texto' || !((m.id === 'terminei' && !terminouEste) || (m.id === 'constancia' && leitura.seq.dias === 0) || (m.id === 'semana' && leitura.paginasSemana === 0)))
+    if (!lista.length) return
+    const m = lista[Math.floor(Math.random() * lista.length)]
+    if (modo === 'texto') setModeloTexto(m.id as ModeloTexto)
+    else setModeloLeitura(m.id as ModeloLeitura)
+    const nv = VERSOES[m.id as keyof typeof VERSOES]?.length ?? 1
+    const novo = { ...versoes, [m.id]: Math.floor(Math.random() * nv) }
+    setVersoes(novo)
+    try { localStorage.setItem(CHAVE_VERSOES, JSON.stringify(novo)) } catch { /* ok */ }
+    setLegendaEditada(false)
   }
 
   // redesenha a prévia: desenha fora da tela e só mostra o desenho mais recente
@@ -607,7 +648,10 @@ export default function Compartilhar({ perfil, livro, preCarga }: Props) {
 
         {/* Modelos */}
         <section className="mt-6">
-          <h2 className="rotulo">Modelo</h2>
+          <div className="flex items-center justify-between">
+            <h2 className="rotulo">Modelo</h2>
+            <button onClick={sortearModelo} className="botao-texto text-sm -mt-1.5" title="Escolhe outro modelo e versão ao acaso">Sortear um modelo</button>
+          </div>
           <div className="flex gap-3 overflow-x-auto pb-2 -mx-1 px-1 sem-barra">
             {(modo === 'texto' ? MODELOS_TEXTO : MODELOS_LEITURA)
               .filter((m) => !(transparente && SO_COM_FUNDO.includes(m.id as ModeloLeitura)) && !(!contagem && m.id === 'constancia'))
@@ -797,6 +841,9 @@ export default function Compartilhar({ perfil, livro, preCarga }: Props) {
           </label>
           <textarea id="legenda" rows={4} value={legenda} onChange={(e) => { setLegenda(e.target.value); setLegendaEditada(true) }}
             className="campo resize-y text-[15px]" placeholder="O texto que vai junto com a imagem." />
+          <p className={`text-xs text-right mt-1 tabular ${legenda.length > 2200 ? 'text-red-700 dark:text-red-400 font-semibold' : 'text-texto/60 dark:text-bege/50'}`}>
+            {legenda.length > 2200 ? `${legenda.length}/2200: passa do limite do Instagram` : `${legenda.length}/2200`}
+          </p>
         </section>
 
         {/* Ações */}
@@ -814,6 +861,11 @@ export default function Compartilhar({ perfil, livro, preCarga }: Props) {
             <BotaoAcao icone="whatsapp" rotulo="WhatsApp" desativado={!legenda || !!bloqueio}
               onClick={() => window.open(`https://wa.me/?text=${encodeURIComponent(legenda)}`, '_blank', 'noopener')} />
           </div>
+          {cabeEmTodos && (
+            <button onClick={baixarTodosFormatos} disabled={!podeGerar || enviando || (precisaFoto && !foto)} className="botao-texto text-sm w-full text-center disabled:opacity-40">
+              Baixar nos 3 formatos (story, post e quadrado)
+            </button>
+          )}
           <p className="text-xs text-center text-texto/65 dark:text-bege/55 pt-1">
             No celular, “Compartilhar” abre o Instagram, WhatsApp e outros apps com a imagem. O botão do WhatsApp envia só o texto.
           </p>
