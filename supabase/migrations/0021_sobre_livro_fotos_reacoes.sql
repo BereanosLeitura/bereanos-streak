@@ -2,8 +2,8 @@
 --
 -- 1) Sobre o livro: sinopse, descrição e texto sobre o autor, mostrados no
 --    botão (i) do Início. O admin escreve ou preenche a partir do Google
---    Books e da Wikipédia; a coluna fonte_info guarda de onde veio o texto e
---    link_livro guarda um link para a página do livro (ex.: Amazon, editora).
+--    Books (pelo ISBN tirado do link da Amazon, ou pelo título) e da
+--    Wikipédia; a coluna fonte_info guarda de onde veio cada texto.
 --
 -- 2) Foto de perfil: bucket "avatares", público pelo link (a foto aparece no
 --    grupo e no mural). Cada pessoa só envia, troca ou apaga arquivos dentro
@@ -17,7 +17,7 @@
 -- apagado. Pode rodar com o app no ar e mais de uma vez.
 --
 -- Para desfazer:
---   alter table public.livros drop column if exists sinopse, drop column if exists sobre_autor, drop column if exists fonte_info, drop column if exists link_livro;
+--   alter table public.livros drop column if exists sinopse, drop column if exists sobre_autor, drop column if exists fonte_info;
 --   drop table if exists public.reacoes_mural;
 --   (o bucket "avatares" pode ser apagado no painel Storage)
 
@@ -25,8 +25,6 @@
 alter table public.livros add column if not exists sinopse text check (sinopse is null or char_length(sinopse) <= 6000);
 alter table public.livros add column if not exists sobre_autor text check (sobre_autor is null or char_length(sobre_autor) <= 6000);
 alter table public.livros add column if not exists fonte_info text check (fonte_info is null or char_length(fonte_info) <= 500);
--- link para a página do livro (loja, editora), escolhido pelo admin; só https
-alter table public.livros add column if not exists link_livro text check (link_livro is null or (char_length(link_livro) <= 500 and link_livro ~* '^https://'));
 
 -- 2) fotos de perfil
 insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)

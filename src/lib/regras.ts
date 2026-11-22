@@ -87,3 +87,32 @@ export function entreAspas(texto: string): string {
   const limpo = texto.trim().replace(/^["“”'‘’«»]+/, '').replace(/["“”'‘’«»]+$/, '').trim()
   return `“${limpo}”`
 }
+
+/** ISBN-10 → ISBN-13 (prefixo 978 e novo dígito verificador). */
+export function isbn10para13(isbn10: string): string {
+  const base = '978' + isbn10.slice(0, 9)
+  const soma = [...base].reduce((a, d, i) => a + Number(d) * (i % 2 === 0 ? 1 : 3), 0)
+  return base + ((10 - (soma % 10)) % 10)
+}
+
+function isbn10Valido(x: string): boolean {
+  if (!/^\d{9}[\dX]$/.test(x)) return false
+  const soma = [...x].reduce((a, c, i) => a + (c === 'X' ? 10 : Number(c)) * (10 - i), 0)
+  return soma % 11 === 0
+}
+
+/**
+ * Lê o ISBN de um link da Amazon (ou de um ISBN digitado). No livro físico o
+ * código depois de /dp/ é o ISBN-10. Links de eBook (Kindle) começam com B0 e
+ * não têm ISBN.
+ */
+export function isbnDoLink(entrada: string): { isbn13: string; isbn10: string | null } | 'kindle' | null {
+  const t = entrada.trim().toUpperCase()
+  const soDigitos = t.replace(/[-\s]/g, '')
+  if (/^97[89]\d{10}$/.test(soDigitos)) return { isbn13: soDigitos, isbn10: null }
+  if (isbn10Valido(soDigitos)) return { isbn13: isbn10para13(soDigitos), isbn10: soDigitos }
+  const m = t.match(/\/(?:DP|GP\/PRODUCT|PRODUCT|ASIN)\/([A-Z0-9]{10})(?:[/?#]|$)/)
+  if (!m) return null
+  if (m[1].startsWith('B')) return 'kindle'
+  return isbn10Valido(m[1]) ? { isbn13: isbn10para13(m[1]), isbn10: m[1] } : null
+}

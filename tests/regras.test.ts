@@ -3,7 +3,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
-import { formatarTempo, formatarTempoEstimado, marcoAtravessado, aFrente, dataDoRegistro, juntarNomes, terminouLivro, dataLocal, limitesDoPeriodo, entreAspas } from '../src/lib/regras.ts'
+import { formatarTempo, formatarTempoEstimado, marcoAtravessado, aFrente, dataDoRegistro, juntarNomes, terminouLivro, dataLocal, limitesDoPeriodo, entreAspas, isbnDoLink, isbn10para13 } from '../src/lib/regras.ts'
 import { contar, chaveDia, paginasEquivalentes, paginasPorDia, sequenciaAtual, maiorSequencia, diasAte, diaRelativo, rotulosMeses, gradeSemanas } from '../src/lib/estatisticas.ts'
 import { ROTEIRO_PADRAO } from '../src/lib/roteiro.ts'
 
@@ -184,3 +184,12 @@ test('entreAspas não dobra as aspas que a pessoa já digitou', () => {
   assert.equal(entreAspas('  «Francesas»  '), '“Francesas”')
 })
 
+
+test('isbnDoLink lê o ISBN do link da Amazon e recusa o Kindle', () => {
+  assert.equal(isbn10para13('857860184X'), '9788578601843')
+  assert.deepEqual(isbnDoLink('https://www.amazon.com.br/Cartas-diabo-aprendiz-C-Lewis/dp/857860184X/ref=sr_1_1?crid=ABC'), { isbn13: '9788578601843', isbn10: '857860184X' })
+  assert.deepEqual(isbnDoLink('https://www.amazon.com.br/gp/product/857860184X'), { isbn13: '9788578601843', isbn10: '857860184X' })
+  assert.deepEqual(isbnDoLink('978-85-7860-184-3'), { isbn13: '9788578601843', isbn10: null })
+  assert.equal(isbnDoLink('https://www.amazon.com.br/Cartas-ebook/dp/B07ABCDEFG'), 'kindle')
+  assert.equal(isbnDoLink('https://www.amazon.com.br/s?k=lewis'), null)
+})
