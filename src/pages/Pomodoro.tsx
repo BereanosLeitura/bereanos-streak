@@ -28,8 +28,10 @@ interface Config {
   longa: number
   ciclo: number // sessões até a pausa longa
   autoPausa: boolean // a pausa começa sozinha ao salvar a sessão
+  sino: boolean // toca o sino quando o tempo acaba
+  vibrar: boolean // vibra quando o tempo acaba (celulares Android)
 }
-const CONFIG_PADRAO: Config = { modo: 'pomodoro', foco: 25, curta: 5, longa: 15, ciclo: 4, autoPausa: true }
+const CONFIG_PADRAO: Config = { modo: 'pomodoro', foco: 25, curta: 5, longa: 15, ciclo: 4, autoPausa: true, sino: true, vibrar: true }
 
 interface Intervalo {
   fim: number
@@ -140,26 +142,55 @@ function criarSom(tipo: Exclude<Som, 'nenhum'>) {
   }
 }
 
+// O navegador só deixa tocar som depois de um toque da pessoa. Por isso o
+// áudio é liberado quando ela começa a sessão ou a pausa, e o sino do fim
+// usa esse mesmo áudio já liberado (mesmo minutos depois, sem novo toque).
+let audioSino: AudioContext | null = null
+function prepararAudio() {
+  try {
+    if (!audioSino) {
+      const Ctx = window.AudioContext || (window as any).webkitAudioContext
+      audioSino = new Ctx()
+    }
+    if (audioSino.state === 'suspended') audioSino.resume().catch(() => {})
+  } catch { /* sem áudio */ }
+}
+
+/** Sino de verdade: parciais inarmônicas com decaimento longo, duas batidas. */
 function tocarSino() {
   try {
-    const Ctx = window.AudioContext || (window as any).webkitAudioContext
-    const ctx = new Ctx()
-    ;[0, 0.35, 0.7].forEach((atraso, i) => {
-      const osc = ctx.createOscillator()
-      const g = ctx.createGain()
-      osc.type = 'sine'
-      osc.frequency.value = [880, 660, 990][i]
-      g.gain.setValueAtTime(0.0001, ctx.currentTime + atraso)
-      g.gain.exponentialRampToValueAtTime(0.25, ctx.currentTime + atraso + 0.02)
-      g.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + atraso + 1.2)
-      osc.connect(g).connect(ctx.destination)
-      osc.start(ctx.currentTime + atraso)
-      osc.stop(ctx.currentTime + atraso + 1.3)
-    })
+    prepararAudio()
+    const ctx = audioSino
+    if (!ctx) return
+    const base = 784 // sol
+    const parciais: [number, number, number][] = [
+      // [razão da frequência, volume, duração em s]
+      [0.5, 0.18, 3.2], [1, 0.32, 2.8], [2.0, 0.14, 2.0], [2.76, 0.1, 1.5], [5.4, 0.05, 0.9], [8.93, 0.025, 0.5]
+    ]
+    const mestre = ctx.createGain()
+    mestre.gain.value = 0.9
+    mestre.connect(ctx.destination)
+    for (const batida of [0, 1.7]) {
+      const t0 = ctx.currentTime + 0.05 + batida
+      for (const [razao, vol, dur] of parciais) {
+        const osc = ctx.createOscillator()
+        const g = ctx.createGain()
+        osc.type = 'sine'
+        osc.frequency.value = base * razao
+        g.gain.setValueAtTime(0.0001, t0)
+        g.gain.exponentialRampToValueAtTime(vol, t0 + 0.008)
+        g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur)
+        osc.connect(g).connect(mestre)
+        osc.start(t0)
+        osc.stop(t0 + dur + 0.05)
+      }
+    }
   } catch {
     // sem áudio
   }
 }
+
+const VIBRACAO = [500, 200, 500, 200, 900]
 
 export default function Pomodoro({ perfil, livro, onFocoAtivo }: Props) {
   const leitura = useMinhaLeitura(perfil, livro)
@@ -233,7 +264,7 @@ export default function Pomodoro({ perfil, livro, onFocoAtivo }: Props) {
       if (r === 0 && !sessao.pausadoEm) {
         // só toca o sino se acabou agora (não ao reabrir o app horas depois)
         const fimReal = new Date(sessao.inicio).getTime() + sessao.duracao_minutos * 60_000 + (sessao.pausaMs ?? 0)
-        terminar(sessao.duracao_minutos, Date.now() - fimReal < 60_000)
+        terminar(sessao.duracao_minutos, Date.now() - fimReal < 120_000) // em segundo plano o relógio pode atrasar até 1 min
       }
     }
     tick()
@@ -252,12 +283,7 @@ export default function Pomodoro({ perfil, livro, onFocoAtivo }: Props) {
     const id = setInterval(() => {
       forcar((x) => x + 1)
       if (Date.now() >= intervalo.fim) {
-        tocarSino()
-        try {
-          if ('Notification' in window && Notification.permission === 'granted' && document.hidden) {
-            new Notification('Pausa terminada', { body: 'Hora de voltar ao livro.' })
-          }
-        } catch { /* ok */ }
+        avisarFim('Pausa terminada', 'Hora de voltar ao livro.')
         encerrarPausa(true)
       }
     }, 1000)
@@ -265,6 +291,7 @@ export default function Pomodoro({ perfil, livro, onFocoAtivo }: Props) {
   }, [intervalo])
 
   function comecarPausa(tipo: 'curta' | 'longa') {
+    prepararAudio()
     const total = (tipo === 'longa' ? config.longa : config.curta) * 60
     const novo: Intervalo = { fim: Date.now() + total * 1000, total, tipo }
     gravar(CHAVE_INTERVALO, novo)
@@ -323,18 +350,33 @@ export default function Pomodoro({ perfil, livro, onFocoAtivo }: Props) {
     wakeLock.current = null
   }
 
+  /**
+   * Avisa que o tempo acabou: vibra (Android), toca o sino e, com o app em
+   * segundo plano, mostra uma notificação que também vibra.
+   * Observação: o navegador não sabe se o celular está no silencioso. No
+   * iPhone, a chave do silencioso já cala o sino; no Android, o sino segue o
+   * volume de mídia. Quem quiser só vibração desliga o sino nos ajustes.
+   */
+  function avisarFim(titulo: string, corpo: string) {
+    if (config.vibrar) { try { navigator.vibrate?.(VIBRACAO) } catch { /* sem vibração */ } }
+    if (config.sino) tocarSino()
+    if (!document.hidden) return
+    try {
+      if (!('Notification' in window) || Notification.permission !== 'granted') return
+      const opcoes: NotificationOptions & { vibrate?: number[]; renotify?: boolean } = {
+        body: corpo, icon: '/icon-192.png', badge: '/icon-192.png', tag: 'bereanos-foco', renotify: true,
+        silent: !config.sino && !config.vibrar, vibrate: config.vibrar ? VIBRACAO : undefined
+      }
+      navigator.serviceWorker?.getRegistration()
+        .then((reg) => { if (reg) return reg.showNotification(titulo, opcoes); new Notification(titulo, opcoes) })
+        .catch(() => { try { new Notification(titulo, opcoes) } catch { /* ok */ } })
+    } catch { /* ok */ }
+  }
+
   function terminar(minutos: number, chegouAoFim: boolean) {
     setTerminada({ minutos })
     setValorFim('')
-    if (chegouAoFim) {
-      tocarSino()
-      try { navigator.vibrate?.([200, 120, 200]) } catch { /* sem vibração */ }
-      try {
-        if ('Notification' in window && Notification.permission === 'granted' && document.hidden) {
-          new Notification('Sessão de leitura concluída', { body: `${contar(minutos, 'minuto', 'minutos')} em ${livro.titulo}.` })
-        }
-      } catch { /* só via service worker em alguns celulares */ }
-    }
+    if (chegouAoFim) avisarFim('Sessão de leitura concluída', `${contar(minutos, 'minuto', 'minutos')} em ${livro.titulo}.`)
   }
 
   function iniciar() {
@@ -351,11 +393,13 @@ export default function Pomodoro({ perfil, livro, onFocoAtivo }: Props) {
     setPausaAcabou(false)
     setTerminada(null)
     setSessao(nova)
+    prepararAudio()
     try { if ('Notification' in window && Notification.permission === 'default') Notification.requestPermission() } catch { /* ok */ }
   }
 
   function alternarPausa() {
     if (!sessao) return
+    prepararAudio()
     const nova: SessaoAtiva = sessao.pausadoEm
       ? { ...sessao, pausaMs: (sessao.pausaMs ?? 0) + pausadoAgoraMs(sessao), pausadoEm: null }
       : { ...sessao, pausadoEm: new Date().toISOString() }
@@ -732,11 +776,12 @@ export default function Pomodoro({ perfil, livro, onFocoAtivo }: Props) {
         <button onClick={iniciar} className="botao-primario text-lg">{config.modo === 'livre' ? 'Começar leitura livre' : `Começar ${duracao} min`}</button>
         <div className="flex justify-center gap-4 mt-3">
           <button onClick={() => comecarPausa('curta')} className="botao-texto">Fazer uma pausa</button>
-          {config.modo === 'pomodoro' && <button onClick={() => setAjustes((v) => !v)} className="botao-texto">{ajustes ? 'Fechar ajustes' : 'Ajustes do Pomodoro'}</button>}
+          <button onClick={() => setAjustes((v) => !v)} className="botao-texto">{ajustes ? 'Fechar ajustes' : config.modo === 'pomodoro' ? 'Ajustes do Pomodoro' : 'Ajustes do aviso'}</button>
         </div>
 
-        {ajustes && config.modo === 'pomodoro' && (
+        {ajustes && (
           <section className="cartao p-5 mt-4 text-left space-y-4 animate-subir-suave">
+            {config.modo === 'pomodoro' && <>
             <Opcoes rotulo="Pausa curta" valor={config.curta} opcoes={[3, 5, 10]} sufixo="min" onMudar={(v) => setConfig({ curta: v })} />
             <Opcoes rotulo="Pausa longa" valor={config.longa} opcoes={[15, 20, 30]} sufixo="min" onMudar={(v) => setConfig({ longa: v })} />
             <Opcoes rotulo="Sessões até a pausa longa" valor={config.ciclo} opcoes={[2, 3, 4]} onMudar={(v) => setConfig({ ciclo: v })} />
@@ -747,7 +792,25 @@ export default function Pomodoro({ perfil, livro, onFocoAtivo }: Props) {
               </span>
               <input type="checkbox" checked={config.autoPausa} onChange={(e) => setConfig({ autoPausa: e.target.checked })} className="w-5 h-5 accent-[#B8912F]" />
             </label>
-            <button onClick={() => setConfigEstado(() => { gravar(CHAVE_CONFIG, CONFIG_PADRAO); return CONFIG_PADRAO })} className="botao-texto text-xs">Voltar ao padrão (25/5/15, ciclo de 4)</button>
+            </>}
+            <div className={`space-y-3 ${config.modo === 'pomodoro' ? 'pt-4 border-t border-marinho/[0.08] dark:border-bege/[0.08]' : ''}`}>
+              <p className="text-[15px] font-medium text-marinho dark:text-bege">Aviso quando o tempo acabar</p>
+              <label className="flex items-center justify-between gap-3 cursor-pointer">
+                <span className="text-sm text-texto/75 dark:text-bege/75">Tocar o sino</span>
+                <input type="checkbox" checked={config.sino} onChange={(e) => setConfig({ sino: e.target.checked })} className="w-5 h-5 accent-[#B8912F]" />
+              </label>
+              <label className="flex items-center justify-between gap-3 cursor-pointer">
+                <span className="text-sm text-texto/75 dark:text-bege/75">Vibrar</span>
+                <input type="checkbox" checked={config.vibrar} onChange={(e) => setConfig({ vibrar: e.target.checked })} className="w-5 h-5 accent-[#B8912F]" />
+              </label>
+              <button type="button" onClick={() => { prepararAudio(); if (config.vibrar) { try { navigator.vibrate?.(VIBRACAO) } catch { /* ok */ } } if (config.sino) tocarSino() }}
+                disabled={!config.sino && !config.vibrar} className="botao-secundario text-sm disabled:opacity-40">Testar o aviso</button>
+              <p className="text-xs text-texto/65 dark:text-bege/55">
+                No silencioso, o iPhone cala o sino; a vibração funciona no Android. No Android, o sino segue o volume de mídia: se quiser só vibrar, desligue o sino.
+                Com o app em segundo plano, o aviso chega como notificação, se você permitiu.
+              </p>
+            </div>
+            <button onClick={() => setConfigEstado((c) => { const n = { ...CONFIG_PADRAO, modo: c.modo }; gravar(CHAVE_CONFIG, n); return n })} className="botao-texto text-xs">Voltar ao padrão (25/5/15, ciclo de 4, sino e vibração)</button>
           </section>
         )}
         <p className="text-xs text-texto/65 dark:text-bege/55 mt-3">Durante a sessão dá para pausar, anotar e ligar um som de fundo.</p>

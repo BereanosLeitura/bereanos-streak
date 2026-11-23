@@ -7,8 +7,8 @@ import { formatarTempo } from './regras'
 
 export type Formato = 'story' | 'post' | 'quadrado'
 export type TipoTexto = 'trecho' | 'reflexao' | 'pergunta' | 'aplicacao'
-export type ModeloTexto = 'pergaminho' | 'marinho' | 'caderno' | 'noturno' | 'debate' | 'polaroid' | 'foto' | 'foto-faixa' | 'foto-dividida' | 'foto-moldura' | 'foto-destaque' | 'minimal' | 'capa-livro' | 'editorial' | 'marca-texto'
-export type ModeloLeitura = 'lendo' | 'progresso' | 'anel' | 'semana' | 'constancia' | 'terminei' | 'foto-leitura' | 'retrospectiva' | 'grupo' | 'capa-destaque' | 'jornada' | 'bilhete' | 'numeros' | 'revista'
+export type ModeloTexto = 'pergaminho' | 'marinho' | 'caderno' | 'noturno' | 'debate' | 'polaroid' | 'foto' | 'foto-faixa' | 'foto-dividida' | 'foto-moldura' | 'foto-destaque' | 'minimal' | 'capa-livro' | 'editorial' | 'marca-texto' | 'post-it'
+export type ModeloLeitura = 'lendo' | 'progresso' | 'anel' | 'semana' | 'constancia' | 'terminei' | 'foto-leitura' | 'retrospectiva' | 'grupo' | 'capa-destaque' | 'jornada' | 'bilhete' | 'numeros' | 'revista' | 'marcador'
 
 export const FORMATOS: Record<Formato, { w: number; h: number; rotulo: string; dica: string }> = {
   story: { w: 1080, h: 1920, rotulo: 'Story', dica: 'Instagram e WhatsApp Status' },
@@ -31,7 +31,8 @@ export const MODELOS_TEXTO: { id: ModeloTexto; nome: string; cores: [string, str
   { id: 'minimal', nome: 'Minimal', cores: ['#FFFCF4', '#1B2A4A'] },
   { id: 'capa-livro', nome: 'Trecho com a capa', cores: ['#2a2f3a', '#B8912F'] },
   { id: 'editorial', nome: 'Editorial', cores: ['#F6F1E3', '#B8912F'] },
-  { id: 'marca-texto', nome: 'Marca-texto', cores: ['#FFFCF4', '#E3CF94'] }
+  { id: 'marca-texto', nome: 'Marca-texto', cores: ['#FFFCF4', '#E3CF94'] },
+  { id: 'post-it', nome: 'Bilhete colado', cores: ['#1B2A4A', '#F2DC8C'] }
 ]
 
 export const MODELOS_LEITURA: { id: ModeloLeitura; nome: string; cores: [string, string] }[] = [
@@ -48,7 +49,8 @@ export const MODELOS_LEITURA: { id: ModeloLeitura; nome: string; cores: [string,
   { id: 'jornada', nome: 'Jornada do livro', cores: ['#F6F1E3', '#B8912F'] },
   { id: 'bilhete', nome: 'Bilhete de leitura', cores: ['#1B2A4A', '#F6F1E3'] },
   { id: 'numeros', nome: 'Em números', cores: ['#141414', '#B8912F'] },
-  { id: 'revista', nome: 'Capa de revista', cores: ['#F6F1E3', '#1B2A4A'] }
+  { id: 'revista', nome: 'Capa de revista', cores: ['#F6F1E3', '#1B2A4A'] },
+  { id: 'marcador', nome: 'Marcador de página', cores: ['#F6F1E3', '#8A2E2E'] }
 ]
 
 
@@ -72,6 +74,7 @@ export const VERSOES: Record<ModeloTexto | ModeloLeitura, string[]> = {
   'capa-livro': ['Escuro', 'Claro'],
   editorial: ['Bege', 'Marinho', 'Branco'],
   'marca-texto': ['Dourado', 'Azul'],
+  'post-it': ['Marinho', 'Preto', 'Bege'],
   lendo: ['Marinho', 'Preto', 'Bege'],
   progresso: ['Bege', 'Marinho', 'Branco'],
   anel: ['Marinho', 'Preto'],
@@ -85,7 +88,8 @@ export const VERSOES: Record<ModeloTexto | ModeloLeitura, string[]> = {
   jornada: ['Bege', 'Marinho'],
   bilhete: ['Marinho', 'Bege'],
   numeros: ['Preto', 'Marinho', 'Bege'],
-  revista: ['Bege', 'Marinho']
+  revista: ['Bege', 'Marinho'],
+  marcador: ['Bege', 'Marinho']
 }
 
 /** Como a foto entra no cartão: enquadramento, giro, filtro. */
@@ -105,7 +109,7 @@ export interface AjusteFoto {
 export const AJUSTE_PADRAO: AjusteFoto = { zoom: 1, dx: 0, dy: 0, rot: 0, espelhar: false, modo: 'preencher', fundo: 'desfocado', escurecer: 60, filtro: 'original' }
 
 /** Modelos que dependem da página inteira e não viram adesivo sem fundo. */
-export const SO_COM_FUNDO: ModeloLeitura[] = ['foto-leitura', 'retrospectiva', 'grupo', 'capa-destaque', 'jornada', 'bilhete', 'numeros', 'revista']
+export const SO_COM_FUNDO: ModeloLeitura[] = ['foto-leitura', 'retrospectiva', 'grupo', 'capa-destaque', 'jornada', 'bilhete', 'numeros', 'revista', 'marcador']
 
 export interface DadosTexto {
   fonteCartao?: FonteCartao
@@ -685,7 +689,7 @@ export function limiteDeCaracteres(modelo: ModeloTexto, formato: Formato): numbe
   const base = formato === 'story' ? 380 : formato === 'post' ? 270 : 200
   const fator: Partial<Record<ModeloTexto, number>> = {
     polaroid: 0.55, debate: 0.8, noturno: 0.85,
-    'foto-faixa': 0.62, 'foto-dividida': 0.5, 'foto-moldura': 0.5, 'foto-destaque': 0.5, 'capa-livro': 0.7, editorial: 0.9, 'marca-texto': 0.75
+    'foto-faixa': 0.62, 'foto-dividida': 0.5, 'foto-moldura': 0.5, 'foto-destaque': 0.5, 'capa-livro': 0.7, editorial: 0.9, 'marca-texto': 0.75, 'post-it': 0.6
   }
   return Math.round(base * (fator[modelo] ?? 1))
 }
@@ -798,6 +802,41 @@ async function desenharTextoModelo(canvas: HTMLCanvasElement, modelo: ModeloText
     if (assinatura) texto1(ctx, assinatura, 140, fim + 120, `400 24px ${SANS}`, P.fraco, 'left', W - 280)
     const hor = await logo('texto', 'preto')
     desenharLogoAltura(ctx, hor, W - 110, z.base - 40, 44, 'dir')
+    return
+  }
+
+  if (modelo === 'post-it') {
+    // Um bilhete amarelo colado com fita, levemente torto, sobre fundo liso.
+    const P = escolher([PAL.marinho, PAL.preto, PAL.bege], v)
+    pintarFundo(ctx, P, W, H)
+    const lado = Math.min(W - 180, formato === 'story' ? 860 : H - 300)
+    const cx = W / 2
+    const cy = formato === 'story' ? H * 0.46 : H / 2 - 30
+    ctx.save()
+    ctx.translate(cx, cy)
+    ctx.rotate(-0.025)
+    ctx.shadowColor = 'rgba(0,0,0,0.35)'; ctx.shadowBlur = 40; ctx.shadowOffsetY = 18
+    ctx.fillStyle = '#F2DC8C'
+    ctx.fillRect(-lado / 2, -lado / 2, lado, lado)
+    ctx.shadowColor = 'transparent'
+    // dobra leve no canto
+    const g = ctx.createLinearGradient(lado / 2 - 90, lado / 2 - 90, lado / 2, lado / 2)
+    g.addColorStop(0, 'rgba(0,0,0,0)'); g.addColorStop(1, 'rgba(0,0,0,0.12)')
+    ctx.fillStyle = g; ctx.fillRect(lado / 2 - 90, lado / 2 - 90, 90, 90)
+    // fita
+    ctx.fillStyle = 'rgba(246,241,227,0.65)'
+    ctx.save(); ctx.rotate(0.05); ctx.fillRect(-110, -lado / 2 - 28, 220, 56); ctx.restore()
+    const m = 80
+    texto1(ctx, ROTULO_TIPO[d.tipo], -lado / 2 + m, -lado / 2 + m + 10, `700 26px ${SANS}`, '#6B5420', 'left')
+    const a = ajustar(ctx, corpo, lado - m * 2, lado - m * 2 - 150, fonteCorpo, 60, 28, 1.3)
+    ctx.fillStyle = '#2A2414'
+    ctx.font = fonteCorpo(a.tam)
+    escrever(ctx, a.linhas, -lado / 2 + m, -lado / 2 + m + 50, a.alturaLinha, a.tam, 'left')
+    if (d.fonte) texto1(ctx, d.fonte, -lado / 2 + m, lado / 2 - m + 6, `600 24px ${SANS}`, 'rgba(42,36,20,0.7)', 'left', lado - m * 2)
+    if (assinatura) texto1(ctx, assinatura, -lado / 2 + m, lado / 2 - m + 40, `400 22px ${SANS}`, 'rgba(42,36,20,0.55)', 'left', lado - m * 2)
+    ctx.restore()
+    const hor = await logo('texto', P.logo)
+    desenharLogo(ctx, hor, W / 2, Math.min(z.base - 60, cy + lado / 2 + 70), 200)
     return
   }
 
@@ -1461,6 +1500,55 @@ export async function desenharLeitura(canvas: HTMLCanvasElement, modelo: ModeloL
     if (d.nome) texto1(ctx, `Leitor: ${d.nome}`, xt, z.base - 20, `600 26px ${SANS}`, P.fraco, 'left', W - 400)
     const hor = await logo('texto', P.logo)
     desenharLogoAltura(ctx, hor, W - 90, z.base - 56, 44, 'dir')
+    return
+  }
+
+  if (modelo === 'marcador') {
+    // Um marcador de página em pé, com a ponta em V, sobre o fundo.
+    const P = escolher([PAL.bege, PAL.marinho], v)
+    pintarFundo(ctx, P, W, H)
+    const mw = porFormato(460, 420, 380)
+    const topo = z.topo - porFormato(60, 30, 40)
+    const fundoM = z.base - porFormato(40, 20, 10)
+    const x0 = W / 2 - mw / 2
+    const vinho = '#7A2A2A'
+    ctx.save()
+    ctx.shadowColor = 'rgba(0,0,0,0.35)'; ctx.shadowBlur = 36; ctx.shadowOffsetY = 14
+    ctx.beginPath()
+    ctx.moveTo(x0, topo); ctx.lineTo(x0 + mw, topo); ctx.lineTo(x0 + mw, fundoM); ctx.lineTo(W / 2, fundoM - 90); ctx.lineTo(x0, fundoM); ctx.closePath()
+    ctx.fillStyle = vinho; ctx.fill()
+    ctx.restore()
+    // borda dourada interna
+    ctx.save()
+    ctx.strokeStyle = C.dourado; ctx.lineWidth = 3
+    ctx.beginPath()
+    ctx.moveTo(x0 + 22, topo + 22); ctx.lineTo(x0 + mw - 22, topo + 22); ctx.lineTo(x0 + mw - 22, fundoM - 28); ctx.lineTo(W / 2, fundoM - 112); ctx.lineTo(x0 + 22, fundoM - 28); ctx.closePath()
+    ctx.stroke()
+    ctx.restore()
+    const cor = '#F6F1E3'
+    let y = topo + porFormato(90, 70, 60)
+    const simb = await logo('simbolo', 'branco')
+    const hS = porFormato(110, 80, 60)
+    desenharLogoAltura(ctx, simb, W / 2, y, hS)
+    y += hS + porFormato(60, 40, 30)
+    texto1(ctx, 'ESTOU AQUI', W / 2, y, `700 24px ${SANS}`, C.dourado)
+    y += porFormato(150, 120, 100)
+    texto1(ctx, `p. ${Math.round(d.paginas)}`, W / 2, y, `600 ${porFormato(130, 110, 90)}px ${SERIFA}`, cor)
+    y += 50
+    texto1(ctx, `de ${d.total}  ·  ${pct}%`, W / 2, y, `500 28px ${SANS}`, 'rgba(246,241,227,0.75)')
+    y += porFormato(70, 50, 40)
+    barra(ctx, x0 + 70, y, mw - 140, 8, pct, 'rgba(246,241,227,0.18)', C.dourado)
+    y += porFormato(90, 60, 50)
+    if (d.titulo) {
+      const a = ajustar(ctx, d.titulo, mw - 120, porFormato(170, 120, 80), fonteTitulo, porFormato(44, 38, 32), 24, 1.15)
+      ctx.fillStyle = cor; ctx.font = fonteTitulo(a.tam)
+      escrever(ctx, a.linhas, W / 2, y, a.alturaLinha, a.tam)
+      y += a.alturaTotal + 8
+      if (d.autor) texto1(ctx, d.autor, W / 2, y + 30, `400 24px ${SANS}`, 'rgba(246,241,227,0.7)', 'center', mw - 120)
+    }
+    if (d.nome && formato === 'story') texto1(ctx, d.nome, W / 2, fundoM - 170, `italic 400 30px ${SERIFA}`, 'rgba(246,241,227,0.8)', 'center', mw - 120)
+    const hor = await logo('texto', P.logo)
+    desenharLogoAltura(ctx, hor, W - 70, H - porFormato(H - z.base + 20, 70, 60), 36, 'dir')
     return
   }
 
