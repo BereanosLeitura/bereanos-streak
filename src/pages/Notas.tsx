@@ -471,7 +471,7 @@ export default function Notas({ perfil, livro, inicial, onCompartilhar }: Props)
 
         <div className="grid grid-cols-2 p-1 rounded-xl bg-marinho/[0.06] dark:bg-bege/[0.06] mt-6" role="tablist">
           {([['minhas', 'Minhas'], ['mural', 'Mural do grupo']] as [Vista, string][]).map(([v, rotulo]) => (
-            <button key={v} role="tab" aria-selected={vista === v} onClick={() => { setVista(v); if (v === 'mural' && filtro === 'favoritas') setFiltro('todas') }}
+            <button key={v} role="tab" aria-selected={vista === v} onClick={() => { setVista(v); if (v === 'mural') { setOrdem('recentes'); if (filtro === 'favoritas') setFiltro('todas') } }}
               className={`rounded-lg py-2 text-sm font-semibold transition-colors ${vista === v ? 'bg-folha dark:bg-noite-cartao text-marinho dark:text-bege shadow-sm' : 'text-texto/65 dark:text-bege/55'}`}>
               {rotulo}
               {v === 'mural' && !!qtdMural && (

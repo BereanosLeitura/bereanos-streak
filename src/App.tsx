@@ -47,7 +47,6 @@ const Encontro = sobDemanda(() => import('./pages/Encontro'))
 const Indicacoes = sobDemanda(() => import('./pages/Indicacoes'))
 const Ano = sobDemanda(() => import('./pages/Ano'))
 const Metricas = sobDemanda(() => import('./pages/Metricas'))
-const BuscaGlobal = sobDemanda(() => import('./components/BuscaGlobal'))
 const Memoria = sobDemanda(() => import('./pages/Memoria'))
 const AceitarConvite = sobDemanda(() => import('./pages/AceitarConvite'))
 
@@ -89,7 +88,6 @@ function Aplicativo() {
   const [terminado, setTerminado] = useState<LivroAtivo | null>(null)
   const [marco, setMarco] = useState<{ valor: number; titulo: string } | null>(null)
   const [livroDetalhe, setLivroDetalhe] = useState<string | null>(null)
-  const [buscando, setBuscando] = useState(false)
   // Convite por link: o token vem no endereço e vale antes de existir sessão.
   const [convite, setConvite] = useState<string | null>(() => tokenDaUrl())
   // Quem já está logado não precisa da tela do convite: o link sai do endereço
@@ -200,6 +198,17 @@ function Aplicativo() {
     carregarLivroAtivo()
     buscarPadraoClube().then(setContagemPadrao)
   }, [perfil?.id, perfil?.senha_temporaria])
+
+  // Depois que o Início abre, baixa em segundo plano as telas das abas,
+  // para a troca de aba ser imediata (e funcionar mesmo se a internet cair).
+  useEffect(() => {
+    if (!perfil || perfil.senha_temporaria) return
+    const t = setTimeout(() => {
+      const telas: (() => Promise<unknown>)[] = [() => import('./pages/Pomodoro'), () => import('./pages/Notas'), () => import('./pages/Compartilhar'), () => import('./pages/Metas'), () => import('./pages/Perfil'), () => import('./pages/Encontro')]
+      telas.reduce<Promise<unknown>>((p, carregar) => p.then(carregar).catch(() => undefined), Promise.resolve())
+    }, 2500)
+    return () => clearTimeout(t)
+  }, [perfil?.id])
 
   useEffect(() => { aplicarTamanhoLetra(tamanhoLetraSalvo()); aplicarFonteNotas(fonteNotasSalva()); aplicarEfeitos(efeitosAtivos()) }, [])
 
@@ -359,16 +368,6 @@ function Aplicativo() {
           <button onClick={() => setVersaoNova(false)} aria-label="Depois" className="p-1 text-bege/70"><Icone nome="x" className="w-4 h-4" /></button>
         </div>
       )}
-      {buscando && (
-        <Suspense fallback={null}>
-          <BuscaGlobal
-            membroId={perfil.id}
-            onAbrirLivro={(id) => { setLivroDetalhe(id); abrir('livro') }}
-            onAbrirNotas={(vista, termo) => { setNotasInicial({ vista, filtro: 'todas', busca: termo, todosLivros: true }); setAba('notas') }}
-            onFechar={() => setBuscando(false)}
-          />
-        </Suspense>
-      )}
       {verGuia && <GuiaBoasVindas nome={perfil.nome_exibicao} onFechar={fecharGuia} />}
       {marco && <MarcoLeitura marco={marco.valor} titulo={marco.titulo} onFechar={() => setMarco(null)} />}
       {terminado && (
@@ -388,7 +387,7 @@ function Aplicativo() {
       )}
       <Suspense fallback={<TelaCarregando />}>
       <div key={aba} className="animate-tela">
-        {aba === 'inicio' && <Inicio key={versao} perfil={perfil} livro={livro} onIr={ir} onBuscar={() => setBuscando(true)} onPerfilAtualizado={setPerfil} onContinuarPendente={(id) => { setPendenteInicial(id); setAba('registrar') }} />}
+        {aba === 'inicio' && <Inicio key={versao} perfil={perfil} livro={livro} onIr={ir} onPerfilAtualizado={setPerfil} onContinuarPendente={(id) => { setPendenteInicial(id); setAba('registrar') }} />}
         {aba === 'foco' && <Pomodoro perfil={perfil} livro={livro} onFocoAtivo={setFocoAtivo} />}
         {aba === 'registrar' && (
           <RegistrarLeitura

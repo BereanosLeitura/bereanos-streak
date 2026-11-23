@@ -421,6 +421,24 @@ export default function Compartilhar({ perfil, livro, preCarga }: Props) {
     }
   }
 
+  // O texto escrito aqui também pode virar anotação, sem precisar ir ao Anotações.
+  const [salvandoNota, setSalvandoNota] = useState(false)
+  const jaEhAnotacao = notas.some((n) => n.texto.trim() === texto.trim())
+  const podeSalvarNota = !!texto.trim() && !jaEhAnotacao && autorTexto === perfil.nome_exibicao
+  async function salvarComoAnotacao() {
+    if (!podeSalvarNota || salvandoNota) return
+    setSalvandoNota(true)
+    const pg = parseInt(pagina, 10)
+    const nova = { tipo, texto: texto.trim(), pagina: pg > 0 ? Math.min(pg, livro.paginas_totais) : null }
+    const { data, error } = await supabase.from('anotacoes')
+      .insert({ ...nova, membro_id: perfil.id, livro_id: livro.id, compartilhada: false })
+      .select('id').single()
+    setSalvandoNota(false)
+    if (error || !data) return avisar('Não foi possível salvar a anotação', 'erro')
+    setNotas((l) => [{ id: data.id, ...nova } as NotaResumo, ...l])
+    avisar('Salva nas suas anotações. Só você vê, até pôr no mural.')
+  }
+
   function usarNota(id: string) {
     const n = notas.find((x) => x.id === id)
     if (!n) return
@@ -801,9 +819,21 @@ export default function Compartilhar({ perfil, livro, preCarga }: Props) {
               </div>
             </div>
 
-            <div className="w-24">
-              <label className="rotulo" htmlFor="pag-cartao">Página</label>
-              <input id="pag-cartao" type="number" inputMode="numeric" min={1} value={pagina} onChange={(e) => setPagina(e.target.value)} className="campo text-center" />
+            <div className="flex items-end gap-3">
+              <div className="w-24 shrink-0">
+                <label className="rotulo" htmlFor="pag-cartao">Página</label>
+                <input id="pag-cartao" type="number" inputMode="numeric" min={1} max={livro.paginas_totais} value={pagina} onChange={(e) => setPagina(e.target.value)} className="campo text-center" />
+              </div>
+              {texto.trim() && (jaEhAnotacao ? (
+                <p className="flex-1 flex items-center gap-1.5 text-xs text-texto/65 dark:text-bege/55 pb-3">
+                  <Icone nome="check" className="w-4 h-4 text-dourado" /> Já está nas suas anotações
+                </p>
+              ) : podeSalvarNota && (
+                <button onClick={salvarComoAnotacao} disabled={salvandoNota}
+                  className="flex-1 flex items-center justify-center gap-1.5 rounded-xl border border-dourado/40 bg-dourado/10 py-2.5 text-sm font-semibold text-dourado-escuro dark:text-dourado hover:bg-dourado/15 disabled:opacity-50">
+                  <Icone nome="pena" className="w-4 h-4" /> {salvandoNota ? 'Salvando…' : 'Salvar nas minhas anotações'}
+                </button>
+              ))}
             </div>
           </section>
         ) : (

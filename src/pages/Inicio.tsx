@@ -71,12 +71,11 @@ interface Props {
   perfil: Perfil
   livro: LivroAtivo
   onIr: (destino: Destino, carga?: PreCarga | null) => void
-  onBuscar?: () => void
   onPerfilAtualizado: (p: Perfil) => void
   onContinuarPendente?: (livroId: string) => void
 }
 
-export default function Inicio({ perfil, livro, onIr, onBuscar, onPerfilAtualizado, onContinuarPendente }: Props) {
+export default function Inicio({ perfil, livro, onIr, onPerfilAtualizado, onContinuarPendente }: Props) {
   const leitura = useMinhaLeitura(perfil, livro)
   const [pendentes, setPendentes] = useState<LivroPendente[]>([])
   useEffect(() => { buscarPendentes(perfil).then((l) => setPendentes(l.filter((p) => p.id !== livro.id))).catch(() => setPendentes([])) }, [perfil.id, livro.id])
@@ -602,15 +601,6 @@ export default function Inicio({ perfil, livro, onIr, onBuscar, onPerfilAtualiza
       <div className="px-5 pt-5 max-w-md mx-auto flex items-center justify-between">
         <Logo versao="horizontal" className="h-9" />
         <div className="flex items-center gap-1">
-          {onBuscar && (
-            <button
-              onClick={onBuscar}
-              aria-label="Buscar em livros, anotações e mural"
-              className="p-2 rounded-full text-texto/70 dark:text-bege/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dourado"
-            >
-              <Icone nome="busca" className="w-5 h-5" />
-            </button>
-          )}
           <button
             onClick={() => onIr('perfil')}
             aria-label="Abrir seu perfil"
