@@ -758,7 +758,7 @@ export default function Inicio({ perfil, livro, onIr, onPerfilAtualizado, onCont
         )}
 
         {!leitura.carregando && pct >= 50 && !temAplicacao && (
-          <Marco icone="alvo" titulo="Ler, examinar, dialogar, aplicar" texto="O que desta leitura você quer levar para a vida? Anote uma aplicação concreta." acao="Anotar aplicação"
+          <Marco icone="alvo" titulo="Ler. Examinar. Dialogar. Aplicar." texto="O que desta leitura você quer levar para a vida? Anote uma aplicação concreta." acao="Anotar aplicação"
             onClick={() => onIr('aplicar')} />
         )}
 

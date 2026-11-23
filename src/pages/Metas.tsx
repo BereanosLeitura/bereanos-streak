@@ -29,7 +29,7 @@ const RADIO: Record<TipoMeta, string> = {
   semanal: 'Páginas na semana',
   mensal: 'Páginas no mês',
   livro_total: 'Terminar o livro até uma data',
-  sessoes_semanais: 'Sessões de Pomodoro por semana',
+  sessoes_semanais: 'Sessões de foco por semana',
   dias_semanais: 'Dias de leitura por semana'
 }
 

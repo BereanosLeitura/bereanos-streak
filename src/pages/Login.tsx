@@ -77,7 +77,7 @@ export default function Login() {
       </div>
       {esqueci && (
         <div className="cartao p-4 mt-3 text-sm text-texto/80 dark:text-bege/80 animate-subir-suave">
-          Sem problema. Avise o admin do clube: ele gera uma senha temporária nova pelo próprio app e te manda no privado.
+          Sem problema. Avise o admin do clube: uma senha temporária nova é gerada pelo próprio app e enviada para você no privado.
           Ao entrar com ela, você cria uma senha sua de novo. Seus registros e anotações continuam todos aqui.
         </div>
       )}

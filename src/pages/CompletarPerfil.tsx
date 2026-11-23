@@ -108,7 +108,7 @@ export default function CompletarPerfil({ userId, onConcluido }: Props) {
             className="campo"
           />
           <p className="text-xs text-texto/65 dark:text-bege/55 mt-1.5">
-            Usado só para um destaque discreto de aniversário dentro do app.
+            Usada só para um destaque discreto de aniversário dentro do app.
           </p>
         </div>
 

@@ -46,7 +46,7 @@ src/
   lib/          regras e acesso a dados (regras.ts é coberto pelos testes)
   styles/       CSS e tema
 supabase/
-  migrations/   mudanças do banco, em ordem (0001 a 0022); não editar as já aplicadas
+  migrations/   mudanças do banco, em ordem (0001 a 0023); não editar as já aplicadas
   functions/    Edge Function admin-membros
   scripts/      SQL avulso, rodado uma vez (catálogo de conquistas, leituras antes do app)
 tests/          testes das regras (npm test)
@@ -68,7 +68,7 @@ Para conferir antes de o grupo ver, use o `Testar.bat`: ele confere tipos e test
 
 ## Banco de dados (Supabase)
 
-- As migrações de `supabase/migrations` já foram todas aplicadas, até a `0022` (corrige a ligação das reações do mural). Mudança nova no banco vira um arquivo novo (`0023_...sql`), rodado no SQL Editor **antes** de publicar o app que depende dele. Nunca edite uma migração antiga.
+- As migrações de `supabase/migrations` foram aplicadas até a `0022` (corrige a ligação das reações do mural). A `0023` só troca o texto de 4 conquistas de foco e pode rodar a qualquer momento. Mudança nova no banco vira um arquivo novo (`0024_...sql`), rodado no SQL Editor **antes** de publicar o app que depende dele. Nunca edite uma migração antiga.
 - `supabase/scripts` guarda SQL de uso único, já rodado; fica como registro.
 - A função `supabase/functions/admin-membros` roda no Supabase (Edge Functions). Para atualizar: painel do Supabase, Edge Functions, `admin-membros`, colar o `index.ts` e clicar em Deploy. Ela usa a `service_role key` do servidor, que nunca vai para o app.
 

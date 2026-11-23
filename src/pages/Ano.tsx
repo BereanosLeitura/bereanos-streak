@@ -183,7 +183,7 @@ export default function Ano({ perfil, onVoltar }: { perfil: Perfil; onVoltar: ()
   async function compartilhar(baixar = false) {
     if (!canvas.current) return
     const arq = await canvasParaArquivo(canvas.current, `meu-ano-de-leitura-${ano}.png`)
-    const legenda = `Meu ano de leitura em ${ano}: ${contar(d?.paginas ?? 0, 'página', 'páginas')}${d?.livros.length ? ` em ${d.livros.length} ${d.livros.length === 1 ? 'livro' : 'livros'}` : ''}. Ler, examinar, dialogar e aplicar. Clube do Livro Bereanos.`
+    const legenda = `Meu ano de leitura em ${ano}: ${contar(d?.paginas ?? 0, 'página', 'páginas')}${d?.livros.length ? ` em ${d.livros.length} ${d.livros.length === 1 ? 'livro' : 'livros'}` : ''}. Ler. Examinar. Dialogar. Aplicar. Clube do Livro Bereanos.`
     if (!baixar && navigator.canShare?.({ files: [arq] })) {
       try { await navigator.share({ files: [arq], text: legenda }); return } catch { return }
     }

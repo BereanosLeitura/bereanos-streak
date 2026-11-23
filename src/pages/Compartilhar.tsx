@@ -251,7 +251,7 @@ export default function Compartilhar({ perfil, livro, preCarga }: Props) {
       if (!t) return ''
       if (tipo === 'trecho') return `${entreAspas(t)}${fonte ? `\n${fonte}` : ''}\n\nLendo com o Clube do Livro Bereanos.`
       if (tipo === 'reflexao') return `${t}${autorTexto !== perfil.nome_exibicao ? `\n(${autorTexto})` : ''}\n\n${nomeLivro ? `Reflexão da leitura de ${nomeLivro}.\n` : ''}Clube do Livro Bereanos`
-      if (tipo === 'aplicacao') return `${t}\n\n${nomeLivro ? `O que levo para a vida da leitura de ${nomeLivro}.\n` : ''}Ler, examinar, dialogar e aplicar. Clube do Livro Bereanos`
+      if (tipo === 'aplicacao') return `${t}\n\n${nomeLivro ? `O que levo para a vida da leitura de ${nomeLivro}.\n` : ''}Ler. Examinar. Dialogar. Aplicar.\nClube do Livro Bereanos`
       return `${t}\n\n${nomeLivro ? `Uma pergunta da leitura de ${nomeLivro}. ` : ''}O que você acha?`
     }
     const de = nomeLivro ? ` ${nomeLivro}` : ' o livro do ciclo'
@@ -272,12 +272,16 @@ export default function Compartilhar({ perfil, livro, preCarga }: Props) {
           : ''
       case 'grupo':
         return panorama
-          ? `${contar(panorama.paginasGrupo, 'página lida', 'páginas lidas')} pelo clube${nomeLivro ? ` em ${nomeLivro}` : ''}, por ${panorama.leitores} ${panorama.leitores === 1 ? 'leitor' : 'leitores'}. Ler, examinar, dialogar e aplicar, no Clube do Livro Bereanos.`
+          ? `${contar(panorama.paginasGrupo, 'página lida', 'páginas lidas')} pelo clube${nomeLivro ? ` em ${nomeLivro}` : ''}, por ${panorama.leitores} ${panorama.leitores === 1 ? 'leitor' : 'leitores'}. Ler. Examinar. Dialogar. Aplicar. Clube do Livro Bereanos.`
           : ''
       case 'jornada':
         return `Minha jornada em${de}: página ${leitura.paginasLivro} de ${livro.paginas_totais}, ${leitura.pct}% do caminho. Uma página por vez, com o Clube do Livro Bereanos.`
       case 'bilhete':
-        return `Bilhete de leitura:${de}, página ${leitura.paginasLivro} de ${livro.paginas_totais}. Seguimos lendo com o Clube do Livro Bereanos.`
+        return `Meu bilhete de leitura de${de}: página ${leitura.paginasLivro} de ${livro.paginas_totais}. Seguimos lendo com o Clube do Livro Bereanos.`
+      case 'numeros':
+        return `Minha leitura de${de} em números: ${leitura.pct}% lido, página ${leitura.paginasLivro} de ${livro.paginas_totais}${livro.paginas_totais - leitura.paginasLivro > 0 ? `, ${contar(livro.paginas_totais - leitura.paginasLivro, 'página falta', 'páginas faltam')}` : ''}. Clube do Livro Bereanos.`
+      case 'marcador':
+        return `O marcador está na página ${leitura.paginasLivro} de${de}. Uma página por vez, com o Clube do Livro Bereanos.`
       case 'terminei':
         return `Terminei de ler${nomeLivro ? ` ${nomeLivro}` : ' mais um livro'}. ${livro.paginas_totais} páginas com o Clube do Livro Bereanos.`
       default:
