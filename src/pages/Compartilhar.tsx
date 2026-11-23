@@ -197,7 +197,8 @@ export default function Compartilhar({ perfil, livro, preCarga }: Props) {
     pct: leitura.pct,
     paginas: leitura.paginasLivro,
     total: livro.paginas_totais,
-    sequencia: leitura.seq.dias,
+    // quem escondeu a sequência não a vê nos cartões
+    sequencia: contagem ? leitura.seq.dias : 0,
     nome: mostrarNome ? perfil.nome_exibicao : null,
     foto,
     ajuste,

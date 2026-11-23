@@ -513,7 +513,11 @@ export default function Notas({ perfil, livro, inicial, onCompartilhar }: Props)
             <div className="relative h-7 mt-3">
               <div className="absolute inset-x-0 top-1/2 h-1 -translate-y-1/2 rounded-full bg-marinho/10 dark:bg-bege/10" />
               {leitura.paginasLivro > 0 && (
-                <div className="absolute left-0 top-1/2 h-1 -translate-y-1/2 rounded-full bg-dourado/40" style={{ width: `${Math.min(100, (leitura.paginasLivro / livro.paginas_totais) * 100)}%` }} />
+                <>
+                  <div className="absolute left-0 top-1/2 h-1 -translate-y-1/2 rounded-full bg-dourado/25" style={{ width: `${Math.min(100, (leitura.paginasLivro / livro.paginas_totais) * 100)}%` }} />
+                  {/* onde a pessoa está agora */}
+                  <div className="absolute top-0 bottom-0 w-0.5 -translate-x-1/2 rounded-full bg-marinho/60 dark:bg-bege/70" style={{ left: `${Math.min(100, (leitura.paginasLivro / livro.paginas_totais) * 100)}%` }} aria-hidden="true" />
+                </>
               )}
               {mapa.map((n) => (
                 <button key={n.id} type="button" onClick={() => { setOrdem('pagina'); setFiltro(n.tipo) }}

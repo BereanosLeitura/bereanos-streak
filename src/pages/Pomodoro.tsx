@@ -712,7 +712,7 @@ export default function Pomodoro({ perfil, livro, onFocoAtivo }: Props) {
                 if (alvo <= atual) return <p className="text-xs text-red-700 dark:text-red-400 mt-2">Você já está na página {atual}. Escolha uma página à frente.</p>
                 if (alvo > livro.paginas_totais) return <p className="text-xs text-red-700 dark:text-red-400 mt-2">O livro tem {livro.paginas_totais} páginas.</p>
                 const min = Math.max(1, Math.round((alvo - atual) * ritmo))
-                const cabe = config.modo === 'pomodoro' ? (min <= duracao ? 'Cabe nesta sessão.' : `Dá cerca de ${Math.ceil(min / duracao)} sessões de ${duracao} min.`) : ''
+                const cabe = config.modo === 'pomodoro' ? (min <= duracao ? 'Cabe nesta sessão.' : `Dá cerca de ${Math.max(2, Math.round(min / duracao))} sessões de ${duracao} min.`) : ''
                 return <p className="text-xs text-texto/70 dark:text-bege/65 mt-2">{contar(alvo - atual, 'página', 'páginas')}, cerca de {formatarTempo(min)} no seu ritmo. {cabe}</p>
               })()}
               {opcoes.length > 0 && !leitura.carregando && (

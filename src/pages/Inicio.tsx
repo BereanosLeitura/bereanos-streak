@@ -473,8 +473,8 @@ export default function Inicio({ perfil, livro, onIr, onPerfilAtualizado, onCont
                 })}
               </div>
               <dl className="grid grid-cols-3 gap-2 mt-4 pt-4 border-t border-marinho/[0.07] dark:border-bege/[0.08] text-center">
-                <Numero valor={leitura.paginasSemana} rotulo="páginas" />
-                <Numero valor={leitura.semana.filter((d) => d.paginas > 0).length} rotulo="dias com leitura" />
+                <Numero valor={leitura.paginasSemana} rotulo={leitura.paginasSemana === 1 ? 'página' : 'páginas'} />
+                <Numero valor={leitura.semana.filter((d) => d.paginas > 0).length} rotulo={leitura.semana.filter((d) => d.paginas > 0).length === 1 ? 'dia com leitura' : 'dias com leitura'} />
                 <Numero valor={leitura.minutosSemana} rotulo="min de leitura" />
               </dl>
             </>
@@ -981,7 +981,7 @@ function CartaoEncontro({ em, local, perguntas, onPerguntas, onAbrir }: { em: st
   dia.setHours(0, 0, 0, 0)
   const dias = Math.round((dia.getTime() - hoje.getTime()) / 86_400_000)
   if (dias < 0) return null
-  const quando = dias === 0 ? 'Hoje' : dias === 1 ? 'Amanhã' : `Em ${dias} dias`
+  const quando = dias === 0 ? 'hoje' : dias === 1 ? 'amanhã' : `daqui a ${dias} dias`
   return (
     <section className="cartao p-4 flex items-center gap-4 border-dourado/40">
       <div className="w-14 h-16 rounded-xl bg-marinho text-bege dark:bg-dourado dark:text-noite flex flex-col items-center justify-center shrink-0">
@@ -989,7 +989,7 @@ function CartaoEncontro({ em, local, perguntas, onPerguntas, onAbrir }: { em: st
         <span className="font-serif text-2xl leading-none">{data.getDate()}</span>
       </div>
       <div className="min-w-0">
-        <p className="text-sm font-semibold text-dourado-escuro dark:text-dourado">{quando}: próximo encontro</p>
+        <p className="text-sm font-semibold text-dourado-escuro dark:text-dourado">Próximo encontro: {quando}</p>
         <p className="text-[15px] text-marinho dark:text-bege first-letter:uppercase">
           {data.toLocaleDateString('pt-BR', { weekday: 'long' })}, às {data.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
         </p>

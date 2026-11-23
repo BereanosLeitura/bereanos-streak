@@ -1275,7 +1275,7 @@ export async function desenharLeitura(canvas: HTMLCanvasElement, modelo: ModeloL
       y += a.alturaTotal
     }
     const yIni = y + porFormato(80, 50, 40)
-    const yFim = z.base - porFormato(220, 180, 160)
+    const yFim = z.base - porFormato(300, 250, 220)
     const x = W * 0.34
     const linha = (y1: number, y2: number, cor: string) => {
       ctx.save(); ctx.strokeStyle = cor; ctx.lineWidth = 10; ctx.lineCap = 'round'
@@ -1305,8 +1305,8 @@ export async function desenharLeitura(canvas: HTMLCanvasElement, modelo: ModeloL
       texto1(ctx, `p. ${Math.round(d.paginas)}`, x - 40, yPct + 12, `700 34px ${SANS}`, P.escuro ? C.dourado : C.douradoEscuro, 'right')
       texto1(ctx, 'você está aqui', x - 40, yPct + 46, `400 22px ${SANS}`, P.fraco, 'right')
     }
-    texto1(ctx, `${pct}% do caminho`, W / 2, yFim + 96, `600 34px ${SANS}`, P.rotulo)
-    if (d.nome) texto1(ctx, d.nome, W / 2, yFim + 138, `400 26px ${SANS}`, P.fraco)
+    texto1(ctx, `${pct}% do caminho`, W / 2, yFim + 130, `600 34px ${SANS}`, P.rotulo)
+    if (d.nome) texto1(ctx, d.nome, W / 2, yFim + 172, `400 26px ${SANS}`, P.fraco)
     const hor = await logo('texto', P.logo)
     desenharLogo(ctx, hor, W / 2, z.base - 30, 200)
     return
@@ -1322,20 +1322,20 @@ export async function desenharLeitura(canvas: HTMLCanvasElement, modelo: ModeloL
     const cy = Math.max(z.topo, (H - ch) / 2 - porFormato(40, 0, 0))
     const corCartao = P.escuro ? '#F6F1E3' : '#1B2A4A'
     const Q = P.escuro ? PAL.bege : PAL.marinho // paleta do texto dentro do bilhete
+    // cor do fundo nos dois lados do picote, lida antes de desenhar o bilhete
+    const yCorte = cy + ch * 0.64
+    const corDe = (x: number) => { try { const p = ctx.getImageData(Math.round(x), Math.round(yCorte), 1, 1).data; return `rgb(${p[0]},${p[1]},${p[2]})` } catch { return P.fundo } }
+    const corEsq = corDe(cx - 40)
+    const corDir = corDe(cx + cw + 40)
     ctx.save()
     ctx.shadowColor = 'rgba(0,0,0,0.35)'; ctx.shadowBlur = 40; ctx.shadowOffsetY = 16
     retArredondado(ctx, cx, cy, cw, ch, 36)
     ctx.fillStyle = corCartao; ctx.fill()
     ctx.restore()
-    // recortes laterais e picote
-    const yCorte = cy + ch * 0.64
+    // recortes laterais (pintados com a cor do fundo) e picote
     ctx.save()
-    ctx.globalCompositeOperation = 'destination-out'
-    ctx.beginPath(); ctx.arc(cx, yCorte, 34, 0, Math.PI * 2); ctx.arc(cx + cw, yCorte, 34, 0, Math.PI * 2); ctx.fill()
-    ctx.restore()
-    ctx.save()
-    ctx.globalCompositeOperation = 'destination-over'
-    ctx.fillStyle = P.fundo; ctx.fillRect(0, 0, W, H)
+    ctx.fillStyle = corEsq; ctx.beginPath(); ctx.arc(cx, yCorte, 34, 0, Math.PI * 2); ctx.fill()
+    ctx.fillStyle = corDir; ctx.beginPath(); ctx.arc(cx + cw, yCorte, 34, 0, Math.PI * 2); ctx.fill()
     ctx.restore()
     ctx.save()
     ctx.strokeStyle = Q.trilho; ctx.lineWidth = 3; ctx.setLineDash([14, 12])
@@ -1444,7 +1444,7 @@ export async function desenharLeitura(canvas: HTMLCanvasElement, modelo: ModeloL
     let yt = y + 20
     const chamada = (grande: string, peq: string) => {
       texto1(ctx, grande, xt, yt + 70, `600 ${porFormato(84, 72, 60)}px ${SERIFA}`, P.escuro ? C.dourado : C.douradoEscuro, 'left', larg)
-      texto1(ctx, peq, xt, yt + 112, `500 26px ${SANS}`, P.suave, 'left', larg)
+      texto1(ctx, peq, xt, yt + 70 + porFormato(50, 44, 38), `500 26px ${SANS}`, P.suave, 'left', larg)
       yt += porFormato(170, 140, 116)
     }
     chamada(`${pct}%`, 'do livro lido')

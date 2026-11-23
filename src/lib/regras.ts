@@ -84,7 +84,8 @@ export function limitesDoPeriodo(inicio: string, fim: string): { de: string; ate
  * não vê “"assim"”. Tira aspas e espaços das pontas e põe um par só.
  */
 export function entreAspas(texto: string): string {
-  const limpo = texto.trim().replace(/^["“”'‘’«»]+/, '').replace(/["“”'‘’«»]+$/, '').trim()
+  // tira as aspas que a pessoa digitou, inclusive antes do ponto final ("texto".)
+  const limpo = texto.trim().replace(/^["“”'‘’«»]+/, '').replace(/["“”'‘’«»]+([.!?…]*)$/, '$1').trim()
   return `“${limpo}”`
 }
 

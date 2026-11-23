@@ -139,7 +139,7 @@ export default function Encontro({ perfil, livro, onVoltar, rotuloVoltar = 'Volt
           const ev = { titulo: `Encontro Bereanos: ${livro.titulo}`, local: livro.encontro_local ?? undefined, descricao: 'Encontro do Clube do Livro Bereanos.', inicio: new Date(livro.encontro_em), duracaoMin: 90 }
           return (
             <div className="cartao p-5 mt-4">
-              <p className="text-[15px] text-marinho dark:text-bege first-letter:uppercase">{new Date(livro.encontro_em).toLocaleString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' })}{livro.encontro_local ? `, ${livro.encontro_local}` : ''}</p>
+              <p className="text-[15px] text-marinho dark:text-bege first-letter:uppercase">{dataEncontro(livro.encontro_em)}{livro.encontro_local ? `, ${livro.encontro_local}` : ''}</p>
               <div className="grid grid-cols-2 gap-2 mt-3">
                 <a href={linkGoogleAgenda(ev)} target="_blank" rel="noopener" className="botao-secundario text-center text-sm">Google Agenda</a>
                 <button onClick={() => baixarIcs(ev, 'encontro-bereanos.ics')} className="botao-secundario text-sm">iPhone / outro</button>
@@ -170,7 +170,7 @@ export default function Encontro({ perfil, livro, onVoltar, rotuloVoltar = 'Volt
           <>
             <section className="cartao p-5 mt-5">
               <p className="font-serif text-xl text-marinho dark:text-bege first-letter:uppercase">
-                {new Date(enc.data).toLocaleString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' })}
+                {dataEncontro(enc.data)}
               </p>
               {enc.local && <p className="legenda mt-0.5">{enc.local}</p>}
               <dl className="grid grid-cols-2 gap-3 mt-4 text-sm">
@@ -194,7 +194,7 @@ export default function Encontro({ perfil, livro, onVoltar, rotuloVoltar = 'Volt
             <section className="cartao p-5 mt-4">
               <div className="flex items-baseline justify-between">
                 <h2 className="titulo-secao">Perguntas do mural</h2>
-                <span className="legenda">{enc.perguntas_discutidas.filter((id) => perguntas.some((p) => p.id === id)).length} de {perguntas.length}</span>
+                {perguntas.length > 0 && <span className="legenda">{enc.perguntas_discutidas.filter((id) => perguntas.some((p) => p.id === id)).length} de {perguntas.length} conversadas</span>}
               </div>
               {perguntas.length === 0 && <p className="legenda mt-2">Nenhuma pergunta no mural ainda.</p>}
               {perguntas.length > 0 && (
@@ -504,4 +504,10 @@ function MarcadasParaEncontro({ livroId }: { livroId: string }) {
       </ul>
     </section>
   )
+}
+
+/** "sábado, 5 de dezembro, às 15:00" */
+function dataEncontro(iso: string) {
+  const d = new Date(iso)
+  return `${d.toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' })}, às ${d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}`
 }

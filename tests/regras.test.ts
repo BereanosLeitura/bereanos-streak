@@ -179,6 +179,7 @@ test('rotulosMeses marca só a semana em que o mês muda', () => {
 
 test('entreAspas não dobra as aspas que a pessoa já digitou', () => {
   assert.equal(entreAspas('Texto simples'), '“Texto simples”')
+  assert.equal(entreAspas('“contra o Inimigo (Deus)".'), '“contra o Inimigo (Deus).”')
   assert.equal(entreAspas('"O traço mais repugnante "'), '“O traço mais repugnante”')
   assert.equal(entreAspas('“Já curvas”'), '“Já curvas”')
   assert.equal(entreAspas('  «Francesas»  '), '“Francesas”')
