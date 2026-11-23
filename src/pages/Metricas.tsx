@@ -206,7 +206,7 @@ function Grupo({ m, livro }: { m: MetricasGrupo; livro: LivroAtivo }) {
                   <span className="block text-marinho dark:text-bege">{formatarData(e.data, { day: 'numeric', month: 'long' })}</span>
                   <span className="block text-xs text-texto/65 dark:text-bege/55 truncate">{e.titulo}</span>
                 </span>
-                <span className="tabular text-texto/70 dark:text-bege/70 shrink-0">{e.presentes} {e.presentes === 1 ? 'presente' : 'presentes'}</span>
+                <span className="tabular text-texto/70 dark:text-bege/70 shrink-0">{e.presentes === 0 ? 'presença não marcada' : `${e.presentes} ${e.presentes === 1 ? 'presente' : 'presentes'}`}</span>
               </li>
             ))}
           </ul>

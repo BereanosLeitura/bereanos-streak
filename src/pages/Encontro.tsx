@@ -189,14 +189,15 @@ export default function Encontro({ perfil, livro, onVoltar, rotuloVoltar = 'Volt
               {admin && <EditarCabecalho enc={enc} membros={membros} onSalvar={(c) => atualizar(c, 'Encontro atualizado')} />}
             </section>
 
-            <Roteiro blocos={enc.roteiro.length ? enc.roteiro : ROTEIRO_PADRAO} podeEditar={podeEditar} onSalvar={(r) => atualizar({ roteiro: r }, 'Roteiro salvo')} />
+            <Roteiro blocos={enc.roteiro.length ? enc.roteiro : ROTEIRO_PADRAO} podeEditar={podeEditar} onSalvar={(r) => atualizar({ roteiro: r }, 'Roteiro salvo')}
+              realizado={new Date(enc.data).getTime() < Date.now() - 6 * 3_600_000} />
 
             <section className="cartao p-5 mt-4">
               <div className="flex items-baseline justify-between">
                 <h2 className="titulo-secao">Perguntas do mural</h2>
                 {perguntas.length > 0 && <span className="legenda">{enc.perguntas_discutidas.filter((id) => perguntas.some((p) => p.id === id)).length} de {perguntas.length} conversadas</span>}
               </div>
-              {perguntas.length === 0 && <p className="legenda mt-2">Nenhuma pergunta no mural ainda.</p>}
+              {perguntas.length === 0 && <p className="legenda mt-2">{new Date(enc.data).getTime() < Date.now() ? 'Nenhuma pergunta foi posta no mural deste livro.' : 'Nenhuma pergunta no mural ainda.'}</p>}
               {perguntas.length > 0 && (
                 <p className="legenda mt-1">
                   {pauta.length
@@ -329,7 +330,7 @@ function EditarCabecalho({ enc, membros, onSalvar }: { enc: EncontroRow; membros
   )
 }
 
-function Roteiro({ blocos, podeEditar, onSalvar }: { blocos: Bloco[]; podeEditar: boolean; onSalvar: (b: Bloco[]) => void }) {
+function Roteiro({ blocos, podeEditar, onSalvar, realizado }: { blocos: Bloco[]; podeEditar: boolean; onSalvar: (b: Bloco[]) => void; realizado?: boolean }) {
   const [lista, setLista] = useState<Bloco[]>(blocos)
   const [editando, setEditando] = useState(false)
   const [atual, setAtual] = useState<number | null>(null)
@@ -385,7 +386,7 @@ function Roteiro({ blocos, podeEditar, onSalvar }: { blocos: Bloco[]; podeEditar
               <>
                 <span className="flex-1 min-w-0 text-[15px] leading-snug text-marinho dark:text-bege">{b.titulo}</span>
                 <span className="text-sm tabular whitespace-nowrap text-texto/65 dark:text-bege/55">{b.minutos} min</span>
-                {atual === null && <button onClick={() => iniciar(i)} aria-label={`Iniciar ${b.titulo}`} className="text-xs font-semibold text-dourado-escuro dark:text-dourado px-1">Iniciar</button>}
+                {atual === null && !realizado && <button onClick={() => iniciar(i)} aria-label={`Iniciar ${b.titulo}`} className="text-xs font-semibold text-dourado-escuro dark:text-dourado px-1">Iniciar</button>}
               </>
             )}
           </li>

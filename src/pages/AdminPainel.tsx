@@ -183,7 +183,7 @@ function ComoEstaOCiclo({ livro, resumo }: { livro: LivroAtivo; resumo: ResumoCi
     [String(r.mediaPct) + '%', 'média lida'],
     [`${r.jaLeram} de ${r.comAcesso}`, 'já leram'],
     [String(r.terminaram), r.terminaram === 1 ? 'terminou' : 'terminaram'],
-    [r.diasRestantes === null ? '—' : String(r.diasRestantes), 'dias restantes']
+    [r.diasRestantes === null ? '—' : String(r.diasRestantes), r.diasRestantes === 1 ? 'dia restante' : 'dias restantes']
   ]
 
   return (
@@ -204,7 +204,7 @@ function ComoEstaOCiclo({ livro, resumo }: { livro: LivroAtivo; resumo: ResumoCi
           <div key={rot}>
             <dt className="sr-only">{rot}</dt>
             <dd className="font-serif text-xl text-marinho dark:text-bege tabular leading-none">{v}</dd>
-            <p className="text-[11px] text-texto/65 dark:text-bege/55 mt-1 leading-tight">{rot}</p>
+            <p aria-hidden="true" className="text-[11px] text-texto/65 dark:text-bege/55 mt-1 leading-tight">{rot}</p>
           </div>
         ))}
       </dl>
@@ -436,7 +436,7 @@ function Membros({ livroId, adminId, resumo }: { livroId: string | null; adminId
               <div key={rot} className="px-1">
                 <dt className="sr-only">{rot}</dt>
                 <dd className="font-serif text-xl text-marinho dark:text-bege tabular leading-none">{v}</dd>
-                <p className="text-[11px] text-texto/65 dark:text-bege/55 mt-1">{rot}</p>
+                <p aria-hidden="true" className="text-[11px] text-texto/65 dark:text-bege/55 mt-1">{rot}</p>
               </div>
             ))}
           </dl>

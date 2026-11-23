@@ -54,7 +54,7 @@ export default function CadernoAnotacoes({ perfil, livro, paginaAtual, onFechar 
         </button>
       </div>
       <div className="nao-imprimir max-w-[720px] mx-auto px-4 pt-3 text-xs text-texto/70 dark:text-bege/60 flex items-center justify-between gap-3">
-        <span>No celular, escolha "Salvar como PDF" na tela de impressão.</span>
+        <span>No celular, escolha “Salvar como PDF” na tela de impressão.</span>
         <label className="flex items-center gap-1.5 shrink-0 cursor-pointer select-none">
           <input type="checkbox" checked={comLinhas} onChange={(e) => setComLinhas(e.target.checked)} className="w-4 h-4 accent-[#B8912F]" />
           Página para o encontro

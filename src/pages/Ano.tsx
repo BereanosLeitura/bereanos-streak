@@ -283,7 +283,7 @@ export default function Ano({ perfil, onVoltar }: { perfil: Perfil; onVoltar: ()
                 ))}
               </div>
               {escolha === 'terminados' && terminadosLista.length === 0 && (
-                <p className="text-xs text-texto/65 dark:text-bege/55 mt-2">Quando você terminar um livro no app, ele entra aqui. Por enquanto, veja "Todos do ano".</p>
+                <p className="text-xs text-texto/65 dark:text-bege/55 mt-2">Quando você terminar um livro no app, ele entra aqui. Por enquanto, veja “Todos do ano”.</p>
               )}
               <div className="flex flex-wrap gap-2 mt-3">
                 {(['story', 'post', 'quadrado'] as Formato[]).map((f) => (

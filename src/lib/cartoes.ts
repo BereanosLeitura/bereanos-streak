@@ -1530,7 +1530,7 @@ export async function desenharLeitura(canvas: HTMLCanvasElement, modelo: ModeloL
     const simb = await logo('simbolo', 'branco')
     const hS = porFormato(110, 80, 60)
     desenharLogoAltura(ctx, simb, W / 2, y, hS)
-    y += hS + porFormato(60, 40, 30)
+    y += hS + porFormato(60, 50, 46)
     texto1(ctx, 'ESTOU AQUI', W / 2, y, `700 24px ${SANS}`, C.dourado)
     y += porFormato(150, 120, 100)
     texto1(ctx, `p. ${Math.round(d.paginas)}`, W / 2, y, `600 ${porFormato(130, 110, 90)}px ${SERIFA}`, cor)
@@ -1548,7 +1548,7 @@ export async function desenharLeitura(canvas: HTMLCanvasElement, modelo: ModeloL
     }
     if (d.nome && formato === 'story') texto1(ctx, d.nome, W / 2, fundoM - 170, `italic 400 30px ${SERIFA}`, 'rgba(246,241,227,0.8)', 'center', mw - 120)
     const hor = await logo('texto', P.logo)
-    desenharLogoAltura(ctx, hor, W - 70, H - porFormato(H - z.base + 20, 70, 60), 36, 'dir')
+    desenharLogoAltura(ctx, hor, W - 70, H - porFormato(H - z.base + 20, 84, 74), 48, 'dir')
     return
   }
 

@@ -573,7 +573,7 @@ export default function Notas({ perfil, livro, inicial, onCompartilhar }: Props)
         {notas !== null && visiveis.length === 0 && !erroTabela && (
           <Vazio
             titulo={busca || filtroSemResultado ? undefined : vista === 'minhas' ? 'Seu caderno começa aqui' : 'O mural está esperando'}
-            texto={busca ? 'Nada encontrado com essa busca.' : filtroSemResultado ? `Nada em "${ROTULO_FILTRO[filtro] ?? TIPOS[filtro as Tipo].plural}" por enquanto.` : vista === 'minhas' ? 'Marque o que te chamou atenção na leitura. Isso ajuda muito na hora do encontro.' : 'Ninguém pôs anotações deste livro no mural ainda. A primeira pode ser sua.'}
+            texto={busca ? 'Nada encontrado com essa busca.' : filtroSemResultado ? `Nada em “${ROTULO_FILTRO[filtro] ?? TIPOS[filtro as Tipo].plural}” por enquanto.` : vista === 'minhas' ? 'Marque o que te chamou atenção na leitura. Isso ajuda muito na hora do encontro.' : 'Ninguém pôs anotações deste livro no mural ainda. A primeira pode ser sua.'}
             acao={busca || filtroSemResultado
               ? <button onClick={() => { setBusca(''); setFiltro('todas') }} className="botao-texto">Limpar busca e filtro</button>
               : vista === 'minhas' ? <button onClick={abrirNova} className="botao-texto">Criar a primeira</button> : undefined}

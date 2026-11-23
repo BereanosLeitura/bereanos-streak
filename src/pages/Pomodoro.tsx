@@ -522,7 +522,7 @@ export default function Pomodoro({ perfil, livro, onFocoAtivo }: Props) {
             <button onClick={() => concluir(false)} disabled={salvando} className="botao-secundario">Só o tempo</button>
           </div>
           <p className="text-xs text-texto/65 dark:text-bege/55 mt-3">
-            "Só o tempo" converte os minutos em páginas pelo seu ritmo ({String(perfil.ritmo_leitura_min_por_pagina).replace('.', ',')} min por página).
+            “Só o tempo” converte os minutos em páginas pelo seu ritmo ({String(perfil.ritmo_leitura_min_por_pagina).replace('.', ',')} min por página).
           </p>
           <button onClick={() => (confirmando === 'descartar' ? cancelar() : setConfirmando('descartar'))}
             className={`text-sm mt-4 hover:underline underline-offset-4 ${confirmando === 'descartar' ? 'font-semibold text-red-700 dark:text-red-400' : 'text-texto/65 dark:text-bege/55'}`}>
@@ -794,7 +794,7 @@ export default function Pomodoro({ perfil, livro, onFocoAtivo }: Props) {
             </label>
             </>}
             <div className={`space-y-3 ${config.modo === 'pomodoro' ? 'pt-4 border-t border-marinho/[0.08] dark:border-bege/[0.08]' : ''}`}>
-              <p className="text-[15px] font-medium text-marinho dark:text-bege">Aviso quando o tempo acabar</p>
+              <p className="text-[15px] font-medium text-marinho dark:text-bege">{config.modo === 'pomodoro' ? 'Aviso quando o tempo acabar' : 'Aviso quando a pausa acabar'}</p>
               <label className="flex items-center justify-between gap-3 cursor-pointer">
                 <span className="text-sm text-texto/75 dark:text-bege/75">Tocar o sino</span>
                 <input type="checkbox" checked={config.sino} onChange={(e) => setConfig({ sino: e.target.checked })} className="w-5 h-5 accent-[#B8912F]" />
@@ -810,7 +810,7 @@ export default function Pomodoro({ perfil, livro, onFocoAtivo }: Props) {
                 Com o app em segundo plano, o aviso chega como notificação, se você permitiu.
               </p>
             </div>
-            <button onClick={() => setConfigEstado((c) => { const n = { ...CONFIG_PADRAO, modo: c.modo }; gravar(CHAVE_CONFIG, n); return n })} className="botao-texto text-xs">Voltar ao padrão (25/5/15, ciclo de 4, sino e vibração)</button>
+            <button onClick={() => setConfigEstado((c) => { const n = { ...CONFIG_PADRAO, modo: c.modo }; gravar(CHAVE_CONFIG, n); return n })} className="botao-texto text-xs">{config.modo === 'pomodoro' ? 'Voltar ao padrão (25/5/15, ciclo de 4, sino e vibração)' : 'Voltar ao padrão (sino e vibração ligados)'}</button>
           </section>
         )}
         <p className="text-xs text-texto/65 dark:text-bege/55 mt-3">Durante a sessão dá para pausar, anotar e ligar um som de fundo.</p>

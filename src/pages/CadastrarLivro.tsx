@@ -205,7 +205,7 @@ export default function CadastrarLivro({ adminId, onCriado }: Props) {
               ))}
             </ul>
             <p className="text-xs text-texto/65 dark:text-bege/55 text-center pt-1">
-              Não achou a edição certa? Use "Preencher manual".
+              Não achou a edição certa? Use “Preencher manual”.
             </p>
           </div>
         )}

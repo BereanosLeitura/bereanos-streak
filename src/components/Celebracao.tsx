@@ -92,7 +92,7 @@ export function TelaTerminei({ livro, doCiclo, onImagem, onAplicacao, onCaderno,
             </button>
           )}
           <button onClick={onImagem} className={`w-full rounded-xl font-semibold py-3.5 active:scale-[0.985] transition-transform ${doCiclo ? 'border border-bege/25 text-bege' : 'bg-dourado text-marinho'}`}>
-            Criar a imagem "Terminei"
+            Criar a imagem “Terminei”
           </button>
           {doCiclo && (
             <button onClick={onCaderno} className="w-full rounded-xl border border-bege/25 text-bege font-semibold py-3.5 active:scale-[0.985] transition-transform">

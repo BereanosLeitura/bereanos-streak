@@ -59,7 +59,7 @@ export default function Memoria({ onVoltar, rotuloVoltar = 'Voltar', onAbrirLivr
               <div key={r} className="px-2">
                 <dt className="sr-only">{r}</dt>
                 <dd className="font-serif text-2xl text-marinho dark:text-bege tabular leading-none">{v}</dd>
-                <p className="text-[11px] text-texto/65 dark:text-bege/55 mt-1.5 leading-tight">{r}</p>
+                <p aria-hidden="true" className="text-[11px] text-texto/65 dark:text-bege/55 mt-1.5 leading-tight">{r}</p>
               </div>
             ))}
           </dl>
